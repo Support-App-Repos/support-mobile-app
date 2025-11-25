@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>HM Awani Contact Support</title>
+    <style>
+      /* Global reset */
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      /* Body and container styles */
+      body {
+        font-family: "Arial", sans-serif;
+        background-color: #f7f8fc;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        margin: 0;
+      }
+
+      .support-container {
+        width: 100%;
+        max-width: 500px;
+        background-color: #ffffff;
+        padding: 25px;
+        border-radius: 8px;
+        box-shadow: 0 8px 15px rgba(0, 0, 0, 0.1);
+        overflow: hidden; /* Ensure that no elements overflow */
+      }
+
+      h1 {
+        text-align: center;
+        color: #333;
+        margin-bottom: 20px;
+        font-size: 24px;
+        font-weight: 600;
+      }
+
+      /* Form Elements */
+      label {
+        display: block;
+        font-size: 14px;
+        font-weight: 600;
+        margin-bottom: 5px;
+        color: #333;
+      }
+
+      input,
+      textarea {
+        width: 100%;
+        padding: 12px;
+        margin-bottom: 20px;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        font-size: 14px;
+        color: #333;
+        box-sizing: border-box; /* Include padding and border in the total width and height */
+      }
+
+      input:focus,
+      textarea:focus {
+        border-color: #4caf50;
+        outline: none;
+      }
+
+      /* Restrict the height of the textarea */
+      textarea {
+        resize: vertical; /* Allow vertical resizing only */
+        max-height: 250px; /* Set maximum height */
+      }
+
+      button {
+        width: 100%;
+        padding: 12px;
+        background-color: #4caf50;
+        color: white;
+        border: none;
+        border-radius: 6px;
+        font-size: 16px;
+        cursor: pointer;
+      }
+
+      button:hover {
+        background-color: #45a049;
+      }
+
+      /* Message feedback styles */
+      .message {
+        text-align: center;
+        margin-top: 15px;
+        padding: 10px;
+      }
+
+      .message.success {
+        color: green;
+      }
+
+      .message.error {
+        color: red;
+      }
+
+      /* Loading Spinner */
+      .loader {
+        border: 8px solid #f3f3f3;
+        border-top: 8px solid #4caf50;
+        border-radius: 50%;
+        width: 40px;
+        height: 40px;
+        animation: spin 2s linear infinite;
+        margin: 20px auto;
+        display: none; /* Hidden by default */
+      }
+
+      /* Style the select dropdown */
+      select {
+        width: 100%;
+        padding: 12px;
+        margin-bottom: 20px;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        font-size: 14px;
+        color: #333;
+        background-color: #ffffff;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        appearance: none; /* Remove default browser arrow */
+        background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg xmlns%3D%22http://www.w3.org/2000/svg%22 viewBox%3D%220 0 4 5%22%3E%3Cpath fill%3D%22%23333%22 d%3D%22M2 0L0 2h4z%22/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 12px top 50%;
+        background-size: 12px;
+        cursor: pointer;
+      }
+
+      select:focus {
+        border-color: #4caf50;
+        outline: none;
+      }
+
+      option {
+        padding: 10px;
+        color: #333;
+      }
+
+      @keyframes spin {
+        0% {
+          transform: rotate(0deg);
+        }
+        100% {
+          transform: rotate(360deg);
+        }
+      }
+
+      /* Media Query for responsiveness */
+      @media screen and (max-width: 480px) {
+        .support-container {
+          padding: 15px;
+          max-width: 90%;
+        }
+
+        h1 {
+          font-size: 20px;
+        }
+
+        input,
+        textarea {
+          font-size: 16px;
+          padding: 10px;
+        }
+
+        button {
+          font-size: 16px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="support-container">
+      <h1>HM Awani Contact Support</h1>
+      <form id="supportForm">
+        <label for="name">Your Name</label>
+        <input
+          type="text"
+          id="name"
+          name="name"
+          placeholder="Enter your name"
+          required
+        />
+
+        <label for="email">Your Email</label>
+        <input
+          type="email"
+          id="email"
+          name="email"
+          placeholder="Enter your email"
+          required
+        />
+
+        <label for="queryType">Query Type</label>
+        <select id="queryType" name="queryType" required>
+          <option value="" disabled selected>Select your query type</option>
+          <option value="delete">Delete Account</option>
+          <option value="archive">Archive Account</option>
+          <option value="other">Other</option>
+        </select>
+
+        <label for="query">Your Query</label>
+        <textarea
+          id="query"
+          name="query"
+          rows="6"
+          placeholder="Enter your query here..."
+          required
+        ></textarea>
+
+        <button type="submit">Send</button>
+      </form>
+      <div id="message" class="message"></div>
+      <div id="loader" class="loader"></div>
+      <!-- Loading spinner -->
+    </div>
+
+    <script>
+      document
+        .getElementById("queryType")
+        .addEventListener("change", function () {
+          const queryType = this.value;
+          const queryTextarea = document.getElementById("query");
+
+          // Update the textarea content based on the selected query type
+          if (queryType === "delete") {
+            queryTextarea.value = "I would like to delete my account.";
+            queryTextarea.setAttribute("readonly", true); // Make textarea readonly
+          } else if (queryType === "archive") {
+            queryTextarea.value = "I would like to archive my account.";
+            queryTextarea.setAttribute("readonly", true); // Make textarea readonly
+          } else {
+            queryTextarea.value = ""; // Clear the textarea
+            queryTextarea.removeAttribute("readonly"); // Allow user input
+          }
+        });
+
+      document
+        .getElementById("supportForm")
+        .addEventListener("submit", async function (event) {
+          event.preventDefault(); // Prevent the default form submission
+
+          const name = document.getElementById("name").value;
+          const email = document.getElementById("email").value;
+          const query = document.getElementById("query").value;
+
+          const messageDiv = document.getElementById("message");
+          const loaderDiv = document.getElementById("loader");
+
+          // Show the loader when the form is submitted
+          loaderDiv.style.display = "block";
+
+          try {
+            const response = await fetch("/send-email", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({ name, email, query }),
+            });
+
+            // Hide the loader when the API call is done
+            loaderDiv.style.display = "none";
+
+            if (response.ok) {
+              const result = await response.text();
+              messageDiv.textContent = result;
+              messageDiv.className = "message success";
+            } else {
+              const error = await response.text();
+              messageDiv.textContent = error;
+              messageDiv.className = "message error";
+            }
+          } catch (err) {
+            loaderDiv.style.display = "none";
+            messageDiv.textContent =
+              "An error occurred. Please try again later.";
+            messageDiv.className = "message error";
+          }
+        });
+    </script>
+  </body>
+</html>
