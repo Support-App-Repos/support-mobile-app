@@ -23,30 +23,50 @@ passport.use(
     },
     async (req, email, password, done) => {
       try {
-        const { phone, username, location } = req.body;
-        let data;
-        if (email && password && phone && username && location) {
-          data = {
-            username: username,
-            phone: phone,
-            email: email,
-            location: location,
-          }
-        } else {
-          throw new BadRequest('Bad Parameter');
+        const { phone, username, firstName, lastName, location } = req.body;
+        let data = {};
+        
+        // Make fields optional - only require email and password
+        if (username) data.username = username;
+        if (phone) data.phone = phone;
+        if (location) data.location = location;
+        
+        // Handle firstName and lastName separately
+        if (firstName) data.firstName = firstName.trim();
+        if (lastName) data.lastName = lastName.trim();
+        
+        // Generate displayName from firstName + lastName
+        if (firstName && lastName) {
+          data.displayName = `${firstName.trim()} ${lastName.trim()}`.trim();
+        } else if (firstName) {
+          data.displayName = firstName.trim();
+        } else if (lastName) {
+          data.displayName = lastName.trim();
+        } else if (username) {
+          // Fallback to username if firstName/lastName not provided
+          data.displayName = username.trim();
         }
+        
+        if (!email || !password) {
+          throw new BadRequest('Email and password are required');
+        }
+        
         const profile = await profileService.create({ email, password, ...data });
         if (profile) {
           try {
+            // Use displayName or firstName or username or email for email name
+            const nameForEmail = profile.displayName || profile.firstName || data?.username || email;
             emailService.sendUserRegisterEmail({
               email: email,
-              name: data?.username
+              name: nameForEmail
             });
           } catch (error) {
+            // Email sending failure shouldn't block registration
+            console.error('[Auth] Email send error:', error);
           }
         }
         const token = generateToken(profile);
-        return done(null, profile, { message: SUCCESS_MESSAGES.SIGN_UP, token });
+        return done(null, profile, { message: SUCCESS_MESSAGES.SIGN_UP || 'Sign up successful', token });
       } catch (error) {
         return done(error);
       }
@@ -63,12 +83,11 @@ passport.use(
       passReqToCallback: true
     },
     async (req, email, password, done) => {
-      const { userType } = req.body
       try {
-        if (!email && !password) {
-          throw new BadRequest('Bad Parameter');
+        if (!email || !password) {
+          throw new BadRequest('Email and password are required');
         }
-        let profile = await profileDal.getOneByEmail(email);
+        const profile = await profileDal.getOneByEmail(email);
         if (!profile) {
           return done(createError(404, ERRORS.USER_NOT_EXIST), null);
         }

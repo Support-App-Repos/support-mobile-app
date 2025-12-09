@@ -6,7 +6,11 @@ const { verifyToken, setTokenCookie, getTokenFromCookie } = require('./helpers/t
 const ignoredRoutes = [
   '/auth/signup',
   '/auth/signin',
+  '/auth/send-otp',
+  '/auth/verify-otp',
   '/auth/forgetPassword',
+  '/auth/reset-password',
+  '/auth/register-with-otp',
   '/profiles/resetPassword'
 ]
 
@@ -31,34 +35,59 @@ const addReqUser = async (req, res, next) => {
 }
 
 const jwtAuth = (req, res, next) => {
-  if (req.method == 'GET' || ignoredRoutes.includes(req.path)) {
+  const routePath = req.path.replace(/^\/api/, '') || req.path;
+  const originalPath = req.originalUrl || req.path;
+  
+  const isPublicRoute = 
+    req.method === 'GET' || 
+    ignoredRoutes.includes(routePath) || 
+    ignoredRoutes.includes(req.path) || 
+    ignoredRoutes.includes(originalPath) ||
+    routePath.startsWith('/auth/signup') ||
+    routePath.startsWith('/auth/signin') ||
+    routePath.startsWith('/auth/send-otp') ||
+    routePath.startsWith('/auth/verify-otp') ||
+    routePath.startsWith('/auth/forgetPassword') ||
+    routePath.startsWith('/auth/reset-password') ||
+    routePath.startsWith('/auth/register-with-otp');
+  
+  if (isPublicRoute) {
     return next();
   }
 
   const authStr = req.header('Authorization');
   if (authStr) {
     const token = authStr.split(' ')[1];
-    const user = verifyToken(token);
-    if (user) {
-      req.userPayload = user;
-      const cookie = setTokenCookie(token);
-      res.setHeader('Set-Cookie', cookie);
-      return next();
+    try {
+      const user = verifyToken(token);
+      if (user) {
+        req.userPayload = user;
+        const cookie = setTokenCookie(token);
+        res.setHeader('Set-Cookie', cookie);
+        return next();
+      }
+    } catch (error) {
+      // Invalid token, continue to check cookie
     }
-  } else {
-    throw new Unauthorized(ERRORS.UNAUTHORIZED);
   }
 
   const token = getTokenFromCookie(req);
   if (token) {
-    const user = verifyToken(token);
-    if (user) {
-      req.userPayload = user;
+    try {
+      const user = verifyToken(token);
+      if (user) {
+        req.userPayload = user;
+        return next();
+      }
+    } catch (error) {
+      // Invalid token
     }
-  } else {
-    throw new Unauthorized(ERRORS.UNAUTHORIZED);
   }
-  next();
+  
+  return res.status(401).json({
+    success: false,
+    message: 'Authentication required. Please login first.',
+  });
 };
 
 module.exports = {

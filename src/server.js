@@ -35,18 +35,29 @@ async function init() {
     'http://localhost:3000',
     'http://localhost:3001',
     'http://localhost:8080',
+    'http://localhost:19006', // Expo default port
+    'exp://localhost:19000', // Expo dev client
+    'http://10.0.2.2:8081', // Android emulator Metro bundler
+    'http://10.0.2.2:3000', // Android emulator backend
   ];
 
   if (NODE_ENV === 'development') {
-    allowedOrigins.push('http://localhost:3000', 'http://localhost:8080', 'http://localhost:3001');
+    // In development, allow all origins for easier testing
+    allowedOrigins.push('*');
   }
 
   const corsOptions = {
     origin: (origin, callback) => {
+      // In development, allow all origins
+      if (NODE_ENV === 'development') {
+        callback(null, true);
+        return;
+      }
+      // In production, check against allowed origins
       if (allowedOrigins.includes(origin) || !origin) {
         callback(null, true);
       } else {
-        callback(new Error(ERRORS.CORS_NOT_ALLOWED));
+        callback(new Error(ERRORS.CORS_NOT_ALLOWED || 'CORS not allowed'));
       }
     },
     credentials: true,
@@ -54,76 +65,141 @@ async function init() {
     allowedHeaders: 'Content-Type,Authorization,Origin,Accept,Content-Security-Policy',
   };
 
+  // Configure CORS first, before other middleware
   app.use(cors(corsOptions));
+
+  // Configure Helmet with CORS-friendly settings
+  app.use(helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+    crossOriginEmbedderPolicy: false,
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"], // Allow inline scripts for reset-password page
+        scriptSrcAttr: ["'self'", "'unsafe-inline'"], // Allow inline event handlers
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", "data:", "https:"],
+        connectSrc: ["'self'", "http://192.168.1.100:3000", "http://localhost:3000"], // Allow HTTP connections
+        fontSrc: ["'self'"],
+        objectSrc: ["'none'"],
+        mediaSrc: ["'self'"],
+        frameSrc: ["'none'"],
+        upgradeInsecureRequests: null, // Disable automatic HTTPS upgrade
+      },
+    },
+  }));
 
   app.use(passport.initialize());
   app.use(passport.session());
-
-  app.use(helmet());
-  app.use((req, res, next) => {
-    if (req.originalUrl === '/api/webhooks') {
-      next();
-    } else {
-      bodyParser.json({
-        limit: '50mb',
-      })(req, res, next); // ONLY do bodyParser.json() if the received request is NOT a WebHook from Stripe.
-    }
-  });
-  app.use(
-    bodyParser.urlencoded({
-      limit: '50mb',
-      extended: true,
-    }),
-  );
-
+  
+  // Body parser middleware - MUST be before routes
+  // Parse JSON bodies
+  app.use(bodyParser.json({
+    limit: '50mb',
+    type: 'application/json',
+  }));
+  
+  // Parse URL-encoded bodies
+  app.use(bodyParser.urlencoded({
+    limit: '50mb',
+    extended: true,
+    type: 'application/x-www-form-urlencoded',
+  }));
+  
   app.use(cookieParser());
 
+  // Additional CORS headers middleware (runs after cors() but ensures all headers are set)
   app.use(function (req, res, next) {
-
     const origin = req.headers.origin || '';
-    if (allowedOrigins.includes(origin)) {
+    
+    // In development, allow all origins
+    if (NODE_ENV === 'development') {
+      if (origin) {
+        res.setHeader('Access-Control-Allow-Origin', origin);
+      } else {
+        res.setHeader('Access-Control-Allow-Origin', '*');
+      }
+    } else if (allowedOrigins.includes(origin)) {
       res.setHeader('Access-Control-Allow-Origin', origin);
     }
+    
     res.setHeader(
       'Access-Control-Allow-Headers',
-      'content-type, authorization, origin, accept',
+      'Content-Type, Authorization, Origin, Accept, X-Requested-With',
     );
     res.setHeader(
       'Access-Control-Allow-Methods',
-      'POST, GET, DELETE, PUT, OPTIONS',
+      'GET, POST, PUT, DELETE, PATCH, OPTIONS, HEAD',
     );
     res.setHeader('Access-Control-Allow-Credentials', 'true');
-    // }
+    res.setHeader('Access-Control-Expose-Headers', 'Content-Length, Content-Type');
+    
+    // Handle preflight requests
+    if (req.method === 'OPTIONS') {
+      return res.status(200).end();
+    }
+    
     next();
   });
 
 
+  // Public routes that don't require authentication
+  const publicRoutes = [
+    '/api/auth/signup',
+    '/api/auth/signin',
+    '/api/auth/send-otp',
+    '/api/auth/verify-otp',
+    '/api/auth/forgetPassword',
+    '/api/auth/reset-password',
+    '/api/auth/register-with-otp',
+  ];
+
+  // Middleware to extract user from token (only for routes that have tokens)
   app.use(async function (req, res, next) {
+    const pathWithoutApi = req.path.replace(/^\/api/, '');
+    if (publicRoutes.includes(req.path) || 
+        publicRoutes.includes(pathWithoutApi) ||
+        req.path.startsWith('/api/auth/signup') ||
+        req.path.startsWith('/api/auth/signin') ||
+        req.path.startsWith('/api/auth/send-otp') ||
+        req.path.startsWith('/api/auth/verify-otp') ||
+        req.path.startsWith('/api/auth/forgetPassword') ||
+        req.path.startsWith('/api/auth/reset-password') ||
+        req.path.startsWith('/api/auth/register-with-otp')) {
+      return next();
+    }
+
     try {
       const authStr = req.header('Authorization');
       if (authStr) {
         const token = authStr.slice(7);
-        const isValid = verifyToken(token);
-        if (isValid) {
-          req.userPayload = isValid;
-          const cookie = setTokenCookie(token);
-          res.setHeader('Set-Cookie', cookie);
-          next();
-          return;
+        try {
+          const isValid = verifyToken(token);
+          if (isValid) {
+            req.userPayload = isValid;
+            const cookie = setTokenCookie(token);
+            res.setHeader('Set-Cookie', cookie);
+            return next();
+          }
+        } catch (error) {
+          // Invalid token, continue
         }
       }
 
       const token = getTokenFromCookie(req);
-
       if (token) {
-        const isValid = verifyToken(token);
-        if (isValid) {
-          req.userPayload = isValid;
+        try {
+          const isValid = verifyToken(token);
+          if (isValid) {
+            req.userPayload = isValid;
+          }
+        } catch (error) {
+          // Invalid token, continue
         }
       }
       next();
     } catch (err) {
-      next(err);
+      next();
     }
   });
 
@@ -167,13 +243,11 @@ async function init() {
   });
   app.get('/reset-password', (req, res) => {
     const filePath = path.join(__dirname, './views/reset-password.html');
-    console.log('Resolved file path:', filePath); // Add this to debug the path
     res.sendFile(filePath);
   });
 
   app.get('/support', (req, res) => {
     const filePath = path.join(__dirname, './views/support.html');
-    console.log('Resolved file path:', filePath); // Add this to debug the path
     res.sendFile(filePath);
   });
 
@@ -181,9 +255,30 @@ async function init() {
     res.sendStatus(200);
   });
 
+  // Test endpoint for connectivity verification
+  app.get('/api/test', (req, res) => {
+    res.json({ 
+      success: true, 
+      message: 'Backend is reachable!',
+      timestamp: new Date().toISOString(),
+    });
+  });
+
+  app.post('/api/test', (req, res) => {
+    res.json({ 
+      success: true, 
+      message: 'POST request received!',
+    });
+  });
+
   const httpServer = http.createServer(app);
-  httpServer.listen(PORT, () => {
+  httpServer.listen(PORT, "0.0.0.0", () => {
     console.log(`We have a ${NODE_ENV} server running on PORT: ${PORT}`);
+    console.log(`Server is listening on all interfaces (0.0.0.0:${PORT})`);
+    console.log(`Accessible via:`);
+    console.log(`  - http://localhost:${PORT} (local machine)`);
+    console.log(`  - http://10.0.2.2:${PORT} (Android emulator)`);
+    console.log(`  - http://<your-ip>:${PORT} (network devices)`);
   });
 }
 

@@ -26,6 +26,15 @@ const userSchema = new mongoose.Schema(
     username: {
       type: String,
     },
+    firstName: {
+      type: String,
+    },
+    lastName: {
+      type: String,
+    },
+    displayName: {
+      type: String,
+    },
     description: {
       type: String,
     },
@@ -66,6 +75,12 @@ const userSchema = new mongoose.Schema(
     },
     resetToken: {
       type: String,
+    },
+    otp: {
+      type: String,
+    },
+    otpExpires: {
+      type: Date,
     },
     updatedAt: {
       type: Date,

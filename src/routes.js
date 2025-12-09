@@ -1,38 +1,24 @@
 const router = require('express').Router();
 const authController = require('./controllers/authController');
-const productController = require('./controllers/productController');
 
 const { jwtAuth, addReqUser } = require('./middlewares');
 
-// Configure multer for file storage
-const multer = require('multer')
-const upload = multer();
-
-router.use(jwtAuth);
-router.use(addReqUser);
-
-/*======================== Auth =======================*/
-router.post('/auth/logout', authController.logout);
-
+// Public auth routes (no authentication required)
 router.post('/auth/signup', authController.signup);
 router.post('/auth/signin', authController.signin);
-router.post("/auth/forgetPassword", authController.forgetPassword);
 
-router.get('/auth/social', authController.socialAuthenticate);
-router.get('/auth/social/callback', authController.socialAuthenticateCallback);
+router.post('/auth/send-otp', authController.sendOTP);
+router.post('/auth/verify-otp', authController.verifyOTP);
+router.post('/auth/forgetPassword', authController.forgetPassword);
+router.post('/auth/reset-password', authController.resetPassword);
+router.post('/auth/register-with-otp', authController.registerWithOTP);
 
-router.get('/auth/tiktok', authController.tiktokSignIn);
-router.get('/auth/tiktok/callback/', authController.tiktokSignInCallback);
+// Protected routes (authentication required)
+router.use(jwtAuth);
 
-router.get('/auth/twitter/callback', authController.twitterSignInCallback);
+router.use(addReqUser);
 
-router.get('/auth/snapchat/callback', authController.snapchatSignInCallback);
-
-router.get('/auth/instagram', authController.instagramSignIn);
-router.get('/auth/instagram/callback', authController.instagramSignInCallback);
-
-/*======================== Products =======================*/
-router.put('/upload-images', upload.any(), productController.uploadImages);
+router.post('/auth/logout', authController.logout);
 
 module.exports = {
   router,
