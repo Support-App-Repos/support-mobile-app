@@ -1,82 +1,113 @@
 /**
- * API service for making HTTP requests
+ * API service for making HTTP requests using Axios
  */
 
+import axios, { AxiosInstance, AxiosError, AxiosRequestConfig } from 'axios';
 import { API_CONFIG, STORAGE_KEYS } from '../constants';
 import { ApiResponse } from '../types';
 import { Storage } from '../utils/storage';
 
 class ApiService {
   private baseURL: string;
+  private axiosInstance: AxiosInstance;
 
   constructor() {
     this.baseURL = API_CONFIG.BASE_URL;
-    console.log('[ApiService] Initialized with base URL:', this.baseURL);
+
+    // Create axios instance with default config
+    this.axiosInstance = axios.create({
+      baseURL: this.baseURL,
+      timeout: API_CONFIG.TIMEOUT,
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+    });
+
+    // Request interceptor to add auth token and ensure headers
+    this.axiosInstance.interceptors.request.use(
+      async (config: any) => {
+        // Ensure Content-Type and Accept headers are always set
+        if (!config.headers) {
+          config.headers = {};
+        }
+        config.headers['Content-Type'] = config.headers['Content-Type'] || 'application/json';
+        config.headers['Accept'] = config.headers['Accept'] || 'application/json';
+        
+        // Only add token if skipAuth is not set
+        if (!config.skipAuth) {
+          const token = await Storage.getItem(STORAGE_KEYS.USER_TOKEN);
+          if (token) {
+            config.headers.Authorization = `Bearer ${token}`;
+          }
+        } else {
+          // Remove Authorization header for public routes
+          delete config.headers.Authorization;
+        }
+        
+        // Remove skipAuth from config before sending (it's not a valid axios config)
+        delete config.skipAuth;
+        
+        return config;
+      },
+      (error) => {
+        return Promise.reject(error);
+      }
+    );
+
+    // Response interceptor for error handling
+    this.axiosInstance.interceptors.response.use(
+      (response) => {
+        return response;
+      },
+      (error: AxiosError) => {
+      // Handle network errors
+      if (!error.response) {
+        if (__DEV__) {
+          console.error('[API] Network Error:', error.message);
+        }
+        return Promise.reject(new Error('Network error: Unable to connect to server. Please check your internet connection and ensure the backend is running.'));
+      }
+      
+      if (__DEV__) {
+        console.error('[API] Error Response:', {
+          status: error.response.status,
+          statusText: error.response.statusText,
+          url: error.config?.url,
+        });
+      }
+        
+        // Handle 401 errors - extract actual error message from backend
+        if (error.response.status === 401) {
+          const errorData = error.response.data as any;
+          const message = errorData?.message || errorData?.error || 'Authentication failed. Please check your credentials.';
+          return Promise.reject(new Error(message));
+        }
+        
+        // Handle other HTTP errors
+        const errorData = error.response.data as any;
+        const message = errorData?.message || errorData?.error || error.message || `Request failed: ${error.response.status} ${error.response.statusText}`;
+        return Promise.reject(new Error(message));
+      }
+    );
   }
 
-  /**
-   * Get authentication token from storage
-   */
-  private async getToken(): Promise<string | null> {
-    return await Storage.getItem(STORAGE_KEYS.USER_TOKEN);
-  }
-
-  /**
-   * Get headers with authentication token
-   */
-  private async getHeaders(): Promise<HeadersInit> {
-    const token = await this.getToken();
-    const headers: HeadersInit = {
-      'Content-Type': 'application/json',
-    };
-
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-
-    return headers;
-  }
-
-  /**
-   * Parse JSON response safely
-   */
-  private async parseJSONResponse<T>(response: Response): Promise<T> {
-    // Clone response to read it without consuming the stream
-    const clonedResponse = response.clone();
-    const text = await clonedResponse.text();
-    
-    if (!text || text.trim() === '') {
-      console.warn('Empty response body');
-      return {} as T;
-    }
-    
-    try {
-      return JSON.parse(text);
-    } catch (error) {
-      console.error('JSON Parse Error:', error, 'Response text:', text.substring(0, 200));
-      throw new Error(`JSON Parse error: ${error instanceof Error ? error.message : 'Unexpected end of input'}`);
-    }
-  }
 
   /**
    * Make a GET request
    */
   async get<T>(endpoint: string): Promise<ApiResponse<T>> {
     try {
-      const headers = await this.getHeaders();
-      const response = await fetch(`${this.baseURL}${endpoint}`, {
-        method: 'GET',
-        headers,
-      });
-
-      const data = await this.parseJSONResponse<T>(response);
+      const response = await this.axiosInstance.get<T>(endpoint);
       return {
-        data,
-        success: response.ok,
-        message: data?.message || (response.ok ? 'Success' : 'Request failed'),
+        data: response.data,
+        success: true,
+        message: (response.data as any)?.message || 'Success',
       };
-    } catch (error) {
-      console.error('API GET Error:', error);
+    } catch (error: any) {
+      if (__DEV__) {
+        console.error('[API] GET Error:', error);
+      }
       throw error;
     }
   }
@@ -86,88 +117,33 @@ class ApiService {
    */
   async post<T>(endpoint: string, body: unknown, skipAuth: boolean = false): Promise<ApiResponse<T>> {
     try {
-      // For signup/login endpoints, don't include auth token
-      const headers = skipAuth 
-        ? { 'Content-Type': 'application/json' }
-        : await this.getHeaders();
+      const config: any = {
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+      };
       
-      const url = `${this.baseURL}${endpoint}`;
-      
-      console.log('API POST Request:', {
-        url,
-        endpoint,
-        body: JSON.stringify(body),
-        headers: JSON.stringify(headers),
-        skipAuth,
-        baseURL: this.baseURL,
-      });
-      
-      // Log headers separately for debugging
-      console.log('Request Headers:', headers);
-
-      const response = await fetch(url, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(body),
-      });
-
-      console.log('API POST Response:', {
-        status: response.status,
-        statusText: response.statusText,
-        ok: response.ok,
-        url: response.url,
-        headers: Object.fromEntries(response.headers.entries()),
-      });
-
-      // Handle 401 specifically - must read response before parsing (response can only be read once)
-      if (response.status === 401) {
-        let errorText = '';
-        let errorData: any = {};
-        
-        try {
-          errorText = await response.text();
-          console.error('401 Unauthorized Error Response:', errorText);
-          
-          if (errorText) {
-            try {
-              errorData = JSON.parse(errorText);
-            } catch {
-              // If not JSON, use the text as message
-              errorData = { message: errorText };
-            }
-          }
-        } catch (e) {
-          console.error('Error reading 401 response:', e);
-          errorData = { message: 'Unauthorized: Please check your credentials' };
-        }
-        
-        const errorMessage = errorData.message || errorData.error || 'Authentication failed: Please check your credentials or contact support';
-        throw new Error(errorMessage);
+      // Mark as skipAuth so interceptor knows not to add token
+      if (skipAuth) {
+        config.skipAuth = true;
       }
 
-      // Only parse JSON if not 401 (response stream already consumed for 401)
-      const data = await this.parseJSONResponse<T>(response);
-      
-      console.log('API POST Parsed Data:', data);
+      const response = await this.axiosInstance.post<T>(endpoint, body, config);
 
       return {
-        data,
-        success: response.ok,
-        message: data?.message || (response.ok ? 'Success' : `Request failed: ${response.status} ${response.statusText}`),
+        data: response.data,
+        success: true,
+        message: (response.data as any)?.message || 'Success',
       };
     } catch (error: any) {
-      console.error('API POST Error Details:', {
-        message: error.message,
-        stack: error.stack,
-        endpoint,
-        baseURL: this.baseURL,
-      });
-      
-      // Handle network errors
-      if (error.message?.includes('Network request failed') || error.message?.includes('Failed to fetch')) {
-        throw new Error('Network error: Unable to connect to server. Please check your internet connection and ensure the API server is running.');
+      if (__DEV__) {
+        console.error('[API] POST Error:', {
+          message: error.message,
+          endpoint,
+          status: error.response?.status,
+        });
       }
-      
       throw error;
     }
   }
@@ -177,21 +153,21 @@ class ApiService {
    */
   async put<T>(endpoint: string, body: unknown): Promise<ApiResponse<T>> {
     try {
-      const headers = await this.getHeaders();
-      const response = await fetch(`${this.baseURL}${endpoint}`, {
-        method: 'PUT',
-        headers,
-        body: JSON.stringify(body),
+      const response = await this.axiosInstance.put<T>(endpoint, body, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
       });
-
-      const data = await this.parseJSONResponse<T>(response);
       return {
-        data,
-        success: response.ok,
-        message: data?.message || (response.ok ? 'Success' : 'Request failed'),
+        data: response.data,
+        success: true,
+        message: (response.data as any)?.message || 'Success',
       };
-    } catch (error) {
-      console.error('API PUT Error:', error);
+    } catch (error: any) {
+      if (__DEV__) {
+        console.error('[API] PUT Error:', error);
+      }
       throw error;
     }
   }
@@ -201,20 +177,21 @@ class ApiService {
    */
   async delete<T>(endpoint: string): Promise<ApiResponse<T>> {
     try {
-      const headers = await this.getHeaders();
-      const response = await fetch(`${this.baseURL}${endpoint}`, {
-        method: 'DELETE',
-        headers,
+      const response = await this.axiosInstance.delete<T>(endpoint, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
       });
-
-      const data = await this.parseJSONResponse<T>(response);
       return {
-        data,
-        success: response.ok,
-        message: data?.message || (response.ok ? 'Success' : 'Request failed'),
+        data: response.data,
+        success: true,
+        message: (response.data as any)?.message || 'Success',
       };
-    } catch (error) {
-      console.error('API DELETE Error:', error);
+    } catch (error: any) {
+      if (__DEV__) {
+        console.error('[API] DELETE Error:', error);
+      }
       throw error;
     }
   }

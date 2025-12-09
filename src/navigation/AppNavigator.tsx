@@ -8,12 +8,10 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import {
   HomeScreen,
   LoginScreen,
-  RegisterOTPScreen,
   RegisterEmailScreen,
   ForgotPasswordScreen,
   PasswordChangedScreen,
   OTPVerificationScreen,
-  SetPasswordScreen,
 } from '../screens';
 import { RootStackParamList } from '../types';
 
@@ -33,10 +31,6 @@ export const AppNavigator: React.FC = () => {
           component={LoginScreen}
         />
         <Stack.Screen
-          name="RegisterOTP"
-          component={RegisterOTPScreen}
-        />
-        <Stack.Screen
           name="RegisterEmail"
           component={RegisterEmailScreen}
         />
@@ -51,10 +45,6 @@ export const AppNavigator: React.FC = () => {
         <Stack.Screen
           name="OTPVerification"
           component={OTPVerificationScreen}
-        />
-        <Stack.Screen
-          name="SetPassword"
-          component={SetPasswordScreen}
         />
         <Stack.Screen
           name="Home"

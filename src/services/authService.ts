@@ -14,48 +14,47 @@ class AuthService {
   async signup(data: {
     email: string;
     password: string;
-    username: string;
-    phone?: string;
-    location?: string;
+    firstName: string;
+    lastName: string;
   }): Promise<SignupResponse> {
     try {
-      // Skip auth for signup endpoint
-      const response = await apiService.post<SignupResponse>('/auth/signup', data, true);
+      // Send email, password, firstName, and lastName
+      const payload = {
+        email: data.email,
+        password: data.password,
+        firstName: data.firstName,
+        lastName: data.lastName,
+      };
       
-      console.log('Signup API Response:', {
-        success: response.success,
-        hasData: !!response.data,
-        hasToken: !!response.data?.token,
-        hasUser: !!response.data?.user,
-        data: response.data,
-      });
+      const response = await apiService.post<SignupResponse>('/auth/signup', payload, true);
+      const responseData = response.data as any;
       
-      // The API returns { success, token, user, message } directly
-      // response.data contains the SignupResponse
-      if (response.success && response.data) {
-        if (response.data.token) {
-          await Storage.setItem(STORAGE_KEYS.USER_TOKEN, response.data.token);
+      if (response.success && responseData) {
+        if (responseData.token) {
+          await Storage.setItem(STORAGE_KEYS.USER_TOKEN, responseData.token);
         }
-        if (response.data.user) {
-          await Storage.setObject(STORAGE_KEYS.USER_DATA, response.data.user);
+        if (responseData.user) {
+          await Storage.setObject(STORAGE_KEYS.USER_DATA, responseData.user);
         }
         
         // Return the data with success flag
         return {
-          success: response.data.success ?? response.success,
-          token: response.data.token,
-          user: response.data.user,
-          message: response.data.message || response.message,
+          success: responseData.success ?? response.success,
+          token: responseData.token,
+          user: responseData.user,
+          message: responseData.message || response.message,
         };
       }
       
       // If response is not successful, return error
       return {
         success: false,
-        message: response.data?.message || response.message || 'Registration failed',
+        message: responseData?.message || response.message || 'Registration failed',
       };
     } catch (error: any) {
-      console.error('Signup error:', error);
+      if (__DEV__) {
+        console.error('[Auth] Signup error:', error);
+      }
       throw error;
     }
   }
@@ -71,16 +70,21 @@ class AuthService {
         password,
       }, true);
       
-      if (response.success && response.data.token) {
-        await Storage.setItem(STORAGE_KEYS.USER_TOKEN, response.data.token);
-        if (response.data.user) {
-          await Storage.setObject(STORAGE_KEYS.USER_DATA, response.data.user);
+      // Axios wraps the response in response.data
+      const responseData = response.data as any;
+      
+      if (response.success && responseData?.token) {
+        await Storage.setItem(STORAGE_KEYS.USER_TOKEN, responseData.token);
+        if (responseData.user) {
+          await Storage.setObject(STORAGE_KEYS.USER_DATA, responseData.user);
         }
       }
       
-      return response.data;
+      return responseData || response.data;
     } catch (error) {
-      console.error('Signin error:', error);
+      if (__DEV__) {
+        console.error('[Auth] Signin error:', error);
+      }
       throw error;
     }
   }
@@ -94,7 +98,9 @@ class AuthService {
       const response = await apiService.post<OTPResponse>('/auth/send-otp', { phone }, true);
       return response.data;
     } catch (error) {
-      console.error('Send OTP error:', error);
+      if (__DEV__) {
+        console.error('[Auth] Send OTP error:', error);
+      }
       throw error;
     }
   }
@@ -104,7 +110,6 @@ class AuthService {
    */
   async verifyOTP(phone: string, otp: string, flow: 'login' | 'register' = 'login'): Promise<LoginResponse> {
     try {
-      // Skip auth for verify-otp endpoint
       const response = await apiService.post<LoginResponse>('/auth/verify-otp', {
         phone,
         otp,
@@ -120,7 +125,9 @@ class AuthService {
       
       return response.data;
     } catch (error) {
-      console.error('Verify OTP error:', error);
+      if (__DEV__) {
+        console.error('[Auth] Verify OTP error:', error);
+      }
       throw error;
     }
   }
@@ -136,7 +143,6 @@ class AuthService {
     email?: string;
   }): Promise<SignupResponse> {
     try {
-      // Skip auth for register-with-otp endpoint
       const response = await apiService.post<SignupResponse>('/auth/register-with-otp', data, true);
       
       if (response.success && response.data.token) {
@@ -148,7 +154,9 @@ class AuthService {
       
       return response.data;
     } catch (error) {
-      console.error('Register with OTP error:', error);
+      if (__DEV__) {
+        console.error('[Auth] Register with OTP error:', error);
+      }
       throw error;
     }
   }
@@ -158,13 +166,14 @@ class AuthService {
    */
   async forgotPassword(email: string): Promise<{ success: boolean; message?: string }> {
     try {
-      // Skip auth for forgot password endpoint
       const response = await apiService.post<{ success: boolean; message?: string }>('/auth/forgetPassword', {
         email,
       }, true);
       return response.data;
     } catch (error) {
-      console.error('Forgot password error:', error);
+      if (__DEV__) {
+        console.error('[Auth] Forgot password error:', error);
+      }
       throw error;
     }
   }
@@ -174,14 +183,15 @@ class AuthService {
    */
   async resetPassword(email: string, newPassword: string): Promise<{ success: boolean; message?: string }> {
     try {
-      // Skip auth for reset password endpoint (if using token, it should be in the body/query, not header)
       const response = await apiService.post<{ success: boolean; message?: string }>('/auth/reset-password', {
         email,
         newPassword,
       }, true);
       return response.data;
     } catch (error) {
-      console.error('Reset password error:', error);
+      if (__DEV__) {
+        console.error('[Auth] Reset password error:', error);
+      }
       throw error;
     }
   }
@@ -195,8 +205,9 @@ class AuthService {
       await Storage.removeItem(STORAGE_KEYS.USER_TOKEN);
       await Storage.removeItem(STORAGE_KEYS.USER_DATA);
     } catch (error) {
-      console.error('Logout error:', error);
-      // Clear storage even if API call fails
+      if (__DEV__) {
+        console.error('[Auth] Logout error:', error);
+      }
       await Storage.removeItem(STORAGE_KEYS.USER_TOKEN);
       await Storage.removeItem(STORAGE_KEYS.USER_DATA);
     }
@@ -226,6 +237,7 @@ class AuthService {
 }
 
 export const authService = new AuthService();
+
 
 
 

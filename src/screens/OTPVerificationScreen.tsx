@@ -15,9 +15,10 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { OTPInput, BackIcon } from '../components/common';
+import { OTPInput, BackIcon, LegalDocumentModal } from '../components/common';
 import { Colors, Spacing, BorderRadius, Typography } from '../config/theme';
 import { authService } from '../services';
+import { TERMS_AND_CONDITIONS_CONTENT, PRIVACY_POLICY_CONTENT } from '../constants';
 
 interface OTPVerificationScreenProps {
   navigation?: {
@@ -28,7 +29,7 @@ interface OTPVerificationScreenProps {
   route?: {
     params?: {
       phoneNumber?: string;
-      flow?: 'login' | 'register';
+      flow?: 'login';
     };
   };
 }
@@ -43,7 +44,10 @@ export const OTPVerificationScreen: React.FC<OTPVerificationScreenProps> = ({
   const [otpError, setOtpError] = useState(false);
   const [resendTimer, setResendTimer] = useState(60);
   const [canResend, setCanResend] = useState(false);
+  const [showTermsModal, setShowTermsModal] = useState(false);
+  const [showPrivacyModal, setShowPrivacyModal] = useState(false);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const isVerifyingRef = useRef<boolean>(false);
 
   useEffect(() => {
     // Start countdown timer
@@ -69,29 +73,20 @@ export const OTPVerificationScreen: React.FC<OTPVerificationScreenProps> = ({
   const handleOTPChange = (value: string) => {
     setOtp(value);
     setOtpError(false);
-    
-    // Auto-verify when 6 digits are entered
-    if (value.length === 6) {
-      verifyOTP(value);
-    }
   };
 
   const verifyOTP = async (otpValue: string) => {
+    
     try {
       const response = await authService.verifyOTP(phoneNumber, otpValue, flow);
       
       if (response.success) {
         setOtpError(false);
-        // Navigate based on flow
-        if (flow === 'login') {
-          navigation?.reset?.({
-            index: 0,
-            routes: [{ name: 'Home' }],
-          });
-        } else {
-          // For registration, navigate to set password
-          navigation?.navigate?.('SetPassword', { phoneNumber });
-        }
+        // Navigate to Home after successful login
+        navigation?.reset?.({
+          index: 0,
+          routes: [{ name: 'Home' }],
+        });
       } else {
         setOtpError(true);
         Alert.alert('Incorrect OTP', response.message || 'Please enter the correct OTP code.');
@@ -128,6 +123,14 @@ export const OTPVerificationScreen: React.FC<OTPVerificationScreenProps> = ({
       setOtpError(true);
       Alert.alert('Incomplete OTP', 'Please enter all 6 digits.');
     }
+  };
+
+  const handleTermsPress = () => {
+    setShowTermsModal(true);
+  };
+
+  const handlePrivacyPress = () => {
+    setShowPrivacyModal(true);
   };
 
   return (
@@ -188,11 +191,11 @@ export const OTPVerificationScreen: React.FC<OTPVerificationScreenProps> = ({
           <View style={styles.termsContainer}>
             <Text style={styles.termsText}>
               By continuing, you agree to our{' '}
-              <Text style={styles.linkText} onPress={() => {}}>
+              <Text style={styles.linkText} onPress={handleTermsPress}>
                 Terms and Conditions
               </Text>
               {' & '}
-              <Text style={styles.linkText} onPress={() => {}}>
+              <Text style={styles.linkText} onPress={handlePrivacyPress}>
                 Privacy Policy
               </Text>
             </Text>
@@ -215,6 +218,22 @@ export const OTPVerificationScreen: React.FC<OTPVerificationScreenProps> = ({
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Terms and Conditions Modal */}
+      <LegalDocumentModal
+        visible={showTermsModal}
+        title="Terms and Conditions"
+        content={TERMS_AND_CONDITIONS_CONTENT}
+        onClose={() => setShowTermsModal(false)}
+      />
+
+      {/* Privacy Policy Modal */}
+      <LegalDocumentModal
+        visible={showPrivacyModal}
+        title="Privacy Policy"
+        content={PRIVACY_POLICY_CONTENT}
+        onClose={() => setShowPrivacyModal(false)}
+      />
     </SafeAreaView>
   );
 };
@@ -335,6 +354,7 @@ const styles = StyleSheet.create({
     marginRight: Spacing.sm,
   },
   loginButtonArrow: {
+    marginBottom: 8,
     fontSize: 20,
     color: '#FFFFFF',
     fontWeight: '600',

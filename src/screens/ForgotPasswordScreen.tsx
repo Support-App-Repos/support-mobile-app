@@ -14,7 +14,6 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Input, BackIcon } from '../components/common';
-import { PasswordInput } from '../components/common/PasswordInput';
 import { Colors, Spacing, BorderRadius, Typography } from '../config/theme';
 import { isValidEmail } from '../utils/validation';
 import { authService } from '../services';
@@ -30,14 +29,11 @@ export const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({
   navigation,
 }) => {
   const [email, setEmail] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-
   const [errors, setErrors] = useState<{
     email?: string;
-    newPassword?: string;
-    confirmPassword?: string;
   }>({});
+  const [isLoading, setIsLoading] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
 
   const validateForm = () => {
     const newErrors: typeof errors = {};
@@ -48,35 +44,27 @@ export const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({
       newErrors.email = 'Please enter a valid email';
     }
 
-    if (!newPassword.trim()) {
-      newErrors.newPassword = 'Password is required';
-    } else if (newPassword.length < 8) {
-      newErrors.newPassword = 'Password must be at least 8 characters';
-    }
-
-    if (!confirmPassword.trim()) {
-      newErrors.confirmPassword = 'Please confirm your password';
-    } else if (newPassword !== confirmPassword) {
-      newErrors.confirmPassword = 'Passwords do not match';
-    }
-
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleUpdatePassword = async () => {
+  const handleSendResetEmail = async () => {
     if (validateForm()) {
+      setIsLoading(true);
+      setSuccessMessage('');
       try {
-        const response = await authService.resetPassword(email.trim(), newPassword);
+        const response = await authService.forgotPassword(email.trim());
         
         if (response.success) {
-          // Navigate to password changed success screen after successful update
-          navigation?.navigate?.('PasswordChanged');
+          setSuccessMessage('Password reset email sent! Please check your inbox and follow the instructions.');
+          setEmail('');
         } else {
-          setErrors({ ...errors, email: response.message || 'Failed to reset password' });
+          setErrors({ email: response.message || 'Failed to send reset email' });
         }
       } catch (error: any) {
-        setErrors({ ...errors, email: error.message || 'Failed to reset password. Please try again.' });
+        setErrors({ email: error.message || 'Failed to send reset email. Please try again.' });
+      } finally {
+        setIsLoading(false);
       }
     }
   };
@@ -107,11 +95,18 @@ export const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({
 
           {/* Section Header */}
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Verify account</Text>
+            <Text style={styles.sectionTitle}>Forgot password</Text>
             <Text style={styles.sectionDescription}>
-              Enter phone number & otp to update password.
+              Enter your email address and we'll send you a link to reset your password.
             </Text>
           </View>
+
+          {/* Success Message */}
+          {successMessage ? (
+            <View style={styles.successContainer}>
+              <Text style={styles.successText}>{successMessage}</Text>
+            </View>
+          ) : null}
 
           {/* Email Input */}
           <Input
@@ -123,54 +118,28 @@ export const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({
               if (errors.email) {
                 setErrors({ ...errors, email: undefined });
               }
+              if (successMessage) {
+                setSuccessMessage('');
+              }
             }}
             error={errors.email}
             keyboardType="email-address"
             autoCapitalize="none"
             autoCorrect={false}
+            editable={!isLoading}
           />
 
-          {/* New Password Input */}
-          <PasswordInput
-            label="Enter Password*"
-            placeholder="Enter Password"
-            value={newPassword}
-            onChangeText={(text) => {
-              setNewPassword(text);
-              if (errors.newPassword) {
-                setErrors({ ...errors, newPassword: undefined });
-              }
-              // Clear confirm password error if passwords match
-              if (text === confirmPassword && errors.confirmPassword) {
-                setErrors({ ...errors, confirmPassword: undefined });
-              }
-            }}
-            error={errors.newPassword}
-          />
-
-          {/* Confirm Password Input */}
-          <PasswordInput
-            label="Confirm Password*"
-            placeholder="Enter Password"
-            value={confirmPassword}
-            onChangeText={(text) => {
-              setConfirmPassword(text);
-              if (errors.confirmPassword) {
-                setErrors({ ...errors, confirmPassword: undefined });
-              }
-            }}
-            error={errors.confirmPassword}
-          />
-
-          {/* Update Password Button */}
+          {/* Send Reset Email Button */}
           <View style={styles.updateButtonContainer}>
             <TouchableOpacity
-              style={styles.updateButton}
-              onPress={handleUpdatePassword}
+              style={[styles.updateButton, isLoading && styles.updateButtonDisabled]}
+              onPress={handleSendResetEmail}
               activeOpacity={0.8}
+              disabled={isLoading}
             >
-              <Text style={styles.updateButtonText}>Update password</Text>
-              <Text style={styles.updateButtonArrow}>→</Text>
+              <Text style={styles.updateButtonText}>
+                {isLoading ? 'Sending...' : 'Send reset link'}
+              </Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -253,12 +222,20 @@ const styles = StyleSheet.create({
     ...Typography.body,
     color: '#FFFFFF',
     fontWeight: '600',
-    marginRight: Spacing.sm,
   },
-  updateButtonArrow: {
-    fontSize: 20,
-    color: '#FFFFFF',
-    fontWeight: '600',
+  updateButtonDisabled: {
+    opacity: 0.6,
+  },
+  successContainer: {
+    backgroundColor: '#E8F5E9',
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    marginBottom: Spacing.md,
+  },
+  successText: {
+    ...Typography.body,
+    color: '#2E7D32',
+    textAlign: 'center',
   },
 });
 

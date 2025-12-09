@@ -13,10 +13,11 @@ import {
   Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Input, SegmentedControl, PhoneNumberInput, OTPInput } from '../components/common';
+import { Input, SegmentedControl, PhoneNumberInput, OTPInput, LegalDocumentModal } from '../components/common';
 import { PasswordInput } from '../components/common/PasswordInput';
 import { Colors, Spacing, BorderRadius, Typography } from '../config/theme';
 import { authService } from '../services';
+import { TERMS_AND_CONDITIONS_CONTENT, PRIVACY_POLICY_CONTENT } from '../constants';
 
 interface LoginScreenProps {
   navigation?: {
@@ -29,6 +30,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
   const [loginMethod, setLoginMethod] = useState<'OTP' | 'Password'>('OTP');
   const [email, setEmail] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
+  const [countryCode, setCountryCode] = useState('+92'); // Default to Pakistan
   const [password, setPassword] = useState('');
   const [otp, setOtp] = useState('');
   const [emailError, setEmailError] = useState('');
@@ -37,6 +39,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
   const [otpSent, setOtpSent] = useState(false);
   const [resendTimer, setResendTimer] = useState(60);
   const [canResend, setCanResend] = useState(false);
+  const [showTermsModal, setShowTermsModal] = useState(false);
+  const [showPrivacyModal, setShowPrivacyModal] = useState(false);
 
   const handleGetCode = async () => {
     // Validate phone number
@@ -50,8 +54,11 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
     }
     setPhoneError('');
     
+    // Combine country code with phone number
+    const fullPhoneNumber = `${countryCode}${phoneNumber.replace(/\D/g, '')}`;
+    
     try {
-      const response = await authService.sendOTP(phoneNumber.trim());
+      const response = await authService.sendOTP(fullPhoneNumber);
       
       if (response.success) {
         setOtpSent(true);
@@ -76,8 +83,11 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
   };
 
   const verifyOTP = async (otpValue: string) => {
+    // Combine country code with phone number
+    const fullPhoneNumber = `${countryCode}${phoneNumber.replace(/\D/g, '')}`;
+    
     try {
-      const response = await authService.verifyOTP(phoneNumber.trim(), otpValue, 'login');
+      const response = await authService.verifyOTP(fullPhoneNumber, otpValue, 'login');
       
       if (response.success && response.token) {
         setOtpError(false);
@@ -94,8 +104,11 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
 
   const handleResendOTP = async () => {
     if (canResend) {
+      // Combine country code with phone number
+      const fullPhoneNumber = `${countryCode}${phoneNumber.replace(/\D/g, '')}`;
+      
       try {
-        const response = await authService.sendOTP(phoneNumber.trim());
+        const response = await authService.sendOTP(fullPhoneNumber);
         
         if (response.success) {
           setResendTimer(60);
@@ -179,22 +192,16 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
   };
 
   const handleRegister = () => {
-    // Navigate to appropriate register screen based on login method
-    if (loginMethod === 'OTP') {
-      navigation?.navigate?.('RegisterOTP');
-    } else {
-      navigation?.navigate?.('RegisterEmail');
-    }
+    // Navigate to email registration screen
+    navigation?.navigate?.('RegisterEmail');
   };
 
   const handleTermsPress = () => {
-    // Navigate to terms screen
-    console.log('Terms and Conditions');
+    setShowTermsModal(true);
   };
 
   const handlePrivacyPress = () => {
-    // Navigate to privacy policy screen
-    console.log('Privacy Policy');
+    setShowPrivacyModal(true);
   };
 
   return (
@@ -233,6 +240,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
                 if (phoneError) setPhoneError('');
               }}
               onGetCode={handleGetCode}
+              onCountryChange={(code, dialCode) => setCountryCode(dialCode)}
               error={phoneError}
             />
           )}
@@ -337,6 +345,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
           </View>
 
           {/* Register Link */}
+          {loginMethod === 'Password' &&
           <View style={styles.registerContainer}>
             <Text style={styles.registerText}>
               Don't have an account?{' '}
@@ -345,8 +354,25 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
               </Text>
             </Text>
           </View>
+          }
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Terms and Conditions Modal */}
+      <LegalDocumentModal
+        visible={showTermsModal}
+        title="Terms and Conditions"
+        content={TERMS_AND_CONDITIONS_CONTENT}
+        onClose={() => setShowTermsModal(false)}
+      />
+
+      {/* Privacy Policy Modal */}
+      <LegalDocumentModal
+        visible={showPrivacyModal}
+        title="Privacy Policy"
+        content={PRIVACY_POLICY_CONTENT}
+        onClose={() => setShowPrivacyModal(false)}
+      />
     </SafeAreaView>
   );
 };
@@ -473,6 +499,7 @@ const styles = StyleSheet.create({
     marginRight: Spacing.sm,
   },
   loginButtonArrow: {
+    marginBottom: 8,
     fontSize: 20,
     color: '#FFFFFF',
     fontWeight: '600',

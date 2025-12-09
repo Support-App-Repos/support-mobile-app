@@ -17,6 +17,7 @@
     "@react-native/new-app-screen": "0.82.1",
     "@react-navigation/native": "^6.1.9",
     "@react-navigation/native-stack": "^6.9.17",
+    "axios": "^1.13.2",
     "react": "19.1.1",
     "react-native": "0.82.1",
     "react-native-gesture-handler": "^2.16.1",

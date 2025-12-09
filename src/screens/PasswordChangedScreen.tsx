@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors, Spacing, BorderRadius, Typography } from '../config/theme';
+import { PasswordChangedIcon } from '../components/common';
 
 interface PasswordChangedScreenProps {
   navigation?: {
@@ -34,23 +35,20 @@ export const PasswordChangedScreen: React.FC<PasswordChangedScreenProps> = ({
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <View style={styles.content}>
-        {/* Success Icon */}
-        <View style={styles.iconContainer}>
-          {/* Outer light green circle */}
-          <View style={styles.outerCircle}>
-            {/* Inner dark green circle */}
-            <View style={styles.innerCircle}>
-              <Text style={styles.checkmark}>✓</Text>
-            </View>
+        {/* Centered Content */}
+        <View style={styles.centeredContent}>
+          {/* Success Icon */}
+          <View style={styles.iconContainer}>
+            <PasswordChangedIcon size={120} />
           </View>
-        </View>
 
-        {/* Success Message */}
-        <View style={styles.messageContainer}>
-          <Text style={styles.title}>Password Changed!</Text>
-          <Text style={styles.description}>
-            Your password has been changed successfully
-          </Text>
+          {/* Success Message */}
+          <View style={styles.messageContainer}>
+            <Text style={styles.title}>Password Changed!</Text>
+            <Text style={styles.description}>
+              Your password has been changed successfully
+            </Text>
+          </View>
         </View>
 
         {/* Back to Login Button */}
@@ -79,39 +77,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: Spacing.lg,
   },
+  centeredContent: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: '100%',
+  },
   iconContainer: {
     marginBottom: Spacing.xl,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  outerCircle: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: '#C1EBD0', // Light green outer circle
-    borderWidth: 3,
-    borderColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    opacity: 0.76, // Matching SVG opacity
-  },
-  innerCircle: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: '#49B66F', // Dark green inner circle
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  checkmark: {
-    fontSize: 48,
-    color: '#FFFFFF',
-    fontWeight: 'bold',
-    lineHeight: 48,
-  },
   messageContainer: {
     alignItems: 'center',
-    marginBottom: Spacing.xxl,
     paddingHorizontal: Spacing.md,
   },
   title: {
@@ -129,8 +107,8 @@ const styles = StyleSheet.create({
   },
   buttonContainer: {
     width: '100%',
-    marginTop: 'auto',
     paddingBottom: Spacing.xl,
+    marginTop: Spacing.xxl,
   },
   button: {
     backgroundColor: Colors.light.primary,

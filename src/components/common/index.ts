@@ -11,6 +11,8 @@ export { Checkbox } from './Checkbox';
 export { BackIcon } from './BackIcon';
 export { VisibilityIcon } from './VisibilityIcon';
 export { VisibilityOffIcon } from './VisibilityOffIcon';
+export { PasswordChangedIcon } from './PasswordChangedIcon';
 export { PhoneNumberInput } from './PhoneNumberInput';
 export { OTPInput } from './OTPInput';
+export { LegalDocumentModal } from './LegalDocumentModal';
 

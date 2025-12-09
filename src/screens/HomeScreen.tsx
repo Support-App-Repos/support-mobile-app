@@ -2,13 +2,65 @@
  * Home Screen
  */
 
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, Card } from '../components/common';
 import { Colors, Spacing, Typography } from '../config/theme';
+import { authService } from '../services';
+import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { RootStackParamList } from '../types';
 
-export const HomeScreen: React.FC = () => {
+type HomeScreenProps = NativeStackScreenProps<RootStackParamList, 'Home'>;
+
+export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  const handleLogout = async () => {
+    try {
+      setIsLoggingOut(true);
+      
+      // Call logout service
+      await authService.logout();
+      
+      // Reset navigation stack and navigate to Login screen
+      navigation?.reset({
+        index: 0,
+        routes: [{ name: 'Login' }],
+      });
+    } catch (error: any) {
+      console.error('Logout error:', error);
+      // Even if logout fails, clear local storage and navigate to login
+      await authService.logout(); // This will clear storage even if API fails
+      // Reset navigation stack and navigate to Login screen
+      navigation?.reset({
+        index: 0,
+        routes: [{ name: 'Login' }],
+      });
+    } finally {
+      setIsLoggingOut(false);
+    }
+  };
+
+  const confirmLogout = () => {
+    Alert.alert(
+      'Logout',
+      'Are you sure you want to logout?',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Logout',
+          style: 'destructive',
+          onPress: handleLogout,
+        },
+      ],
+      { cancelable: true }
+    );
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <ScrollView
@@ -29,12 +81,11 @@ export const HomeScreen: React.FC = () => {
 
         <View style={styles.actions}>
           <Button
-            title="Get Started"
-            onPress={() => {
-              // Handle button press
-              console.log('Button pressed');
-            }}
+            title="Logout"
+            onPress={confirmLogout}
             variant="primary"
+            loading={isLoggingOut}
+            disabled={isLoggingOut}
           />
         </View>
       </ScrollView>

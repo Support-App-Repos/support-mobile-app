@@ -7,16 +7,12 @@ export type RootStackParamList = {
   Home: undefined;
   Login: undefined;
   Register: undefined;
-  RegisterOTP: undefined;
   RegisterEmail: undefined;
   ForgotPassword: undefined;
   PasswordChanged: undefined;
   OTPVerification: {
     phoneNumber?: string;
-    flow?: 'login' | 'register';
-  };
-  SetPassword: {
-    phoneNumber?: string;
+    flow?: 'login';
   };
   // Add more screen params as needed
 };

@@ -13,12 +13,13 @@ import {
   Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Input, BackIcon } from '../components/common';
+import { Input, BackIcon, LegalDocumentModal } from '../components/common';
 import { PasswordInput } from '../components/common/PasswordInput';
 import { Checkbox } from '../components/common/Checkbox';
 import { Colors, Spacing, BorderRadius, Typography } from '../config/theme';
 import { isValidEmail } from '../utils/validation';
 import { authService } from '../services';
+import { TERMS_AND_CONDITIONS_CONTENT, PRIVACY_POLICY_CONTENT } from '../constants';
 
 interface RegisterEmailScreenProps {
   navigation?: {
@@ -34,6 +35,8 @@ export const RegisterEmailScreen: React.FC<RegisterEmailScreenProps> = ({ naviga
   const [password, setPassword] = useState('');
   const [marketingOptIn, setMarketingOptIn] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
+  const [showTermsModal, setShowTermsModal] = useState(false);
+  const [showPrivacyModal, setShowPrivacyModal] = useState(false);
   
   const [errors, setErrors] = useState<{
     firstName?: string;
@@ -79,32 +82,29 @@ export const RegisterEmailScreen: React.FC<RegisterEmailScreenProps> = ({ naviga
       // Clear previous errors
       setErrors({});
       
+      // Double-check password is not empty
+      if (!password || password.trim().length === 0) {
+        setErrors({ password: 'Password is required' });
+        return;
+      }
+      
       try {
-        console.log('Attempting registration with:', {
+        const signupData = {
           email: email.trim(),
-          username: `${firstName} ${lastName}`.trim(),
-        });
+          password: password.trim(),
+          firstName: firstName.trim(),
+          lastName: lastName.trim(),
+        };
 
-        const response = await authService.signup({
-          email: email.trim(),
-          password,
-          username: `${firstName} ${lastName}`.trim(),
-          location: '', // Add location field if needed
-        });
-        
-        console.log('Registration response:', response);
+        const response = await authService.signup(signupData);
         
         if (response.success && response.token) {
-          // Navigate to Home after successful registration
-          console.log('Registration successful, navigating to Home');
           navigation?.navigate?.('Home');
         } else {
           const errorMsg = response.message || 'Registration failed. Please check your information and try again.';
-          console.error('Registration failed:', errorMsg);
           setErrors({ email: errorMsg });
         }
       } catch (error: any) {
-        console.error('Registration error:', error);
         
         // Handle different error types
         let errorMessage = 'Registration failed. Please try again.';
@@ -137,13 +137,11 @@ export const RegisterEmailScreen: React.FC<RegisterEmailScreenProps> = ({ naviga
   };
 
   const handleTermsPress = () => {
-    // Navigate to terms screen
-    console.log('Terms and Conditions');
+    setShowTermsModal(true);
   };
 
   const handlePrivacyPress = () => {
-    // Navigate to privacy policy screen
-    console.log('Privacy Policy');
+    setShowPrivacyModal(true);
   };
 
   return (
@@ -300,6 +298,22 @@ export const RegisterEmailScreen: React.FC<RegisterEmailScreenProps> = ({ naviga
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Terms and Conditions Modal */}
+      <LegalDocumentModal
+        visible={showTermsModal}
+        title="Terms and Conditions"
+        content={TERMS_AND_CONDITIONS_CONTENT}
+        onClose={() => setShowTermsModal(false)}
+      />
+
+      {/* Privacy Policy Modal */}
+      <LegalDocumentModal
+        visible={showPrivacyModal}
+        title="Privacy Policy"
+        content={PRIVACY_POLICY_CONTENT}
+        onClose={() => setShowPrivacyModal(false)}
+      />
     </SafeAreaView>
   );
 };
@@ -403,6 +417,7 @@ const styles = StyleSheet.create({
     marginRight: Spacing.sm,
   },
   registerButtonArrow: {
+    marginBottom: 8,
     fontSize: 20,
     color: '#FFFFFF',
     fontWeight: '600',

@@ -38,6 +38,7 @@ interface PhoneNumberInputProps {
   error?: string;
   containerStyle?: ViewStyle;
   showGetCodeButton?: boolean;
+  onCountryChange?: (countryCode: string, dialCode: string) => void;
 }
 
 export const PhoneNumberInput: React.FC<PhoneNumberInputProps> = ({
@@ -48,6 +49,7 @@ export const PhoneNumberInput: React.FC<PhoneNumberInputProps> = ({
   error,
   containerStyle,
   showGetCodeButton = true,
+  onCountryChange,
 }) => {
   const [selectedCountry, setSelectedCountry] = useState<Country>(COUNTRIES[0]);
   const [showCountryPicker, setShowCountryPicker] = useState(false);
@@ -84,24 +86,6 @@ export const PhoneNumberInput: React.FC<PhoneNumberInputProps> = ({
           maxLength={15}
         />
 
-        {/* Get Code Button */}
-        {showGetCodeButton && (
-          <TouchableOpacity
-            style={styles.getCodeButton}
-            onPress={handleGetCode}
-            activeOpacity={0.7}
-            disabled={!value.trim()}
-          >
-            <Text
-              style={[
-                styles.getCodeText,
-                !value.trim() && styles.getCodeTextDisabled,
-              ]}
-            >
-              Get Code
-            </Text>
-          </TouchableOpacity>
-        )}
       </View>
       {error && <Text style={styles.errorText}>{error}</Text>}
 
@@ -128,6 +112,9 @@ export const PhoneNumberInput: React.FC<PhoneNumberInputProps> = ({
                   onPress={() => {
                     setSelectedCountry(item);
                     setShowCountryPicker(false);
+                    if (onCountryChange) {
+                      onCountryChange(item.code, item.dialCode);
+                    }
                   }}
                 >
                   <Text style={styles.countryFlag}>{item.flag}</Text>
