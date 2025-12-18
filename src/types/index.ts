@@ -14,6 +14,43 @@ export type RootStackParamList = {
     phoneNumber?: string;
     flow?: 'login';
   };
+  SelectCategory: undefined;
+  ProductListing: {
+    category?: string;
+  };
+  SelectEventType: {
+    category?: string;
+  };
+  EventListing: {
+    category?: string;
+    eventType?: string;
+  };
+  SelectServiceType: {
+    category?: string;
+  };
+  ServiceListing: {
+    category?: string;
+    serviceType?: string;
+  };
+  PropertyListing: {
+    category?: string;
+  };
+  Payment: {
+    listingData?: any;
+  };
+  SelectRegion: {
+    listingData?: any;
+    paymentData?: any;
+  };
+  Review: {
+    listingData?: any;
+    paymentData?: any;
+    regionData?: any;
+  };
+  Publish: {
+    listingId?: string;
+  };
+  Profile: undefined;
   // Add more screen params as needed
 };
 

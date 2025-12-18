@@ -1,94 +1,195 @@
 /**
- * Home Screen
+ * Home Screen - Marketplace Feed
  */
 
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Alert } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TextInput,
+  TouchableOpacity,
+  Dimensions,
+  Image
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Button, Card } from '../components/common';
-import { Colors, Spacing, Typography } from '../config/theme';
-import { authService } from '../services';
-import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { RootStackParamList } from '../types';
+import { HomeHeader, SearchIcon, ScanIcon } from '../components/common';
+import { CategoryTabs, ListingCard, type Category, type ListingCardData } from '../components/listings';
+import { BottomNavigation, type BottomNavItem } from '../components/navigation';
+import { Colors, Spacing, Typography, BorderRadius } from '../config/theme';
 
-type HomeScreenProps = NativeStackScreenProps<RootStackParamList, 'Home'>;
+type HomeScreenProps = {
+  navigation?: any;
+};
+
+const { width } = Dimensions.get('window');
+const CARD_WIDTH = (width - Spacing.md * 3) / 2; // Account for padding and gap
+
+// Mock data for listings
+const mockListings: ListingCardData[] = [
+  {
+    id: '1',
+    title: 'Modern Downtown Apartment',
+    price: '1,500',
+    image: 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=400',
+    rating: 35,
+    views: 147,
+    timePosted: '2 days ago',
+    category: 'Property',
+  },
+  {
+    id: '2',
+    title: 'Vintage Furniture Set',
+    price: '1,500',
+    image: 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=400',
+    rating: 28,
+    views: 89,
+    timePosted: '2 days ago',
+    category: 'Product',
+  },
+  {
+    id: '3',
+    title: 'Web Design Services',
+    price: '1,500',
+    priceUnit: 'hr',
+    image: 'https://images.unsplash.com/photo-1467232004584-a241de8bcf5d?w=400',
+    rating: 42,
+    views: 203,
+    timePosted: '1 day ago',
+    category: 'Services',
+  },
+  {
+    id: '4',
+    title: 'Photography Workshop',
+    price: '1,500',
+    image: 'https://images.unsplash.com/photo-1511578314322-379afb476865?w=400',
+    rating: 31,
+    views: 156,
+    timePosted: '3 days ago',
+    category: 'Events',
+  },
+  {
+    id: '5',
+    title: 'Modern Downtown Apartment',
+    price: '1,500',
+    image: 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=400',
+    rating: 35,
+    views: 147,
+    timePosted: '2 days ago',
+    category: 'Property',
+  },
+  {
+    id: '6',
+    title: 'Vintage Furniture Set',
+    price: '1,500',
+    image: 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=400',
+    rating: 28,
+    views: 89,
+    timePosted: '2 days ago',
+    category: 'Product',
+  },
+];
 
 export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
-  const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<Category>('All');
+  const [activeTab, setActiveTab] = useState<BottomNavItem>('Home');
+  const [searchQuery, setSearchQuery] = useState('');
 
-  const handleLogout = async () => {
-    try {
-      setIsLoggingOut(true);
-      
-      // Call logout service
-      await authService.logout();
-      
-      // Reset navigation stack and navigate to Login screen
-      navigation?.reset({
-        index: 0,
-        routes: [{ name: 'Login' }],
-      });
-    } catch (error: any) {
-      console.error('Logout error:', error);
-      // Even if logout fails, clear local storage and navigate to login
-      await authService.logout(); // This will clear storage even if API fails
-      // Reset navigation stack and navigate to Login screen
-      navigation?.reset({
-        index: 0,
-        routes: [{ name: 'Login' }],
-      });
-    } finally {
-      setIsLoggingOut(false);
+  const handleCategoryChange = (category: Category) => {
+    setSelectedCategory(category);
+    // TODO: Filter listings by category
+  };
+
+  const handleListingPress = (listing: ListingCardData) => {
+    // TODO: Navigate to listing detail screen
+    console.log('Listing pressed:', listing.id);
+  };
+
+  const handleCreatePress = () => {
+    navigation?.navigate('SelectCategory');
+  };
+
+  const handleTabPress = (tab: BottomNavItem) => {
+    setActiveTab(tab);
+    if (tab === 'Profile') {
+      navigation?.navigate('Profile');
     }
+    // TODO: Navigate to other respective screens
   };
 
-  const confirmLogout = () => {
-    Alert.alert(
-      'Logout',
-      'Are you sure you want to logout?',
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'Logout',
-          style: 'destructive',
-          onPress: handleLogout,
-        },
-      ],
-      { cancelable: true }
-    );
-  };
+  // Filter listings by category
+  const filteredListings = selectedCategory === 'All'
+    ? mockListings
+    : mockListings.filter(listing => listing.category === selectedCategory);
+
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
       >
+        {/* Header Section */}
         <View style={styles.header}>
-          <Text style={styles.title}>Welcome</Text>
-          <Text style={styles.subtitle}>React Native App</Text>
+          <View style={styles.titleRow}>
+            <Text style={styles.title}>Marketplace</Text>
+            <TouchableOpacity style={styles.profileButton} activeOpacity={0.7}>
+              <Image
+                source={{ uri: 'https://i.pravatar.cc/150?img=12' }}
+                style={styles.profileImage}
+              />
+            </TouchableOpacity>
+          </View>
+          
+          {/* Search Bar */}
+          <View style={styles.searchContainer}>
+            <View style={styles.scanIconContainer}>
+              <ScanIcon size={20} color="#797979" />
+            </View>
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Property"
+              placeholderTextColor={Colors.light.textSecondary}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+            />
+            <TouchableOpacity style={styles.searchButton} activeOpacity={0.7}>
+              <SearchIcon size={20} color="white" />
+            </TouchableOpacity>
+          </View>
         </View>
 
-        <Card>
-          <Text style={styles.cardTitle}>Getting Started</Text>
-          <Text style={styles.cardText}>
-            This is your home screen. Start building your app from here.
-          </Text>
-        </Card>
+        {/* Promotional Banner */}
+        {/* <HomeHeader onCreatePress={handleCreatePress} /> */}
+        <Image source={require('../assets/images/home_header.png')} />
 
-        <View style={styles.actions}>
-          <Button
-            title="Logout"
-            onPress={confirmLogout}
-            variant="primary"
-            loading={isLoggingOut}
-            disabled={isLoggingOut}
-          />
+        {/* Category Tabs */}
+        <CategoryTabs
+          selectedCategory={selectedCategory}
+          onCategoryChange={handleCategoryChange}
+        />
+
+        {/* Listings Grid */}
+        <View style={styles.listingsContainer}>
+          <View style={styles.listingsGrid}>
+            {filteredListings.map((listing) => (
+              <View key={listing.id} style={styles.cardWrapper}>
+                <ListingCard listing={listing} onPress={handleListingPress} />
+              </View>
+            ))}
+          </View>
         </View>
       </ScrollView>
+
+      {/* Bottom Navigation */}
+      <BottomNavigation
+        activeTab={activeTab}
+        onTabPress={handleTabPress}
+        onCreatePress={handleCreatePress}
+        showCreateButton={true}
+      />
     </SafeAreaView>
   );
 };
@@ -102,34 +203,82 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    padding: Spacing.md,
+    paddingBottom: Spacing.xl,
   },
   header: {
-    marginBottom: Spacing.xl,
+    paddingHorizontal: Spacing.md,
+    paddingTop: Spacing.md,
+    paddingBottom: Spacing.sm,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: Spacing.md,
   },
   title: {
     ...Typography.h1,
     color: Colors.light.text,
-    marginBottom: Spacing.xs,
+    fontWeight: '700',
   },
-  subtitle: {
+  profileButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: Colors.light.primary,
+  },
+  profileImage: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.light.background,
+    borderRadius: 9999, // Pill shape
+    borderWidth: 1,
+    borderColor: '#E5E7EB', // Light border
+    paddingLeft: Spacing.md,
+    paddingRight: 0, // No padding on right, button will extend
+    height: 48,
+    overflow: 'hidden',
+  },
+  scanIconContainer: {
+    marginRight: Spacing.sm,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  searchInput: {
+    flex: 1,
     ...Typography.body,
-    color: Colors.light.textSecondary,
-  },
-  cardTitle: {
-    ...Typography.h3,
     color: Colors.light.text,
-    marginBottom: Spacing.sm,
+    paddingVertical: 0,
+    paddingHorizontal: Spacing.xs,
+    fontSize: 14,
   },
-  cardText: {
-    ...Typography.body,
-    color: Colors.light.textSecondary,
+  searchButton: {
+    width: 55,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: Colors.light.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 0,
   },
-  actions: {
-    marginTop: Spacing.lg,
+  listingsContainer: {
+    paddingHorizontal: Spacing.md,
+    marginTop: Spacing.sm,
+  },
+  listingsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
+  cardWrapper: {
+    width: CARD_WIDTH,
+    marginBottom: Spacing.md,
   },
 });
-
-
-
