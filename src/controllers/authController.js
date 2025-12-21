@@ -1,8 +1,12 @@
-const passport = require('passport');
+/**
+ * Auth Controller - Prisma Version
+ * Updated to use Prisma ORM and OtpVerification model
+ * Uses MongoDB directly for writes to bypass replica set requirement
+ */
+
+const { prisma } = require('../lib/prisma');
+const { getMongoDb, getCollection } = require('../lib/mongodb');
 const { COMMON, ERRORS } = require('../consts');
-const {
-  profileDal,
-} = require('../dal');
 const {
   Unauthorized,
   UnprocessableEntity,
@@ -13,53 +17,111 @@ const emailService = require('../helpers/email');
 const smsService = require('../helpers/sms');
 const { generateToken, verifyToken } = require('../helpers/token');
 const { getHashPasswordAndSalt, validatePassword } = require('../helpers/auth/user');
-const { profileService } = require('../services/profileService');
 
 const authController = {};
 
 // Email/Password Signup
 authController.signup = async (req, res, next) => {
   try {
-    // Set CORS headers explicitly
     const origin = req.headers.origin;
     if (origin) {
       res.setHeader('Access-Control-Allow-Origin', origin);
     }
     res.setHeader('Access-Control-Allow-Credentials', 'true');
     
-    passport.authenticate('signup', async (error, user, info) => {
-      try {
-        if (error) {
-          return res.status(error?.status || 500).json({ 
-            success: false, 
-            message: error.message 
-          });
-        }
-        if (!user || !info) {
-          return res.status(400).json({ 
-            success: false, 
-            message: 'Signup failed. Please check your information.' 
-          });
-        }
-        return res.status(200).json({ 
-          success: true, 
-          user, 
-          token: info.token,
-          message: info.message 
-        });
-      } catch (error) {
-        console.error('[Auth] Signup error:', error);
-        return res.status(500).json({ 
-          success: false, 
-          message: ERRORS.SIGN_UP || 'Signup failed' 
-        });
-      }
-    })(req, res, next);
+    const { email, password, phoneNumber, firstName, lastName, username } = req.body;
+    
+    if (!email || !password) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Email and password are required' 
+      });
+    }
+
+    // Get MongoDB database and collection
+    const userCollection = await getCollection('User');
+
+    // Check if user already exists
+    const existingUser = await userCollection.findOne({
+      $or: [
+        { email: email.toLowerCase() },
+        ...(phoneNumber ? [{ phone_number: phoneNumber }] : [])
+      ]
+    });
+
+    if (existingUser) {
+      return res.status(409).json({ 
+        success: false, 
+        message: 'User already exists with this email or phone number' 
+      });
+    }
+
+    // Hash password
+    const { password: hashedPassword, salt } = await getHashPasswordAndSalt(password);
+    
+    // Build fullName from firstName and lastName
+    let fullName = null;
+    if (firstName && lastName) {
+      fullName = `${firstName.trim()} ${lastName.trim()}`.trim();
+    } else if (firstName) {
+      fullName = firstName.trim();
+    } else if (lastName) {
+      fullName = lastName.trim();
+    } else if (username) {
+      fullName = username.trim();
+    }
+
+    // Create user using MongoDB directly (bypasses replica set requirement)
+    const userData = {
+      email: email.toLowerCase(),
+      phone_number: phoneNumber || null,
+      password_hash: `${hashedPassword}:${salt}`, // Store hash:salt together
+      full_name: fullName,
+      is_verified: false,
+      is_active: true,
+      created_at: new Date(),
+      updated_at: new Date(),
+    };
+
+    const result = await userCollection.insertOne(userData);
+    const createdUser = await userCollection.findOne({ _id: result.insertedId });
+
+    // Format user response
+    const user = {
+      id: createdUser._id.toString(),
+      email: createdUser.email,
+      phoneNumber: createdUser.phone_number,
+      fullName: createdUser.full_name,
+      profileImageUrl: createdUser.profile_image_url || null,
+      isVerified: createdUser.is_verified,
+      isActive: createdUser.is_active,
+      createdAt: createdUser.created_at,
+    };
+
+    // Send welcome email
+    try {
+      const nameForEmail = fullName || email;
+      await emailService.sendUserRegisterEmail({
+        email: email,
+        name: nameForEmail
+      });
+    } catch (error) {
+      console.error('[Auth] Email send error:', error);
+    }
+
+    const token = generateToken(user);
+    
+    return res.status(200).json({ 
+      success: true, 
+      user, 
+      token,
+      message: 'Sign up successful' 
+    });
   } catch (error) {
-    console.error('[Auth] Signup controller error:', error);
+    console.error('[Auth] Signup error:', error);
     return res.status(500).json({ 
       success: false, 
-      message: ERRORS.SIGN_UP || 'Signup failed' 
+      message: error.message || ERRORS.SIGN_UP || 'Signup failed' 
     });
   }
 };
@@ -73,39 +135,72 @@ authController.signin = async (req, res, next) => {
     }
     res.setHeader('Access-Control-Allow-Credentials', 'true');
     
-    passport.authenticate('signin', async (error, user, info) => {
-      try {
-        if (error) {
-          return res.status(error?.status || 500).json({ 
-            success: false, 
-            message: error.message 
-          });
-        }
-        if (!user || !info) {
-          return res.status(400).json({ 
-            success: false, 
-            message: 'Login failed. Please check your credentials.' 
-          });
-        }
-        return res.status(200).json({ 
-          success: true, 
-          user, 
-          token: info.token,
-          message: info.message 
-        });
-      } catch (error) {
-        console.error('[Auth] Signin error:', error);
-        return res.status(500).json({ 
-          success: false, 
-          message: ERRORS.SIGN_IN || 'Signin failed' 
-        });
-      }
-    })(req, res, next);
-  } catch (err) {
-    console.error('[Auth] Signin controller error:', err);
+    const { email, password } = req.body;
+    
+    if (!email || !password) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Email and password are required' 
+      });
+    }
+
+    // Get MongoDB collection
+    const userCollection = await getCollection('User');
+
+    const userDoc = await userCollection.findOne({ email: email.toLowerCase() });
+
+    if (!userDoc) {
+      return res.status(404).json({ 
+        success: false, 
+        message: ERRORS.USER_NOT_EXIST || 'User not found' 
+      });
+    }
+
+    // Extract hash and salt from passwordHash
+    if (!userDoc.password_hash || !userDoc.password_hash.includes(':')) {
+      return res.status(401).json({ 
+        success: false, 
+        message: 'Invalid password format' 
+      });
+    }
+
+    const [storedHash, salt] = userDoc.password_hash.split(':');
+    const userWithSalt = { ...userDoc, password: storedHash, salt };
+
+    const isValid = validatePassword(userWithSalt, password);
+    
+    // Format user response
+    const user = {
+      id: userDoc._id.toString(),
+      email: userDoc.email,
+      phoneNumber: userDoc.phone_number,
+      fullName: userDoc.full_name,
+      profileImageUrl: userDoc.profile_image_url || null,
+      isVerified: userDoc.is_verified,
+      isActive: userDoc.is_active,
+      createdAt: userDoc.created_at,
+    };
+    
+    if (!isValid) {
+      return res.status(401).json({ 
+        success: false, 
+        message: ERRORS.INCORRECT_EMAIL_OR_PASSWORD || 'Incorrect email or password' 
+      });
+    }
+
+    const token = generateToken(user);
+    
+    return res.status(200).json({ 
+      success: true, 
+      user, 
+      token,
+      message: 'Login successful' 
+    });
+  } catch (error) {
+    console.error('[Auth] Signin error:', error);
     return res.status(500).json({ 
       success: false, 
-      message: ERRORS.SIGN_IN || 'Signin failed' 
+      message: error.message || ERRORS.SIGN_IN || 'Signin failed' 
     });
   }
 };
@@ -113,7 +208,7 @@ authController.signin = async (req, res, next) => {
 // Send OTP to phone number
 authController.sendOTP = async (req, res) => {
   try {
-    const { phone } = req.body;
+    const { phone, purpose = 'registration' } = req.body;
     
     if (!phone) {
       return res.status(400).json({ 
@@ -124,36 +219,36 @@ authController.sendOTP = async (req, res) => {
 
     // Generate 6-digit OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const otpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
-    // Find or create user by phone
-    let user = await profileDal.Model.findOne({ phone });
-    
-    if (!user) {
-      // Create new user with phone
-      user = await profileDal.Model.create({
-        phone,
-        key: `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        otp,
-        otpExpires,
-      });
-    } else {
-      // Update existing user's OTP
-      user.otp = otp;
-      user.otpExpires = otpExpires;
-      await user.save();
-    }
+    // Get MongoDB collection
+    const otpCollection = await getCollection('OtpVerification');
 
-    // Send OTP via Twilio SMS service
+    // Delete any existing unverified OTPs for this phone
+    await otpCollection.deleteMany({
+      phone_number: phone,
+      is_verified: false,
+      expires_at: { $gt: new Date() }
+    });
+
+    // Create new OTP record using MongoDB directly
+    await otpCollection.insertOne({
+      phone_number: phone,
+      otp_code: otp,
+      purpose: purpose, // 'login', 'registration', 'password_reset'
+      is_verified: false,
+      expires_at: expiresAt,
+      created_at: new Date(),
+    });
+
+    // Send OTP via SMS
     try {
       await smsService.sendOTP(phone, otp);
     } catch (smsError) {
       console.error('[Auth] SMS send error:', smsError);
-      // In development, still return success and log OTP
       if (process.env.NODE_ENV === 'development') {
         console.log(`[Auth] OTP for ${phone}: ${otp}`);
       } else {
-        // In production, return error if SMS fails
         return res.status(500).json({ 
           success: false, 
           message: 'Failed to send OTP via SMS. Please try again later.' 
@@ -179,7 +274,7 @@ authController.sendOTP = async (req, res) => {
 // Verify OTP
 authController.verifyOTP = async (req, res) => {
   try {
-    const { phone, otp, flow } = req.body;
+    const { phone, otp, flow = 'login' } = req.body;
     
     if (!phone || !otp) {
       return res.status(400).json({ 
@@ -188,43 +283,86 @@ authController.verifyOTP = async (req, res) => {
       });
     }
 
-    const user = await profileDal.Model.findOne({ phone });
+    // Get MongoDB collection
+    const otpCollection = await getCollection('OtpVerification');
+
+    // Find the most recent unverified OTP for this phone
+    const otpRecords = await otpCollection.find({
+      phone_number: phone,
+      is_verified: false,
+      expires_at: { $gt: new Date() }
+    }).sort({ created_at: -1 }).limit(1).toArray();
     
-    if (!user) {
+    if (!otpRecords || otpRecords.length === 0) {
       return res.status(404).json({ 
         success: false, 
-        message: 'User not found' 
+        message: 'OTP not found or expired. Please request a new OTP.' 
       });
     }
 
-    if (!user.otp || user.otp !== otp) {
+    const otpRecord = otpRecords[0];
+
+    if (otpRecord.otp_code !== otp) {
       return res.status(401).json({ 
         success: false, 
         message: 'Invalid OTP' 
       });
     }
 
-    if (!user.otpExpires || new Date() > user.otpExpires) {
-      return res.status(401).json({ 
-        success: false, 
-        message: 'OTP has expired' 
-      });
-    }
-
-    user.otp = undefined;
-    user.otpExpires = undefined;
-    await user.save();
+    // Mark OTP as verified
+    await otpCollection.updateOne(
+      { _id: otpRecord._id },
+      { $set: { is_verified: true } }
+    );
 
     if (flow === 'login') {
-      const token = generateToken(user.toJSON());
+      const userCollection = await getCollection('User');
+      
+      // Find or create user
+      let userDoc = await userCollection.findOne({ phone_number: phone });
+
+      if (!userDoc) {
+        // Create user if doesn't exist (for login flow)
+        const newUserData = {
+          phone_number: phone,
+          is_verified: true,
+          is_active: true,
+          created_at: new Date(),
+          updated_at: new Date(),
+        };
+        const result = await userCollection.insertOne(newUserData);
+        userDoc = await userCollection.findOne({ _id: result.insertedId });
+      } else {
+        // Update user verification status
+        await userCollection.updateOne(
+          { _id: userDoc._id },
+          { $set: { is_verified: true, updated_at: new Date() } }
+        );
+        userDoc = await userCollection.findOne({ _id: userDoc._id });
+      }
+
+      // Format user response
+      const user = {
+        id: userDoc._id.toString(),
+        email: userDoc.email || null,
+        phoneNumber: userDoc.phone_number,
+        fullName: userDoc.full_name || null,
+        profileImageUrl: userDoc.profile_image_url || null,
+        isVerified: userDoc.is_verified,
+        isActive: userDoc.is_active,
+        createdAt: userDoc.created_at,
+      };
+
+      const token = generateToken(user);
       return res.status(200).json({ 
         success: true, 
         message: 'OTP verified successfully',
         token,
-        user: user.toJSON()
+        user
       });
     }
 
+    // For registration flow, just verify OTP (password will be set in registerWithOTP)
     return res.status(200).json({ 
       success: true, 
       message: 'OTP verified successfully' 
@@ -234,6 +372,105 @@ authController.verifyOTP = async (req, res) => {
     return res.status(500).json({ 
       success: false, 
       message: 'Failed to verify OTP' 
+    });
+  }
+};
+
+// Register with OTP - Set password after OTP verification
+authController.registerWithOTP = async (req, res) => {
+  try {
+    const { phone, password, firstName, lastName, email } = req.body;
+    
+    if (!phone || !password) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Phone number and password are required' 
+      });
+    }
+
+    // Get MongoDB collection
+    const otpCollection = await getCollection('OtpVerification');
+    const userCollection = db.collection('User');
+
+    // Check if OTP was verified
+    const verifiedOtps = await otpCollection.find({
+      phone_number: phone,
+      is_verified: true,
+      purpose: 'registration'
+    }).sort({ created_at: -1 }).limit(1).toArray();
+
+    if (!verifiedOtps || verifiedOtps.length === 0) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Please verify OTP first' 
+      });
+    }
+
+    // Check if user already exists
+    let userDoc = await userCollection.findOne({ phone_number: phone });
+
+    if (!userDoc) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'User not found. Please verify OTP first.' 
+      });
+    }
+
+    // Hash password
+    const { password: hashedPassword, salt } = await getHashPasswordAndSalt(password);
+    
+    // Build fullName
+    let fullName = userDoc.full_name;
+    if (firstName && lastName) {
+      fullName = `${firstName.trim()} ${lastName.trim()}`.trim();
+    } else if (firstName) {
+      fullName = firstName.trim();
+    } else if (lastName) {
+      fullName = lastName.trim();
+    }
+
+    // Update user
+    const updateData = {
+      password_hash: `${hashedPassword}:${salt}`,
+      is_verified: true,
+      updated_at: new Date(),
+    };
+
+    if (fullName) updateData.full_name = fullName;
+    if (email) updateData.email = email.toLowerCase();
+
+    await userCollection.updateOne(
+      { _id: userDoc._id },
+      { $set: updateData }
+    );
+
+    userDoc = await userCollection.findOne({ _id: userDoc._id });
+
+    // Format user response
+    const user = {
+      id: userDoc._id.toString(),
+      email: userDoc.email || null,
+      phoneNumber: userDoc.phone_number,
+      fullName: userDoc.full_name || null,
+      profileImageUrl: userDoc.profile_image_url || null,
+      isVerified: userDoc.is_verified,
+      isActive: userDoc.is_active,
+      createdAt: userDoc.created_at,
+    };
+
+    const token = generateToken(user);
+
+    return res.status(200).json({ 
+      success: true, 
+      message: 'Registration completed successfully',
+      token,
+      user
+    });
+  } catch (error) {
+    console.error('[Auth] Register with OTP error:', error);
+    return res.status(500).json({ 
+      success: false, 
+      message: 'Failed to complete registration' 
     });
   }
 };
@@ -258,39 +495,39 @@ authController.forgetPassword = async (req, res) => {
       });
     }
 
-    let profile = await profileDal.getOneByEmail(email);
-    if (!profile) {
+    // Get MongoDB collection
+    const userCollection = await getCollection('User');
+
+    const user = await userCollection.findOne({ email: email.toLowerCase() });
+
+    if (!user) {
       return res.status(404).json({ 
         success: false, 
-        message: ERRORS.USER_NOT_EXIST 
+        message: ERRORS.USER_NOT_EXIST || 'User not found' 
       });
     }
     
-    const resetToken = generateToken(profile);
+    const resetToken = generateToken(user);
     
-    // Build reset URL - prioritize SERVER_URL, then SERVER_IP, then HOST
+    // Build reset URL
     let resetPageUrl;
     if (process.env.SERVER_URL) {
-      // Use SERVER_URL if explicitly set (best for production)
       resetPageUrl = `${process.env.SERVER_URL}/reset-password?${COMMON.RESET_TOKEN}=${resetToken}`;
     } else if (process.env.SERVER_IP) {
-      // Use SERVER_IP if set (for development with network access)
       const port = process.env.PORT || 3000;
       resetPageUrl = `http://${process.env.SERVER_IP}:${port}/reset-password?${COMMON.RESET_TOKEN}=${resetToken}`;
     } else if (process.env.HOST && !process.env.HOST.includes('localhost')) {
-      // Use HOST if it's not localhost
       resetPageUrl = `${process.env.HOST}/reset-password?${COMMON.RESET_TOKEN}=${resetToken}`;
     } else {
-      // Default: use IP address (192.168.1.100) for network accessibility
       const port = process.env.PORT || 3000;
-      const serverIP = '192.168.1.100'; // Your machine's IP address
+      const serverIP = '192.168.1.100';
       resetPageUrl = `http://${serverIP}:${port}/reset-password?${COMMON.RESET_TOKEN}=${resetToken}`;
     }
     
     try {
       await emailService.sendResetPasswordEmail({
-        email: profile.email,
-        recipientFirstName: profile.displayName || profile.firstName || profile.username || 'User',
+        email: user.email,
+        recipientFirstName: user.fullName || user.email || 'User',
         resetPageUrl
       });
     } catch (emailError) {
@@ -343,19 +580,24 @@ authController.resetPassword = async (req, res) => {
     }
 
     const email = decodedToken.sub.email;
-    const profile = await profileDal.getOneByEmail(email);
-    if (!profile) {
+    
+    // Get MongoDB collection
+    const userCollection = await getCollection('User');
+
+    const user = await userCollection.findOne({ email: email.toLowerCase() });
+
+    if (!user) {
       return res.status(404).json({ 
         success: false, 
         message: 'User not found' 
       });
     }
 
-    const { password, salt } = await getHashPasswordAndSalt(newPassword);
+    const { password: hashedPassword, salt } = await getHashPasswordAndSalt(newPassword);
     
-    await profileDal.Model.updateOne(
-      { email },
-      { password, salt, resetToken: undefined }
+    await userCollection.updateOne(
+      { _id: user._id },
+      { $set: { password_hash: `${hashedPassword}:${salt}`, updated_at: new Date() } }
     );
 
     return res.status(200).json({ 
@@ -371,67 +613,5 @@ authController.resetPassword = async (req, res) => {
   }
 };
 
-// Register with OTP - Set password after OTP verification
-authController.registerWithOTP = async (req, res) => {
-  try {
-    const { phone, password, firstName, lastName, email } = req.body;
-    
-    if (!phone || !password) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Phone number and password are required' 
-      });
-    }
-
-    const user = await profileDal.Model.findOne({ phone });
-    
-    if (!user) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'User not found. Please verify OTP first.' 
-      });
-    }
-
-    const { password: hashedPassword, salt } = await getHashPasswordAndSalt(password);
-    
-    const updateData = {
-      password: hashedPassword,
-      salt,
-      otp: undefined,
-      otpExpires: undefined,
-    };
-
-    if (firstName) updateData.firstName = firstName.trim();
-    if (lastName) updateData.lastName = lastName.trim();
-    
-    if (firstName && lastName) {
-      updateData.displayName = `${firstName.trim()} ${lastName.trim()}`.trim();
-    } else if (firstName) {
-      updateData.displayName = firstName.trim();
-    } else if (lastName) {
-      updateData.displayName = lastName.trim();
-    }
-    
-    if (email) updateData.email = email.toLowerCase();
-
-    await profileDal.Model.updateOne({ phone }, updateData);
-    
-    const updatedUser = await profileDal.Model.findOne({ phone });
-    const token = generateToken(updatedUser.toJSON());
-
-    return res.status(200).json({ 
-      success: true, 
-      message: 'Registration completed successfully',
-      token,
-      user: updatedUser.toJSON()
-    });
-  } catch (error) {
-    console.error('[Auth] Register with OTP error:', error);
-    return res.status(500).json({ 
-      success: false, 
-      message: 'Failed to complete registration' 
-    });
-  }
-};
-
 module.exports = authController;
+

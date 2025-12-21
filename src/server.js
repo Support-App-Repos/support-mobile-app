@@ -108,6 +108,18 @@ async function init() {
   
   app.use(cookieParser());
 
+  // Stripe webhook route (must be before JSON body parser - uses raw body)
+  app.post(
+    '/api/stripe/webhook',
+    express.raw({ type: 'application/json' }),
+    (req, res, next) => {
+      // Store raw body for webhook signature verification
+      req.rawBody = req.body;
+      next();
+    },
+    require('./controllers/stripeController').handleWebhook
+  );
+
   // Additional CORS headers middleware (runs after cors() but ensures all headers are set)
   app.use(function (req, res, next) {
     const origin = req.headers.origin || '';
@@ -202,6 +214,18 @@ async function init() {
       next();
     }
   });
+
+  // Stripe webhook route (must be before JSON body parser, uses raw body)
+  app.post(
+    '/api/stripe/webhook',
+    express.raw({ type: 'application/json' }),
+    (req, res, next) => {
+      // Store raw body for webhook signature verification
+      req.rawBody = req.body;
+      next();
+    },
+    require('./controllers/stripeController').handleWebhook
+  );
 
   app.use('/api', router);
 

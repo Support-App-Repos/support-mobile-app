@@ -1,0 +1,428 @@
+// Prisma Schema for Marketplace Application
+// This file defines the database schema using Prisma ORM for MongoDB
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// USER MODEL
+// ============================================
+model User {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  email           String?
+  phoneNumber     String?  @map("phone_number")
+  passwordHash    String?  @map("password_hash")
+  fullName        String?  @map("full_name")
+  profileImageUrl String?  @map("profile_image_url")
+  isVerified      Boolean  @default(false) @map("is_verified")
+  isActive        Boolean  @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  listings        Listing[]
+  reviews         Review[]
+  subscriptions   Subscription[]
+  browsingHistory BrowsingHistory[]
+  wishlistItems   Wishlist[]
+  notifications   Notification[]
+  recentRegions   UserRecentRegion[]
+
+  // Indexes for querying (uniqueness handled in application logic)
+  @@index([email])
+  @@index([phoneNumber])
+  @@map("User")
+}
+
+// ============================================
+// CATEGORY MODEL
+// ============================================
+model Category {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  name        String   @unique
+  slug        String   @unique
+  iconUrl     String?  @map("icon_url")
+  description String?
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime? @default(now()) @map("created_at")
+  updatedAt   DateTime? @updatedAt @map("updated_at")
+
+  // Relations
+  listings    Listing[]
+  eventTypes  EventType[]
+  serviceTypes ServiceType[]
+
+  @@map("Category")
+}
+
+// ============================================
+// EVENT TYPE MODEL
+// ============================================
+model EventType {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  name       String   @unique
+  slug       String   @unique
+  iconUrl    String?  @map("icon_url")
+  categoryId String   @map("category_id") @db.ObjectId
+  isActive   Boolean  @default(true) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  listings   Listing[]
+
+  @@index([categoryId])
+  @@map("EventType")
+}
+
+// ============================================
+// SERVICE TYPE MODEL
+// ============================================
+model ServiceType {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  name       String   @unique
+  slug       String   @unique
+  iconUrl    String?  @map("icon_url")
+  categoryId String   @map("category_id") @db.ObjectId
+  isActive   Boolean  @default(true) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  listings   Listing[]
+
+  @@index([categoryId])
+  @@map("ServiceType")
+}
+
+// ============================================
+// REGION MODEL
+// ============================================
+model Region {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  name       String
+  country    String
+  countryCode String? @map("country_code")
+  isActive   Boolean  @default(true) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  listingRegions ListingRegion[]
+  userRecentRegions UserRecentRegion[]
+
+  @@index([name])
+  @@index([country])
+  @@map("Region")
+}
+
+// ============================================
+// LISTING MODEL
+// ============================================
+model Listing {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String   @map("user_id") @db.ObjectId
+  categoryId String  @map("category_id") @db.ObjectId
+  eventTypeId String? @map("event_type_id") @db.ObjectId
+  serviceTypeId String? @map("service_type_id") @db.ObjectId
+
+  // Common fields
+  title     String
+  description String
+  price     Float?   // MongoDB uses Double instead of Decimal
+  priceType String?   @map("price_type") // 'Free', 'Paid', 'Per Seat', 'Per Hour'
+  location  String
+  city      String?
+  venue     String?
+  status    String    @default("Pending") // 'Active', 'Pending', 'Rejected', 'Expired'
+  viewsCount Int      @default(0) @map("views_count")
+  ratingAverage Float @default(0) @map("rating_average") // MongoDB uses Double
+  reviewsCount Int    @default(0) @map("reviews_count")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  publishedAt DateTime? @map("published_at")
+
+  // Event-specific fields
+  eventDate DateTime? @map("event_date")
+  eventTime String?   @map("event_time") // Store as string in MongoDB
+  duration  String?
+  maxCapacity Int?    @map("max_capacity")
+  organizerName String? @map("organizer_name")
+  organizerContact String? @map("organizer_contact")
+  organizerEmail String? @map("organizer_email")
+  tags      String?
+
+  // Service-specific fields
+  businessName String? @map("business_name")
+  specialization String?
+  yearsOfExperience Int? @map("years_of_experience")
+
+  // Property-specific fields
+  bedrooms  Int?
+  bathrooms Int?
+  squareFeet Int? @map("square_feet")
+  yearBuilt Int? @map("year_built")
+
+  // Relations
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category  Category  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  eventType EventType? @relation(fields: [eventTypeId], references: [id], onDelete: Cascade)
+  serviceType ServiceType? @relation(fields: [serviceTypeId], references: [id], onDelete: Cascade)
+  photos    ListingPhoto[]
+  listingRegions ListingRegion[]
+  subscriptions Subscription[]
+  reviews   Review[]
+  browsingHistory BrowsingHistory[]
+  wishlistItems Wishlist[]
+  notifications Notification[]
+
+  @@index([userId])
+  @@index([categoryId])
+  @@index([status])
+  @@index([publishedAt])
+  @@index([location])
+  @@index([eventDate])
+  @@map("Listing")
+}
+
+// ============================================
+// LISTING PHOTO MODEL
+// ============================================
+model ListingPhoto {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  listingId  String   @map("listing_id") @db.ObjectId
+  photoUrl   String   @map("photo_url")
+  photoOrder Int      @default(0) @map("photo_order")
+  isPrimary  Boolean  @default(false) @map("is_primary")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  // Relations
+  listing    Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@index([listingId])
+  @@index([listingId, photoOrder])
+  @@map("ListingPhoto")
+}
+
+// ============================================
+// LISTING REGION MODEL (Many-to-Many)
+// ============================================
+model ListingRegion {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  listingId String   @map("listing_id") @db.ObjectId
+  regionId  String   @map("region_id") @db.ObjectId
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  listing   Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  region    Region   @relation(fields: [regionId], references: [id], onDelete: Cascade)
+
+  @@unique([listingId, regionId])
+  @@index([listingId])
+  @@index([regionId])
+  @@map("ListingRegion")
+}
+
+// ============================================
+// PAYMENT PLAN MODEL
+// ============================================
+model PaymentPlan {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  name         String
+  type         String   // 'monthly', 'onetime'
+  price        Float    // MongoDB uses Double
+  listingFee   Float    @default(0) @map("listing_fee")
+  processingFee Float   @default(0) @map("processing_fee")
+  features     Json?    // Array of features
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  subscriptions Subscription[]
+
+  @@index([type])
+  @@map("PaymentPlan")
+}
+
+// ============================================
+// PROMO CODE MODEL
+// ============================================
+model PromoCode {
+  id           String    @id @default(auto()) @map("_id") @db.ObjectId
+  code         String    @unique
+  discountType String    @map("discount_type") // 'percentage', 'fixed'
+  discountValue Float    @map("discount_value")
+  maxUses      Int?      @map("max_uses")
+  usedCount    Int       @default(0) @map("used_count")
+  validFrom    DateTime? @map("valid_from")
+  validUntil   DateTime? @map("valid_until")
+  isActive     Boolean   @default(true) @map("is_active")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  subscriptions Subscription[]
+
+  @@index([validFrom, validUntil])
+  @@map("PromoCode")
+}
+
+// ============================================
+// SUBSCRIPTION MODEL
+// ============================================
+model Subscription {
+  id            String     @id @default(auto()) @map("_id") @db.ObjectId
+  listingId     String     @map("listing_id") @db.ObjectId
+  userId        String     @map("user_id") @db.ObjectId
+  paymentPlanId String     @map("payment_plan_id") @db.ObjectId
+  promoCodeId   String?    @map("promo_code_id") @db.ObjectId
+  amountPaid    Float      @map("amount_paid")
+  discountAmount Float     @default(0) @map("discount_amount")
+  status        String     @default("pending") // 'pending', 'paid', 'failed', 'refunded'
+  paymentMethod String?    @map("payment_method")
+  transactionId String?    @map("transaction_id")
+  startsAt      DateTime?  @map("starts_at")
+  endsAt        DateTime?  @map("ends_at")
+  createdAt     DateTime   @default(now()) @map("created_at")
+  updatedAt     DateTime   @updatedAt @map("updated_at")
+
+  // Relations
+  listing       Listing    @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  paymentPlan   PaymentPlan @relation(fields: [paymentPlanId], references: [id], onDelete: Cascade)
+  promoCode     PromoCode? @relation(fields: [promoCodeId], references: [id], onDelete: Cascade)
+
+  @@index([listingId])
+  @@index([userId])
+  @@index([status])
+  @@map("Subscription")
+}
+
+// ============================================
+// REVIEW MODEL
+// ============================================
+model Review {
+  id                String   @id @default(auto()) @map("_id") @db.ObjectId
+  listingId         String   @map("listing_id") @db.ObjectId
+  userId            String   @map("user_id") @db.ObjectId
+  rating            Int      // 1-5
+  comment           String?
+  isVerifiedPurchase Boolean @default(false) @map("is_verified_purchase")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  listing           Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([listingId, userId])
+  @@index([listingId])
+  @@index([userId])
+  @@map("Review")
+}
+
+// ============================================
+// BROWSING HISTORY MODEL
+// ============================================
+model BrowsingHistory {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId       String   @map("user_id") @db.ObjectId
+  listingId    String   @map("listing_id") @db.ObjectId
+  viewedAt     DateTime @default(now()) @map("viewed_at")
+  viewDuration Int?     @map("view_duration") // Duration in seconds
+
+  // Relations
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  listing      Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([listingId])
+  @@index([viewedAt])
+  @@map("BrowsingHistory")
+}
+
+// ============================================
+// WISHLIST MODEL
+// ============================================
+model Wishlist {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String   @map("user_id") @db.ObjectId
+  listingId String   @map("listing_id") @db.ObjectId
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  listing   Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, listingId])
+  @@index([userId])
+  @@index([listingId])
+  @@map("Wishlist")
+}
+
+// ============================================
+// NOTIFICATION MODEL
+// ============================================
+model Notification {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  userId          String    @map("user_id") @db.ObjectId
+  type            String    // 'listing_viewed', 'new_review', 'wishlist_price_drop', etc.
+  title           String
+  message         String
+  relatedListingId String?  @map("related_listing_id") @db.ObjectId
+  isRead          Boolean   @default(false) @map("is_read")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  // Relations
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  relatedListing  Listing?  @relation(fields: [relatedListingId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, isRead])
+  @@index([createdAt])
+  @@map("Notification")
+}
+
+// ============================================
+// OTP VERIFICATION MODEL
+// ============================================
+model OtpVerification {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  phoneNumber String  @map("phone_number")
+  otpCode    String   @map("otp_code")
+  purpose    String   // 'login', 'registration', 'password_reset'
+  isVerified Boolean  @default(false) @map("is_verified")
+  expiresAt  DateTime @map("expires_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([phoneNumber])
+  @@index([expiresAt])
+  @@map("OtpVerification")
+}
+
+// ============================================
+// USER RECENT REGION MODEL
+// ============================================
+model UserRecentRegion {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId      String   @map("user_id") @db.ObjectId
+  regionId    String   @map("region_id") @db.ObjectId
+  lastUsedAt  DateTime @default(now()) @map("last_used_at")
+
+  // Relations
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  region      Region   @relation(fields: [regionId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, lastUsedAt])
+  @@map("UserRecentRegion")
+}

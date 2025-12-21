@@ -6,16 +6,16 @@ const { init } = require('./server');
 
 async function startServer() {
   try {
-    // Check if DB_CONNECTION is set
-    if (!process.env.DB_CONNECTION) {
-      console.error('ERROR: DB_CONNECTION is not set in .env file');
+    // Check if DATABASE_URL is set
+    if (!process.env.DATABASE_URL) {
+      console.error('ERROR: DATABASE_URL is not set in .env file');
       process.exit(1);
     }
 
-    console.log('Connecting to MongoDB:', process.env.DB_CONNECTION);
+    console.log('Connecting to MongoDB:', process.env.DATABASE_URL);
     
     // Connect to MongoDB
-    await mongoose.connect(process.env.DB_CONNECTION);
+    await mongoose.connect(process.env.DATABASE_URL);
     
     console.log('✓ Database Connection Succeeded');
     
