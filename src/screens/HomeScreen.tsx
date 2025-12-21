@@ -2,7 +2,8 @@
  * Home Screen - Marketplace Feed
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   View,
   Text,
@@ -11,13 +12,16 @@ import {
   TextInput,
   TouchableOpacity,
   Dimensions,
-  Image
+  Image,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { HomeHeader, SearchIcon, ScanIcon } from '../components/common';
 import { CategoryTabs, ListingCard, type Category, type ListingCardData } from '../components/listings';
 import { BottomNavigation, type BottomNavItem } from '../components/navigation';
 import { Colors, Spacing, Typography, BorderRadius } from '../config/theme';
+import { listingService, categoryService } from '../services';
 
 type HomeScreenProps = {
   navigation?: any;
@@ -26,79 +30,115 @@ type HomeScreenProps = {
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = (width - Spacing.md * 3) / 2; // Account for padding and gap
 
-// Mock data for listings
-const mockListings: ListingCardData[] = [
-  {
-    id: '1',
-    title: 'Modern Downtown Apartment',
-    price: '1,500',
-    image: 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=400',
-    rating: 35,
-    views: 147,
-    timePosted: '2 days ago',
-    category: 'Property',
-  },
-  {
-    id: '2',
-    title: 'Vintage Furniture Set',
-    price: '1,500',
-    image: 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=400',
-    rating: 28,
-    views: 89,
-    timePosted: '2 days ago',
-    category: 'Product',
-  },
-  {
-    id: '3',
-    title: 'Web Design Services',
-    price: '1,500',
-    priceUnit: 'hr',
-    image: 'https://images.unsplash.com/photo-1467232004584-a241de8bcf5d?w=400',
-    rating: 42,
-    views: 203,
-    timePosted: '1 day ago',
-    category: 'Services',
-  },
-  {
-    id: '4',
-    title: 'Photography Workshop',
-    price: '1,500',
-    image: 'https://images.unsplash.com/photo-1511578314322-379afb476865?w=400',
-    rating: 31,
-    views: 156,
-    timePosted: '3 days ago',
-    category: 'Events',
-  },
-  {
-    id: '5',
-    title: 'Modern Downtown Apartment',
-    price: '1,500',
-    image: 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=400',
-    rating: 35,
-    views: 147,
-    timePosted: '2 days ago',
-    category: 'Property',
-  },
-  {
-    id: '6',
-    title: 'Vintage Furniture Set',
-    price: '1,500',
-    image: 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=400',
-    rating: 28,
-    views: 89,
-    timePosted: '2 days ago',
-    category: 'Product',
-  },
-];
+// Helper function to format time ago
+const formatTimeAgo = (date: Date): string => {
+  const now = new Date();
+  const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+  
+  if (diffInSeconds < 60) return 'Just now';
+  if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)} minutes ago`;
+  if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)} hours ago`;
+  if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)} days ago`;
+  if (diffInSeconds < 2592000) return `${Math.floor(diffInSeconds / 604800)} weeks ago`;
+  return `${Math.floor(diffInSeconds / 2592000)} months ago`;
+};
+
+// Helper function to convert listing to ListingCardData
+const convertToListingCardData = (listing: any): ListingCardData => {
+  const primaryPhoto = listing.photos?.find((p: any) => p.isPrimary) || listing.photos?.[0];
+  const imageUrl = primaryPhoto?.photoUrl || 'https://via.placeholder.com/400';
+  
+  return {
+    id: listing.id,
+    title: listing.title,
+    price: listing.price ? listing.price.toFixed(0) : '0',
+    priceUnit: listing.priceType === 'Per Hour' ? 'hr' : listing.priceType === 'Per Seat' ? 'seat' : undefined,
+    image: imageUrl,
+    rating: listing._count?.reviews || 0,
+    views: listing.viewsCount || 0,
+    timePosted: listing.publishedAt ? formatTimeAgo(new Date(listing.publishedAt)) : 'Recently',
+    category: listing.category?.name || 'Unknown',
+  };
+};
 
 export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const [selectedCategory, setSelectedCategory] = useState<Category>('All');
   const [activeTab, setActiveTab] = useState<BottomNavItem>('Home');
   const [searchQuery, setSearchQuery] = useState('');
+  const [listings, setListings] = useState<ListingCardData[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [categories, setCategories] = useState<any[]>([]);
+  const [categoryMap, setCategoryMap] = useState<Record<string, string>>({});
+
+  // Update active tab when screen comes into focus
+  useFocusEffect(
+    React.useCallback(() => {
+      setActiveTab('Home');
+    }, [])
+  );
+
+  // Fetch categories and listings on mount
+  useEffect(() => {
+    fetchCategories();
+    fetchListings();
+  }, []);
+
+  // Refetch listings when category changes
+  useEffect(() => {
+    if (selectedCategory !== 'All') {
+      const categoryId = categoryMap[selectedCategory];
+      if (categoryId) {
+        fetchListings(categoryId);
+      }
+    } else {
+      fetchListings();
+    }
+  }, [selectedCategory, categoryMap]);
+
+  const fetchCategories = async () => {
+    try {
+      const response = await categoryService.getCategories();
+      const categoriesData = (response.data as any)?.data || response.data || [];
+      
+      if (response.success && Array.isArray(categoriesData)) {
+        setCategories(categoriesData);
+        // Create category map for filtering
+        const map: Record<string, string> = {};
+        categoriesData.forEach((cat: any) => {
+          map[cat.name] = cat.id;
+        });
+        setCategoryMap(map);
+      }
+    } catch (error: any) {
+      console.error('Error fetching categories:', error);
+    }
+  };
+
+  const fetchListings = async (categoryId?: string) => {
+    try {
+      setLoading(true);
+      const response = await listingService.getListings({
+        status: 'published',
+        categoryId,
+        limit: 20,
+      });
+      
+      const listingsData = (response.data as any)?.data || response.data || [];
+      
+      if (response.success && Array.isArray(listingsData)) {
+        const convertedListings = listingsData.map(convertToListingCardData);
+        setListings(convertedListings);
+      }
+    } catch (error: any) {
+      console.error('Error fetching listings:', error);
+      Alert.alert('Error', error.message || 'Failed to load listings');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleCategoryChange = (category: Category) => {
     setSelectedCategory(category);
-    // TODO: Filter listings by category
   };
 
   const handleListingPress = (listing: ListingCardData) => {
@@ -112,16 +152,24 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 
   const handleTabPress = (tab: BottomNavItem) => {
     setActiveTab(tab);
-    if (tab === 'Profile') {
+    if (tab === 'Home') {
+      // Already on Home screen
+    } else if (tab === 'MyListings') {
+      navigation?.navigate('MyListings');
+    } else if (tab === 'Messages') {
+      // TODO: Navigate to Messages screen when implemented
+      console.log('Messages screen not yet implemented');
+    } else if (tab === 'Profile') {
       navigation?.navigate('Profile');
     }
-    // TODO: Navigate to other respective screens
   };
 
-  // Filter listings by category
-  const filteredListings = selectedCategory === 'All'
-    ? mockListings
-    : mockListings.filter(listing => listing.category === selectedCategory);
+  // Filter listings by search query
+  const filteredListings = searchQuery.trim()
+    ? listings.filter(listing => 
+        listing.title.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    : listings;
 
 
   return (
@@ -173,13 +221,24 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 
         {/* Listings Grid */}
         <View style={styles.listingsContainer}>
-          <View style={styles.listingsGrid}>
-            {filteredListings.map((listing) => (
-              <View key={listing.id} style={styles.cardWrapper}>
-                <ListingCard listing={listing} onPress={handleListingPress} />
-              </View>
-            ))}
-          </View>
+          {loading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color={Colors.light.primary} />
+              <Text style={styles.loadingText}>Loading listings...</Text>
+            </View>
+          ) : filteredListings.length > 0 ? (
+            <View style={styles.listingsGrid}>
+              {filteredListings.map((listing) => (
+                <View key={listing.id} style={styles.cardWrapper}>
+                  <ListingCard listing={listing} onPress={handleListingPress} />
+                </View>
+              ))}
+            </View>
+          ) : (
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>No listings found</Text>
+            </View>
+          )}
         </View>
       </ScrollView>
 
@@ -280,5 +339,24 @@ const styles = StyleSheet.create({
   cardWrapper: {
     width: CARD_WIDTH,
     marginBottom: Spacing.md,
+  },
+  loadingContainer: {
+    padding: Spacing.xl,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingText: {
+    ...Typography.body,
+    color: Colors.light.textSecondary,
+    marginTop: Spacing.md,
+  },
+  emptyContainer: {
+    padding: Spacing.xl,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyText: {
+    ...Typography.body,
+    color: Colors.light.textSecondary,
   },
 });

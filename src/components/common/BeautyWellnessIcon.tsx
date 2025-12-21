@@ -64,3 +64,4 @@ export const BeautyWellnessIcon: React.FC<BeautyWellnessIconProps> = ({
   );
 };
 
+

@@ -12,14 +12,14 @@ import {
   TouchableOpacity,
   Image,
   ScrollView,
-  Dimensions,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BackIcon, BellIcon, AddPhotoIcon } from '../components/common';
 import { BottomNavigation, type BottomNavItem } from '../components/navigation';
 import { Colors, Spacing, Typography, BorderRadius } from '../config/theme';
-
-const { width } = Dimensions.get('window');
+import { listingService } from '../services';
 
 type ServiceListingScreenProps = {
   navigation?: any;
@@ -43,27 +43,54 @@ export const ServiceListingScreen: React.FC<ServiceListingScreenProps> = ({
   const [yearsOfExperience, setYearsOfExperience] = useState('');
   const [photos, setPhotos] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState<BottomNavItem>('Home');
+  const [loading, setLoading] = useState(false);
 
   const currentStep = 0; // First step
-
-  const serviceType = route?.params?.serviceType || 'service';
+  const categoryId = route?.params?.categoryId;
+  const serviceTypeId = route?.params?.serviceTypeId;
 
   // Check if all required fields are filled
   const isFormValid =
     businessName.trim() !== '' && serviceDescription.trim() !== '';
 
-  const handleContinue = () => {
-    if (isFormValid) {
-      const listingData = {
-        businessName,
-        serviceDescription,
-        specialization,
-        yearsOfExperience,
-        photos,
-        category: 'Services',
-        serviceType,
-      };
-      navigation?.navigate('Payment', { listingData });
+  const handleContinue = async () => {
+    if (!isFormValid) {
+      Alert.alert('Validation Error', 'Please fill in all required fields');
+      return;
+    }
+
+    if (!categoryId) {
+      Alert.alert('Error', 'Category ID is missing');
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      // Create listing on backend
+      const response = await listingService.createListing({
+        title: businessName.trim(),
+        description: serviceDescription.trim(),
+        location: businessName.trim() || 'Service Location', // Use business name as location fallback
+        categoryId,
+        serviceTypeId: serviceTypeId || undefined,
+        businessName: businessName.trim(),
+        specialization: specialization || undefined,
+        yearsOfExperience: yearsOfExperience ? parseInt(yearsOfExperience) : undefined,
+        photos: photos.length > 0 ? photos : undefined,
+      });
+
+      if (response.success) {
+        const listingData = (response.data as any)?.data || response.data;
+        navigation?.navigate('Payment', { listingData });
+      } else {
+        throw new Error(response.message || 'Failed to create listing');
+      }
+    } catch (error: any) {
+      console.error('Error creating listing:', error);
+      Alert.alert('Error', error.message || 'Failed to create listing. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -254,20 +281,24 @@ export const ServiceListingScreen: React.FC<ServiceListingScreenProps> = ({
         <TouchableOpacity
           style={[
             styles.continueButton,
-            !isFormValid && styles.continueButtonDisabled,
+            (!isFormValid || loading) && styles.continueButtonDisabled,
           ]}
           onPress={handleContinue}
-          disabled={!isFormValid}
+          disabled={!isFormValid || loading}
           activeOpacity={0.8}
         >
-          <Text
-            style={[
-              styles.continueButtonText,
-              !isFormValid && styles.continueButtonTextDisabled,
-            ]}
-          >
-            Continue
-          </Text>
+          {loading ? (
+            <ActivityIndicator color="#FFFFFF" />
+          ) : (
+            <Text
+              style={[
+                styles.continueButtonText,
+                (!isFormValid || loading) && styles.continueButtonTextDisabled,
+              ]}
+            >
+              Continue
+            </Text>
+          )}
         </TouchableOpacity>
       </ScrollView>
 
@@ -278,8 +309,14 @@ export const ServiceListingScreen: React.FC<ServiceListingScreenProps> = ({
           setActiveTab(tab);
           if (tab === 'Home') {
             navigation?.navigate('Home');
+          } else if (tab === 'MyListings') {
+            navigation?.navigate('MyListings');
+          } else if (tab === 'Messages') {
+            // TODO: Navigate to Messages screen when implemented
+            console.log('Messages screen not yet implemented');
+          } else if (tab === 'Profile') {
+            navigation?.navigate('Profile');
           }
-          // TODO: Handle other tab navigations
         }}
         onCreatePress={() => {}}
         showCreateButton={false}

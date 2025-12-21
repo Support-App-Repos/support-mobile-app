@@ -43,3 +43,4 @@ export const BellIcon: React.FC<BellIconProps> = ({
   );
 };
 
+

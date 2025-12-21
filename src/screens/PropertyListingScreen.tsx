@@ -13,11 +13,14 @@ import {
   Image,
   ScrollView,
   Dimensions,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BackIcon, BellIcon, AddPhotoIcon } from '../components/common';
 import { BottomNavigation, type BottomNavItem } from '../components/navigation';
 import { Colors, Spacing, Typography, BorderRadius } from '../config/theme';
+import { listingService } from '../services';
 
 const { width } = Dimensions.get('window');
 
@@ -46,8 +49,10 @@ export const PropertyListingScreen: React.FC<PropertyListingScreenProps> = ({
   const [yearBuilt, setYearBuilt] = useState('');
   const [photos, setPhotos] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState<BottomNavItem>('Home');
+  const [loading, setLoading] = useState(false);
 
   const currentStep = 0; // First step
+  const categoryId = route?.params?.categoryId;
 
   // Check if all required fields are filled
   const isFormValid =
@@ -56,21 +61,46 @@ export const PropertyListingScreen: React.FC<PropertyListingScreenProps> = ({
     price.trim() !== '' &&
     location.trim() !== '';
 
-  const handleSaveAndContinue = () => {
-    if (isFormValid) {
-      const listingData = {
-        title,
-        description,
-        price,
-        location,
-        bedrooms,
-        bathrooms,
-        squareFeet,
-        yearBuilt,
-        photos,
-        category: 'Properties',
-      };
-      navigation?.navigate('Payment', { listingData });
+  const handleSaveAndContinue = async () => {
+    if (!isFormValid) {
+      Alert.alert('Validation Error', 'Please fill in all required fields');
+      return;
+    }
+
+    if (!categoryId) {
+      Alert.alert('Error', 'Category ID is missing');
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      // Create listing on backend
+      const response = await listingService.createListing({
+        title: title.trim(),
+        description: description.trim(),
+        price: parseFloat(price),
+        priceType: 'Paid', // Default for properties
+        location: location.trim(),
+        categoryId,
+        bedrooms: bedrooms ? parseInt(bedrooms) : undefined,
+        bathrooms: bathrooms ? parseInt(bathrooms) : undefined,
+        squareFeet: squareFeet ? parseInt(squareFeet) : undefined,
+        yearBuilt: yearBuilt ? parseInt(yearBuilt) : undefined,
+        photos: photos.length > 0 ? photos : undefined,
+      });
+
+      if (response.success) {
+        const listingData = (response.data as any)?.data || response.data;
+        navigation?.navigate('Payment', { listingData });
+      } else {
+        throw new Error(response.message || 'Failed to create listing');
+      }
+    } catch (error: any) {
+      console.error('Error creating listing:', error);
+      Alert.alert('Error', error.message || 'Failed to create listing. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -318,20 +348,24 @@ export const PropertyListingScreen: React.FC<PropertyListingScreenProps> = ({
         <TouchableOpacity
           style={[
             styles.saveButton,
-            !isFormValid && styles.saveButtonDisabled,
+            (!isFormValid || loading) && styles.saveButtonDisabled,
           ]}
           onPress={handleSaveAndContinue}
-          disabled={!isFormValid}
+          disabled={!isFormValid || loading}
           activeOpacity={0.8}
         >
-          <Text
-            style={[
-              styles.saveButtonText,
-              !isFormValid && styles.saveButtonTextDisabled,
-            ]}
-          >
-            Save & Continue
-          </Text>
+          {loading ? (
+            <ActivityIndicator color="#FFFFFF" />
+          ) : (
+            <Text
+              style={[
+                styles.saveButtonText,
+                (!isFormValid || loading) && styles.saveButtonTextDisabled,
+              ]}
+            >
+              Save & Continue
+            </Text>
+          )}
         </TouchableOpacity>
       </ScrollView>
 
@@ -342,8 +376,14 @@ export const PropertyListingScreen: React.FC<PropertyListingScreenProps> = ({
           setActiveTab(tab);
           if (tab === 'Home') {
             navigation?.navigate('Home');
+          } else if (tab === 'MyListings') {
+            navigation?.navigate('MyListings');
+          } else if (tab === 'Messages') {
+            // TODO: Navigate to Messages screen when implemented
+            console.log('Messages screen not yet implemented');
+          } else if (tab === 'Profile') {
+            navigation?.navigate('Profile');
           }
-          // TODO: Handle other tab navigations
         }}
         onCreatePress={() => {}}
         showCreateButton={false}

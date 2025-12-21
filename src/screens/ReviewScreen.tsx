@@ -11,6 +11,8 @@ import {
   TouchableOpacity,
   Image,
   ScrollView,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -23,6 +25,7 @@ import {
 } from '../components/common';
 import { BottomNavigation, type BottomNavItem } from '../components/navigation';
 import { Colors, Spacing, Typography, BorderRadius } from '../config/theme';
+import { listingService } from '../services';
 
 type ReviewScreenProps = {
   navigation?: any;
@@ -42,26 +45,14 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
   route,
 }) => {
   const [activeTab, setActiveTab] = useState<BottomNavItem>('Home');
+  const [loading, setLoading] = useState(false);
 
   const currentStep = 3; // Final step (Confirm)
 
-  // Get data from route params or use defaults
-  const listingData = route?.params?.listingData || {
-    title: 'dadasd',
-    category: 'Rent',
-    price: '$635',
-    location: 'adsd',
-    categoryType: 'General',
-  };
-
-  const paymentData = route?.params?.paymentData || {
-    plan: 'onetime',
-    total: '$8236',
-  };
-
-  const regionData = route?.params?.regionData || {
-    name: 'New York',
-  };
+  // Get data from route params
+  const listingData = route?.params?.listingData;
+  const paymentData = route?.params?.paymentData;
+  const regionData = route?.params?.regionData;
 
   const handleBack = () => {
     navigation?.goBack();
@@ -92,17 +83,43 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
     });
   };
 
-  const handleConfirmAndPublish = () => {
-    // TODO: Submit listing to backend
-    console.log('Confirming and publishing listing:', {
-      listingData,
-      paymentData,
-      regionData,
-    });
-    // After successful submission, navigate to PublishScreen
-    navigation?.navigate('Publish', {
-      listingId: 'mock-id', // Replace with actual listing ID from API response
-    });
+  const handleConfirmAndPublish = async () => {
+    if (!listingData?.id) {
+      Alert.alert('Error', 'Listing data is missing');
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      // First, update listing with regionIds if regionData is provided
+      if (regionData?.id) {
+        const updateResponse = await listingService.updateListing(listingData.id, {
+          regionIds: [regionData.id],
+        });
+
+        if (!updateResponse.success) {
+          throw new Error(updateResponse.message || 'Failed to update listing with region');
+        }
+      }
+
+      // Then publish the listing
+      const publishResponse = await listingService.publishListing(listingData.id);
+
+      if (publishResponse.success) {
+        // Navigate to publish success screen
+        navigation?.navigate('Publish', {
+          listingId: listingData.id,
+        });
+      } else {
+        throw new Error(publishResponse.message || 'Failed to publish listing');
+      }
+    } catch (error: any) {
+      console.error('Error publishing listing:', error);
+      Alert.alert('Error', error.message || 'Failed to publish listing. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -212,14 +229,18 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
           </View>
           <View style={styles.cardContent}>
             <View style={styles.previewRow}>
-              <Text style={styles.previewLabel}>{listingData.category}</Text>
+              <Text style={styles.previewLabel}>{listingData?.category || 'Category'}</Text>
             </View>
-            <Text style={styles.previewValue}>{listingData.title}</Text>
-            <Text style={styles.previewPrice}>{listingData.price}</Text>
+            <Text style={styles.previewValue}>{listingData?.title || 'Title'}</Text>
+            <Text style={styles.previewPrice}>
+              {listingData?.price ? `$${listingData.price}` : 'Price'}
+            </Text>
             <View style={styles.previewLocationRow}>
               <LocationIcon size={15} color="#6B7280" />
-              <Text style={styles.previewLocation}>{listingData.location}</Text>
-              <Text style={styles.previewCategory}>{listingData.categoryType}</Text>
+              <Text style={styles.previewLocation}>{listingData?.location || 'Location'}</Text>
+              {listingData?.categoryType && (
+                <Text style={styles.previewCategory}>{listingData.categoryType}</Text>
+              )}
             </View>
           </View>
         </View>
@@ -240,12 +261,14 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
             <View style={styles.paymentRow}>
               <CardIcon size={22} />
               <Text style={styles.paymentType}>
-                {paymentData.plan === 'monthly'
+                {paymentData?.plan === 'monthly'
                   ? 'Monthly payment'
                   : 'One-time payment'}
               </Text>
             </View>
-            <Text style={styles.paymentTotal}>{paymentData.total} Total</Text>
+            <Text style={styles.paymentTotal}>
+              {paymentData?.total ? `${paymentData.total} Total` : 'Total'}
+            </Text>
           </View>
         </View>
 
@@ -262,7 +285,7 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
             </TouchableOpacity>
           </View>
           <View style={styles.cardContent}>
-            <Text style={styles.regionName}>{regionData.name}</Text>
+            <Text style={styles.regionName}>{regionData?.name || 'Region'}</Text>
             <Text style={styles.regionDescription}>
               Your listing will appear in this region
             </Text>
@@ -271,11 +294,16 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
 
         {/* Confirm & Publish Button */}
         <TouchableOpacity
-          style={styles.confirmButton}
+          style={[styles.confirmButton, loading && styles.confirmButtonDisabled]}
           onPress={handleConfirmAndPublish}
+          disabled={loading || !listingData}
           activeOpacity={0.8}
         >
-          <Text style={styles.confirmButtonText}>Confirm & Publish</Text>
+          {loading ? (
+            <ActivityIndicator color="#FFFFFF" />
+          ) : (
+            <Text style={styles.confirmButtonText}>Confirm & Publish</Text>
+          )}
         </TouchableOpacity>
       </ScrollView>
 
@@ -286,8 +314,14 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
           setActiveTab(tab);
           if (tab === 'Home') {
             navigation?.navigate('Home');
+          } else if (tab === 'MyListings') {
+            navigation?.navigate('MyListings');
+          } else if (tab === 'Messages') {
+            // TODO: Navigate to Messages screen when implemented
+            console.log('Messages screen not yet implemented');
+          } else if (tab === 'Profile') {
+            navigation?.navigate('Profile');
           }
-          // TODO: Handle other tab navigations
         }}
         onCreatePress={() => {}}
         showCreateButton={false}
@@ -517,6 +551,9 @@ const styles = StyleSheet.create({
     ...Typography.caption,
     color: Colors.light.textSecondary,
     fontSize: 14,
+  },
+  confirmButtonDisabled: {
+    opacity: 0.6,
   },
   confirmButton: {
     backgroundColor: Colors.light.primary,

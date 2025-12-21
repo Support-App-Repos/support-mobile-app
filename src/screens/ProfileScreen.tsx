@@ -3,7 +3,8 @@
  * User profile screen with account settings, browsing history, and wishlist
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   View,
   Text,
@@ -13,6 +14,8 @@ import {
   ScrollView,
   FlatList,
   Dimensions,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -27,12 +30,13 @@ import {
 } from '../components/common';
 import { ListingCard, type ListingCardData } from '../components/listings';
 import { BottomNavigation, type BottomNavItem } from '../components/navigation';
+import { profileService } from '../services';
+import { Colors, Spacing, Typography, BorderRadius } from '../config/theme';
 
 // Extended ListingCardData for ProfileScreen
 interface ExtendedListingCardData extends ListingCardData {
   badge?: string;
 }
-import { Colors, Spacing, Typography, BorderRadius } from '../config/theme';
 
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = (width - Spacing.md * 3) / 2;
@@ -43,98 +47,110 @@ type ProfileScreenProps = {
 
 type TabType = 'Browsing History' | 'Wishlist';
 
-// Mock data for user
-const mockUser = {
-  name: 'Aousaf Ahmad',
-  profileImage: 'https://i.pravatar.cc/150?img=12',
-  myListings: 12,
-  reviews: 140,
+// Helper function to convert listing to ListingCardData
+const convertToListingCardData = (listing: any): ExtendedListingCardData => {
+  const primaryPhoto = listing.photos?.find((p: any) => p.isPrimary) || listing.photos?.[0];
+  const imageUrl = primaryPhoto?.photoUrl || 'https://via.placeholder.com/400';
+  
+  return {
+    id: listing.id,
+    title: listing.title,
+    price: listing.price ? listing.price.toFixed(0) : '0',
+    priceUnit: listing.priceType === 'Per Hour' ? 'hr' : listing.priceType === 'Per Seat' ? 'seat' : undefined,
+    image: imageUrl,
+    rating: listing._count?.reviews || 0,
+    views: listing.viewsCount || 0,
+    timePosted: listing.publishedAt ? 'Recently' : 'Recently',
+    category: listing.category?.name || 'Unknown',
+  };
 };
-
-// Mock data for browsing history (horizontal scroll)
-const mockBrowsingHistory: ExtendedListingCardData[] = [
-  {
-    id: 'bh1',
-    title: 'USB LED Desk Lamp',
-    price: '850',
-    image: 'https://images.unsplash.com/photo-1507473885765-e6ed057f782c?w=400',
-    rating: 35,
-    views: 969,
-  },
-  {
-    id: 'bh2',
-    title: '1Pc Fashionable Amethyst Bracelet',
-    price: '400',
-    image: 'https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=400',
-    rating: 28,
-    views: 456,
-    badge: 'Almost Sold Out',
-  },
-  {
-    id: 'bh3',
-    title: 'Wireless Earbuds',
-    price: '1,200',
-    image: 'https://images.unsplash.com/photo-1590658268037-6bf12165a8df?w=400',
-    rating: 42,
-    views: 1234,
-  },
-  {
-    id: 'bh4',
-    title: 'USB LED Desk Lamp',
-    price: '850',
-    image: 'https://images.unsplash.com/photo-1507473885765-e6ed057f782c?w=400',
-    rating: 35,
-    views: 969,
-  },
-];
-
-// Mock data for grid listings (with full titles)
-const mockGridListings: ExtendedListingCardData[] = [
-  {
-    id: 'g1',
-    title: 'Casta Auto USB LED Desk Lamp With',
-    price: '850',
-    image: 'https://images.unsplash.com/photo-1507473885765-e6ed057f782c?w=400',
-    rating: 35,
-    views: 969,
-  },
-  {
-    id: 'g2',
-    title: 'Casta Auto 1Pc Fashionable Ameth....',
-    price: '1,000',
-    image: 'https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=400',
-    rating: 35,
-    views: 969,
-  },
-];
-
-// Mock data for wishlist
-const mockWishlist: ListingCardData[] = [
-  {
-    id: 'w1',
-    title: 'USB LED Desk Lamp With',
-    price: '850',
-    image: 'https://images.unsplash.com/photo-1507473885765-e6ed057f782c?w=400',
-    rating: 35,
-    views: 969,
-    category: 'Product',
-  },
-  {
-    id: 'w2',
-    title: '1Pc Fashionable Ameth....',
-    price: '1,000',
-    image: 'https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=400',
-    rating: 35,
-    views: 969,
-    category: 'Product',
-  },
-];
 
 export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   navigation,
 }) => {
   const [activeTab, setActiveTab] = useState<TabType>('Browsing History');
   const [bottomNavTab, setBottomNavTab] = useState<BottomNavItem>('Profile');
+  const [user, setUser] = useState<any>(null);
+  const [browsingHistory, setBrowsingHistory] = useState<ExtendedListingCardData[]>([]);
+  const [wishlist, setWishlist] = useState<ListingCardData[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [loadingWishlist, setLoadingWishlist] = useState(false);
+
+  // Update active tab when screen comes into focus
+  useFocusEffect(
+    React.useCallback(() => {
+      setBottomNavTab('Profile');
+    }, [])
+  );
+
+  const fetchProfile = useCallback(async () => {
+    try {
+      setLoading(true);
+      const response = await profileService.getProfile();
+      const profileData = (response.data as any)?.data || response.data;
+      
+      if (response.success && profileData) {
+        setUser(profileData);
+      }
+    } catch (error: any) {
+      console.error('Error fetching profile:', error);
+      Alert.alert('Error', error.message || 'Failed to load profile');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const fetchBrowsingHistory = useCallback(async () => {
+    try {
+      setLoadingHistory(true);
+      const response = await profileService.getBrowsingHistory({ limit: 20 });
+      const historyData = (response.data as any)?.data || response.data || [];
+      
+      if (response.success && Array.isArray(historyData)) {
+        const converted = historyData.map(convertToListingCardData);
+        setBrowsingHistory(converted);
+      }
+    } catch (error: any) {
+      console.error('Error fetching browsing history:', error);
+      // Don't show alert for browsing history, just log
+    } finally {
+      setLoadingHistory(false);
+    }
+  }, []);
+
+  const fetchWishlist = useCallback(async () => {
+    try {
+      setLoadingWishlist(true);
+      const response = await profileService.getWishlist();
+      const wishlistData = (response.data as any)?.data || response.data || [];
+      
+      if (response.success && Array.isArray(wishlistData)) {
+        const converted = wishlistData.map(convertToListingCardData);
+        setWishlist(converted);
+      }
+    } catch (error: any) {
+      console.error('Error fetching wishlist:', error);
+      // Don't show alert for wishlist, just log
+    } finally {
+      setLoadingWishlist(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchProfile();
+    fetchBrowsingHistory();
+    fetchWishlist();
+  }, [fetchProfile, fetchBrowsingHistory, fetchWishlist]);
+
+  // Refetch when tab changes
+  useEffect(() => {
+    if (activeTab === 'Browsing History') {
+      fetchBrowsingHistory();
+    } else if (activeTab === 'Wishlist') {
+      fetchWishlist();
+    }
+  }, [activeTab, fetchBrowsingHistory, fetchWishlist]);
 
   const handleAccountSettings = () => {
     // TODO: Navigate to account settings
@@ -205,7 +221,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             }}
           >
             <Image
-              source={{ uri: mockUser.profileImage }}
+              source={{ uri: user?.profileImage || user?.avatar || 'https://i.pravatar.cc/150?img=12' }}
               style={styles.headerProfileImage}
             />
           </TouchableOpacity>
@@ -231,35 +247,41 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
         {/* Profile Section */}
         <View style={styles.profileSection}>
           <View style={styles.profileTopRow}>
-            <Image
-              source={{ uri: mockUser.profileImage }}
-              style={styles.profileImage}
-            />
-            <View style={styles.profileInfo}>
-              <View style={styles.nameRow}>
-                <Text style={styles.userName}>{mockUser.name}</Text>
-                <TouchableOpacity
-                  style={styles.editButton}
-                  activeOpacity={0.7}
-                  onPress={() => {
-                    // TODO: Edit name
-                    console.log('Edit name pressed');
-                  }}
-                >
-                  <EditIcon size={16} color="#6B7280" />
-                </TouchableOpacity>
-              </View>
-              <View style={styles.statsRow}>
-                <View style={styles.statItem}>
-                  <Text style={styles.statValue}>{mockUser.myListings}</Text>
-                  <Text style={styles.statLabel}>My Listings</Text>
+            {loading ? (
+              <ActivityIndicator size="small" color={Colors.light.primary} />
+            ) : (
+              <>
+                <Image
+                  source={{ uri: user?.profileImage || user?.avatar || 'https://i.pravatar.cc/150?img=12' }}
+                  style={styles.profileImage}
+                />
+                <View style={styles.profileInfo}>
+                  <View style={styles.nameRow}>
+                    <Text style={styles.userName}>{user?.name || user?.fullName || 'User'}</Text>
+                    <TouchableOpacity
+                      style={styles.editButton}
+                      activeOpacity={0.7}
+                      onPress={() => {
+                        // TODO: Edit name
+                        console.log('Edit name pressed');
+                      }}
+                    >
+                      <EditIcon size={16} color="#6B7280" />
+                    </TouchableOpacity>
+                  </View>
+                  <View style={styles.statsRow}>
+                    <View style={styles.statItem}>
+                      <Text style={styles.statValue}>{user?._count?.listings || 0}</Text>
+                      <Text style={styles.statLabel}>My Listings</Text>
+                    </View>
+                    <View style={styles.statItem}>
+                      <Text style={styles.statValue}>{user?._count?.reviews || 0}</Text>
+                      <Text style={styles.statLabel}>Reviews</Text>
+                    </View>
+                  </View>
                 </View>
-                <View style={styles.statItem}>
-                  <Text style={styles.statValue}>{mockUser.reviews}</Text>
-                  <Text style={styles.statLabel}>Reviews</Text>
-                </View>
-              </View>
-            </View>
+              </>
+            )}
           </View>
           <View style={styles.privacyRow}>
             <LockIcon size={12} color="#004C9D" style={{marginTop: 3}} />
@@ -331,7 +353,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                 activeTab === 'Wishlist' && styles.tabTextActive,
               ]}
             >
-              Wishlist ({mockWishlist.length})
+              Wishlist ({wishlist.length})
             </Text>
             {activeTab === 'Wishlist' && (
               <View style={styles.tabUnderline} />
@@ -342,22 +364,39 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
         {/* Horizontal Scrollable List */}
         {activeTab === 'Browsing History' && (
           <View style={styles.horizontalSection}>
-            <FlatList
-              data={mockBrowsingHistory}
-              renderItem={renderBrowsingHistoryItem}
-              keyExtractor={(item) => item.id}
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.horizontalList}
-            />
+            {loadingHistory ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="small" color={Colors.light.primary} />
+              </View>
+            ) : (
+              <FlatList
+                data={browsingHistory}
+                renderItem={renderBrowsingHistoryItem}
+                keyExtractor={(item) => item.id}
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.horizontalList}
+                ListEmptyComponent={
+                  <View style={styles.emptyContainer}>
+                    <Text style={styles.emptyText}>No browsing history</Text>
+                  </View>
+                }
+              />
+            )}
           </View>
         )}
 
         {/* Product Listings Grid */}
         <View style={styles.listingsSection}>
           {activeTab === 'Browsing History' ? (
-            <View style={styles.listingsGrid}>
-              {mockGridListings.map((listing) => (
+            loadingHistory ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color={Colors.light.primary} />
+                <Text style={styles.loadingText}>Loading browsing history...</Text>
+              </View>
+            ) : browsingHistory.length > 0 ? (
+              <View style={styles.listingsGrid}>
+                {browsingHistory.map((listing) => (
                 <View key={listing.id} style={styles.listingCardWrapper}>
                   <View style={styles.listingImageContainer}>
                     {typeof listing.image === 'string' ? (
@@ -395,16 +434,32 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                     </View>
                   </View>
                 </View>
-              ))}
-            </View>
+                ))}
+              </View>
+            ) : (
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptyText}>No browsing history</Text>
+              </View>
+            )
           ) : (
-            <View style={styles.listingsGrid}>
-              {mockWishlist.map((listing) => (
+            loadingWishlist ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color={Colors.light.primary} />
+                <Text style={styles.loadingText}>Loading wishlist...</Text>
+              </View>
+            ) : wishlist.length > 0 ? (
+              <View style={styles.listingsGrid}>
+                {wishlist.map((listing) => (
                 <View key={listing.id} style={styles.listingCardWrapper}>
                   <ListingCard listing={listing} />
                 </View>
-              ))}
-            </View>
+                ))}
+              </View>
+            ) : (
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptyText}>No items in wishlist</Text>
+              </View>
+            )
           )}
         </View>
       </ScrollView>
@@ -416,12 +471,18 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
           setBottomNavTab(tab);
           if (tab === 'Home') {
             navigation?.navigate('Home');
+          } else if (tab === 'MyListings') {
+            navigation?.navigate('MyListings');
+          } else if (tab === 'Messages') {
+            // TODO: Navigate to Messages screen when implemented
+            console.log('Messages screen not yet implemented');
           } else if (tab === 'Profile') {
             // Already on Profile screen
           }
-          // TODO: Handle other tab navigations
         }}
-        onCreatePress={() => {}}
+        onCreatePress={() => {
+          navigation?.navigate('SelectCategory');
+        }}
         showCreateButton={false}
       />
     </SafeAreaView>
@@ -650,6 +711,25 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontSize: 14,
   },
+  loadingContainer: {
+    padding: Spacing.xl,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingText: {
+    ...Typography.body,
+    color: Colors.light.textSecondary,
+    marginTop: Spacing.md,
+  },
+  emptyContainer: {
+    padding: Spacing.xl,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyText: {
+    ...Typography.body,
+    color: Colors.light.textSecondary,
+  },
   listingsSection: {
     backgroundColor: Colors.light.background,
     padding: Spacing.md,
@@ -723,4 +803,3 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
 });
-

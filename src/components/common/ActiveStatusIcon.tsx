@@ -1,40 +1,38 @@
 /**
- * My Listings Icon Component
+ * Active Status Icon Component
+ * Uses property_icon.svg
  */
 
 import React from 'react';
 import Svg, { Path } from 'react-native-svg';
 import { ViewStyle } from 'react-native';
 
-interface MyListingsIconProps {
+interface ActiveStatusIconProps {
   size?: number;
   color?: string;
   style?: ViewStyle;
 }
 
-export const MyListingsIcon: React.FC<MyListingsIconProps> = ({
-  size = 24,
-  color = '#6B7280',
+export const ActiveStatusIcon: React.FC<ActiveStatusIconProps> = ({
+  size = 14,
+  color = '#828282',
   style,
 }) => {
   return (
     <Svg
       width={size}
       height={size}
-      viewBox="0 0 24 24"
+      viewBox="0 0 14 14"
       fill="none"
       style={style}
     >
       <Path
-        d="M10 8V16H14M7.5 4.21V4.22M4.21 7.5V7.51M3 12V12.01M4.21 16.5V16.51M7.5 19.79V19.8M12 21V21.01M16.5 19.79V19.8M19.79 16.5V16.51M21 12V12.01M19.79 7.5V7.51M16.5 4.21V4.22M12 3V3.01"
+        d="M5.96327 8.45185L5.54846 12.6L10.9411 6.79259L8.03735 5.13333L8.45216 1.39999L3.05957 7.2074L5.96327 8.45185Z"
         stroke={color}
-        strokeWidth="1.5"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
     </Svg>
   );
 };
-
-
 

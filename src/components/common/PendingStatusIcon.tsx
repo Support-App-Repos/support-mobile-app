@@ -1,18 +1,19 @@
 /**
- * Event Icon Component (Star)
+ * Pending Status Icon Component
+ * Uses event.svg (star icon)
  */
 
 import React from 'react';
 import Svg, { Path } from 'react-native-svg';
 import { ViewStyle } from 'react-native';
 
-interface EventIconProps {
+interface PendingStatusIconProps {
   size?: number;
   color?: string;
   style?: ViewStyle;
 }
 
-export const EventIcon: React.FC<EventIconProps> = ({
+export const PendingStatusIcon: React.FC<PendingStatusIconProps> = ({
   size = 14,
   color = '#828282',
   style,
@@ -33,6 +34,4 @@ export const EventIcon: React.FC<EventIconProps> = ({
     </Svg>
   );
 };
-
-
 

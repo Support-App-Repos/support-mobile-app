@@ -36,3 +36,4 @@ export const SimpleSearchIcon: React.FC<SimpleSearchIconProps> = ({
   );
 };
 
+

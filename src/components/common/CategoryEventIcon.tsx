@@ -40,3 +40,4 @@ export const CategoryEventIcon: React.FC<CategoryEventIconProps> = ({
   );
 };
 
+

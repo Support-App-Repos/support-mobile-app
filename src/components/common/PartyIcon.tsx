@@ -36,3 +36,4 @@ export const PartyIcon: React.FC<PartyIconProps> = ({
   );
 };
 
+

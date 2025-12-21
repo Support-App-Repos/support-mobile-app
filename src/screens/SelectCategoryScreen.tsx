@@ -3,7 +3,7 @@
  * Screen for selecting a category when creating a new listing
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -12,6 +12,8 @@ import {
   Image,
   ScrollView,
   Dimensions,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BackIcon, BellIcon, ForwardIcon } from '../components/common';
@@ -23,6 +25,7 @@ import {
 } from '../components/common';
 import { BottomNavigation, type BottomNavItem } from '../components/navigation';
 import { Colors, Spacing, Typography, BorderRadius } from '../config/theme';
+import { categoryService } from '../services';
 
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = (width - Spacing.md * 3) / 2; // Account for padding and gap
@@ -40,56 +43,91 @@ interface CategoryOption {
   icon: React.ReactNode;
 }
 
-const categories: CategoryOption[] = [
-  {
-    id: 'Events',
-    title: 'Events',
-    description: 'Parties, Meetings, Workshop',
-    icon: <CategoryEventIcon size={24} color="#2563EB" backgroundColor="#E0ECFC" />,
-  },
-  {
-    id: 'Products',
-    title: 'Products',
-    description: 'Items, gadgets, Merchandise',
-    icon: <CategoryProductIcon size={24} color="#16A34A" backgroundColor="#F0FDF4" />,
-  },
-  {
-    id: 'Properties',
-    title: 'Properties',
-    description: 'Rentals, sales, sublets',
-    icon: <PropertiesIcon size={24} color="#9333EA" backgroundColor="#FAD8FF" />,
-  },
-  {
-    id: 'Services',
-    title: 'Services',
-    description: 'Reviews, Consulting, business',
-    icon: <CategoryServiceIcon size={24} color="#EA580C" backgroundColor="#FFCA95" />,
-  },
-];
+// Map category names to icons and colors
+const getCategoryIcon = (categoryName: string) => {
+  const name = categoryName.toLowerCase();
+  if (name.includes('event')) {
+    return <CategoryEventIcon size={24} color="#2563EB" backgroundColor="#E0ECFC" />;
+  }
+  if (name.includes('product')) {
+    return <CategoryProductIcon size={24} color="#16A34A" backgroundColor="#F0FDF4" />;
+  }
+  if (name.includes('propert')) {
+    return <PropertiesIcon size={24} color="#9333EA" backgroundColor="#FAD8FF" />;
+  }
+  if (name.includes('service')) {
+    return <CategoryServiceIcon size={24} color="#EA580C" backgroundColor="#FFCA95" />;
+  }
+  return <CategoryProductIcon size={24} color="#16A34A" backgroundColor="#F0FDF4" />;
+};
 
 export const SelectCategoryScreen: React.FC<SelectCategoryScreenProps> = ({
   navigation,
 }) => {
-  const [selectedCategory, setSelectedCategory] = useState<CategoryType | null>(
-    null
-  );
+  const [categories, setCategories] = useState<any[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<any | null>(null);
   const [activeTab, setActiveTab] = useState<BottomNavItem>('Home');
+  const [loading, setLoading] = useState(true);
 
-  const handleCategorySelect = (category: CategoryType) => {
+  useEffect(() => {
+    fetchCategories();
+  }, []);
+
+  const fetchCategories = async () => {
+    try {
+      setLoading(true);
+      const response = await categoryService.getCategories();
+      
+      // Debug: Log full response structure
+      console.log('Full API Response:', JSON.stringify(response, null, 2));
+      
+      // The API service returns { data: { success: true, data: categories }, success: true }
+      // So we need to extract the nested data
+      const apiResponse = response.data as any;
+      const categoriesData = apiResponse?.data || [];
+      
+      console.log('Extracted categoriesData:', categoriesData);
+      console.log('Response success:', response.success);
+      console.log('Is array?', Array.isArray(categoriesData));
+      
+      if (response.success && Array.isArray(categoriesData)) {
+        setCategories(categoriesData);
+      } else {
+        if (__DEV__) {
+          console.warn('Categories data is not an array or response failed:', {
+            success: response.success,
+            categoriesData,
+            apiResponse,
+            fullResponse: response,
+          });
+        }
+        setCategories([]);
+      }
+    } catch (error: any) {
+      console.error('Error fetching categories:', error);
+      Alert.alert('Error', error.message || 'Failed to load categories');
+      setCategories([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCategorySelect = (category: any) => {
     setSelectedCategory(category);
   };
 
   const handleNext = () => {
     if (selectedCategory) {
+      const categoryName = selectedCategory.name || selectedCategory.slug || '';
       // Navigate to appropriate screen based on category
-      if (selectedCategory === 'Products') {
-        navigation?.navigate('ProductListing', { category: selectedCategory });
-      } else if (selectedCategory === 'Events') {
-        navigation?.navigate('SelectEventType', { category: selectedCategory });
-      } else if (selectedCategory === 'Services') {
-        navigation?.navigate('SelectServiceType', { category: selectedCategory });
-      } else if (selectedCategory === 'Properties') {
-        navigation?.navigate('PropertyListing', { category: selectedCategory });
+      if (categoryName.toLowerCase().includes('product')) {
+        navigation?.navigate('ProductListing', { categoryId: selectedCategory.id, category: categoryName });
+      } else if (categoryName.toLowerCase().includes('event')) {
+        navigation?.navigate('SelectEventType', { categoryId: selectedCategory.id, category: categoryName });
+      } else if (categoryName.toLowerCase().includes('service')) {
+        navigation?.navigate('SelectServiceType', { categoryId: selectedCategory.id, category: categoryName });
+      } else if (categoryName.toLowerCase().includes('propert')) {
+        navigation?.navigate('PropertyListing', { categoryId: selectedCategory.id, category: categoryName });
       }
     }
   };
@@ -147,25 +185,37 @@ export const SelectCategoryScreen: React.FC<SelectCategoryScreenProps> = ({
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.categoriesGrid}>
-          {categories.map((category) => (
-            <TouchableOpacity
-              key={category.id}
-              style={[
-                styles.categoryCard,
-                selectedCategory === category.id && styles.categoryCardSelected,
-              ]}
-              onPress={() => handleCategorySelect(category.id)}
-              activeOpacity={0.8}
-            >
-              <View style={styles.categoryIcon}>{category.icon}</View>
-              <Text style={styles.categoryTitle}>{category.title}</Text>
-              <Text style={styles.categoryDescription}>
-                {category.description}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={Colors.light.primary} />
+            <Text style={styles.loadingText}>Loading categories...</Text>
+          </View>
+        ) : categories.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyText}>No categories available</Text>
+            <Text style={styles.emptySubtext}>Please check your connection or contact support</Text>
+          </View>
+        ) : (
+          <View style={styles.categoriesGrid}>
+            {categories.map((category) => (
+              <TouchableOpacity
+                key={category.id}
+                style={[
+                  styles.categoryCard,
+                  selectedCategory?.id === category.id && styles.categoryCardSelected,
+                ]}
+                onPress={() => handleCategorySelect(category)}
+                activeOpacity={0.8}
+              >
+                <View style={styles.categoryIcon}>{getCategoryIcon(category.name)}</View>
+                <Text style={styles.categoryTitle}>{category.name}</Text>
+                <Text style={styles.categoryDescription}>
+                  {category.description || 'Select to create listing'}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
       </ScrollView>
 
       {/* Next Button */}
@@ -201,8 +251,14 @@ export const SelectCategoryScreen: React.FC<SelectCategoryScreenProps> = ({
           setActiveTab(tab);
           if (tab === 'Home') {
             navigation?.navigate('Home');
+          } else if (tab === 'MyListings') {
+            navigation?.navigate('MyListings');
+          } else if (tab === 'Messages') {
+            // TODO: Navigate to Messages screen when implemented
+            console.log('Messages screen not yet implemented');
+          } else if (tab === 'Profile') {
+            navigation?.navigate('Profile');
           }
-          // TODO: Handle other tab navigations
         }}
         onCreatePress={() => {}}
         showCreateButton={false}
@@ -302,6 +358,33 @@ const styles = StyleSheet.create({
     color: Colors.light.textSecondary,
     textAlign: 'left',
     fontSize: 12,
+  },
+  loadingContainer: {
+    padding: Spacing.xl,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingText: {
+    ...Typography.body,
+    color: Colors.light.textSecondary,
+    marginTop: Spacing.md,
+  },
+  emptyContainer: {
+    padding: Spacing.xl,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 200,
+  },
+  emptyText: {
+    ...Typography.h3,
+    color: Colors.light.text,
+    fontWeight: '600',
+    marginBottom: Spacing.xs,
+  },
+  emptySubtext: {
+    ...Typography.body,
+    color: Colors.light.textSecondary,
+    fontSize: 14,
   },
   footer: {
     paddingHorizontal: Spacing.md,

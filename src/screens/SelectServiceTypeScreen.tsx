@@ -3,7 +3,7 @@
  * Screen for selecting a service type when creating a service listing
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -12,6 +12,8 @@ import {
   Image,
   ScrollView,
   Dimensions,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -25,6 +27,7 @@ import {
 } from '../components/common';
 import { BottomNavigation, type BottomNavItem } from '../components/navigation';
 import { Colors, Spacing, Typography, BorderRadius } from '../config/theme';
+import { categoryService } from '../services';
 
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = (width - Spacing.md * 3) / 2; // Account for padding and gap
@@ -51,48 +54,68 @@ interface ServiceTypeOption {
   icon: React.ReactNode;
 }
 
-const serviceTypes: ServiceTypeOption[] = [
-  {
-    id: 'Beauty & Wellness',
-    title: 'Beauty & Wellness',
-    description: 'Nail, Hair, spa, Massage',
-    icon: <BeautyWellnessIcon size={24} color="#FF146E" />,
-  },
-  {
-    id: 'Medical Aesthetics',
-    title: 'Medical Aesthetics',
-    description: 'Botox, fillers',
-    icon: <MedicalAestheticsIcon size={24} />,
-  },
-  {
-    id: 'Home Services',
-    title: 'Home services',
-    description: 'Painting, Plumbing, Electrical',
-    icon: <HomeServiceIcon size={24} />,
-  },
-  {
-    id: 'Professional Services',
-    title: 'Professional Services',
-    description: 'Legal, Consulting, Accountings',
-    icon: <ProfessionalServiceIcon size={24} />,
-  },
-];
+// Map service type names to icons
+const getServiceTypeIcon = (serviceTypeName: string) => {
+  const name = serviceTypeName.toLowerCase();
+  if (name.includes('beauty') || name.includes('wellness')) {
+    return <BeautyWellnessIcon size={24} color="#FF146E" />;
+  }
+  if (name.includes('medical') || name.includes('aesthetic')) {
+    return <MedicalAestheticsIcon size={24} />;
+  }
+  if (name.includes('home')) {
+    return <HomeServiceIcon size={24} />;
+  }
+  if (name.includes('professional')) {
+    return <ProfessionalServiceIcon size={24} />;
+  }
+  return <ProfessionalServiceIcon size={24} />;
+};
 
 export const SelectServiceTypeScreen: React.FC<SelectServiceTypeScreenProps> =
   ({ navigation, route }) => {
-    const [selectedServiceType, setSelectedServiceType] =
-      useState<ServiceType | null>(null);
+    const [serviceTypes, setServiceTypes] = useState<any[]>([]);
+    const [selectedServiceType, setSelectedServiceType] = useState<any | null>(null);
     const [activeTab, setActiveTab] = useState<BottomNavItem>('Home');
+    const [loading, setLoading] = useState(true);
+    const categoryId = route?.params?.categoryId;
 
-    const handleServiceTypeSelect = (serviceType: ServiceType) => {
+    useEffect(() => {
+      fetchServiceTypes();
+    }, []);
+
+    const fetchServiceTypes = async () => {
+      try {
+        setLoading(true);
+        const response = await categoryService.getServiceTypes();
+        const serviceTypesData = (response.data as any)?.data || response.data || [];
+        
+        if (response.success && Array.isArray(serviceTypesData)) {
+          // Filter by categoryId if provided
+          const filtered = categoryId 
+            ? serviceTypesData.filter((st: any) => st.categoryId === categoryId)
+            : serviceTypesData;
+          setServiceTypes(filtered);
+        }
+      } catch (error: any) {
+        console.error('Error fetching service types:', error);
+        Alert.alert('Error', error.message || 'Failed to load service types');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    const handleServiceTypeSelect = (serviceType: any) => {
       setSelectedServiceType(serviceType);
     };
 
     const handleContinue = () => {
       if (selectedServiceType) {
         navigation?.navigate('ServiceListing', {
-          category: 'Services',
-          serviceType: selectedServiceType,
+          categoryId: categoryId || route?.params?.category,
+          category: route?.params?.category || 'Services',
+          serviceTypeId: selectedServiceType.id,
+          serviceType: selectedServiceType.name || selectedServiceType.slug,
         });
       }
     };
@@ -150,30 +173,37 @@ export const SelectServiceTypeScreen: React.FC<SelectServiceTypeScreenProps> =
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
         >
-          <View style={styles.serviceTypesGrid}>
-            {serviceTypes.map((serviceType) => (
-              <TouchableOpacity
-                key={serviceType.id}
-                style={[
-                  styles.serviceTypeCard,
-                  selectedServiceType === serviceType.id &&
-                    styles.serviceTypeCardSelected,
-                ]}
-                onPress={() => handleServiceTypeSelect(serviceType.id)}
-                activeOpacity={0.8}
-              >
-                <View style={styles.serviceTypeIcon}>
-                  {serviceType.icon}
-                </View>
-                <Text style={styles.serviceTypeTitle}>
-                  {serviceType.title}
-                </Text>
-                <Text style={styles.serviceTypeDescription}>
-                  {serviceType.description}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+          {loading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color={Colors.light.primary} />
+              <Text style={styles.loadingText}>Loading service types...</Text>
+            </View>
+          ) : (
+            <View style={styles.serviceTypesGrid}>
+              {serviceTypes.map((serviceType) => (
+                <TouchableOpacity
+                  key={serviceType.id}
+                  style={[
+                    styles.serviceTypeCard,
+                    selectedServiceType?.id === serviceType.id &&
+                      styles.serviceTypeCardSelected,
+                  ]}
+                  onPress={() => handleServiceTypeSelect(serviceType)}
+                  activeOpacity={0.8}
+                >
+                  <View style={styles.serviceTypeIcon}>
+                    {getServiceTypeIcon(serviceType.name)}
+                  </View>
+                  <Text style={styles.serviceTypeTitle}>
+                    {serviceType.name}
+                  </Text>
+                  <Text style={styles.serviceTypeDescription}>
+                    {serviceType.description || 'Select to create listing'}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
         </ScrollView>
 
         {/* Continue Button */}
@@ -209,8 +239,14 @@ export const SelectServiceTypeScreen: React.FC<SelectServiceTypeScreenProps> =
             setActiveTab(tab);
             if (tab === 'Home') {
               navigation?.navigate('Home');
+            } else if (tab === 'MyListings') {
+              navigation?.navigate('MyListings');
+            } else if (tab === 'Messages') {
+              // TODO: Navigate to Messages screen when implemented
+              console.log('Messages screen not yet implemented');
+            } else if (tab === 'Profile') {
+              navigation?.navigate('Profile');
             }
-            // TODO: Handle other tab navigations
           }}
           onCreatePress={() => {}}
           showCreateButton={false}
@@ -337,6 +373,16 @@ const styles = StyleSheet.create({
   },
   continueButtonTextDisabled: {
     color: '#9CA3AF',
+  },
+  loadingContainer: {
+    padding: Spacing.xl,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingText: {
+    ...Typography.body,
+    color: Colors.light.textSecondary,
+    marginTop: Spacing.md,
   },
 });
 

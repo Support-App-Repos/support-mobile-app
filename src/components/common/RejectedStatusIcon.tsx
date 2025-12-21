@@ -1,18 +1,19 @@
 /**
- * Product Icon Component (Thumbs up)
+ * Rejected Status Icon Component
+ * Uses product.svg (thumbs down icon)
  */
 
 import React from 'react';
 import Svg, { Path } from 'react-native-svg';
 import { ViewStyle } from 'react-native';
 
-interface ProductIconProps {
+interface RejectedStatusIconProps {
   size?: number;
   color?: string;
   style?: ViewStyle;
 }
 
-export const ProductIcon: React.FC<ProductIconProps> = ({
+export const RejectedStatusIcon: React.FC<RejectedStatusIconProps> = ({
   size = 14,
   color = '#828282',
   style,
@@ -34,6 +35,4 @@ export const ProductIcon: React.FC<ProductIconProps> = ({
     </Svg>
   );
 };
-
-
 

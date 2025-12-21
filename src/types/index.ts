@@ -51,6 +51,7 @@ export type RootStackParamList = {
     listingId?: string;
   };
   Profile: undefined;
+  MyListings: undefined;
   // Add more screen params as needed
 };
 

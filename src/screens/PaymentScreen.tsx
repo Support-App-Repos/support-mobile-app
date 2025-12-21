@@ -3,7 +3,7 @@
  * Second step of the multi-step listing creation form
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -12,11 +12,15 @@ import {
   TouchableOpacity,
   Image,
   ScrollView,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useStripe } from '@stripe/stripe-react-native';
 import { BackIcon, BellIcon, CheckedIcon, StepCompletedMarkIcon } from '../components/common';
 import { BottomNavigation, type BottomNavItem } from '../components/navigation';
 import { Colors, Spacing, Typography, BorderRadius } from '../config/theme';
+import { paymentService } from '../services/paymentService';
 
 type PaymentScreenProps = {
   navigation?: any;
@@ -29,22 +33,96 @@ type PaymentScreenProps = {
 
 const FORM_STEPS = ['Details', 'Payment', 'Select Region', 'Confirm'];
 
-type PaymentPlan = 'monthly' | 'onetime' | null;
+interface PaymentPlan {
+  id: string;
+  name: string;
+  type: 'monthly' | 'onetime';
+  price: number;
+  listingFee: number;
+  processingFee: number;
+  features?: string[];
+}
 
 export const PaymentScreen: React.FC<PaymentScreenProps> = ({
   navigation,
   route,
 }) => {
-  const [selectedPlan, setSelectedPlan] = useState<PaymentPlan>(null);
+  const { initPaymentSheet, presentPaymentSheet } = useStripe();
+  const [paymentPlans, setPaymentPlans] = useState<PaymentPlan[]>([]);
+  const [selectedPlan, setSelectedPlan] = useState<PaymentPlan | null>(null);
   const [promoCode, setPromoCode] = useState('');
+  const [validatedPromoCode, setValidatedPromoCode] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<BottomNavItem>('Home');
+  const [loading, setLoading] = useState(false);
+  const [loadingPlans, setLoadingPlans] = useState(true);
 
   const currentStep = 1; // Second step (Payment)
+  const listingData = route?.params?.listingData;
 
-  // Price breakdown (mock data)
-  const listingFee = 1000;
-  const processingFee = 1000;
-  const total = listingFee + processingFee;
+  // Fetch payment plans on mount
+  useEffect(() => {
+    fetchPaymentPlans();
+  }, []);
+
+  const fetchPaymentPlans = async () => {
+    try {
+      setLoadingPlans(true);
+      const response = await paymentService.getPaymentPlans();
+      // Backend returns { success: true, data: [...] }
+      // ApiService.get extracts response.data, so we get { success, data: { success, data: [...] } }
+      const plans = (response.data as any)?.data || response.data || [];
+      if (response.success && Array.isArray(plans) && plans.length > 0) {
+        setPaymentPlans(plans);
+      }
+    } catch (error: any) {
+      console.error('Error fetching payment plans:', error);
+      Alert.alert('Error', error.message || 'Failed to load payment plans');
+    } finally {
+      setLoadingPlans(false);
+    }
+  };
+
+  const handleValidatePromoCode = async () => {
+    if (!promoCode.trim()) {
+      setValidatedPromoCode(null);
+      return;
+    }
+
+    try {
+      const response = await paymentService.validatePromoCode(promoCode);
+      // Backend returns { success: true, data: {...} }
+      const promoData = (response.data as any)?.data || response.data;
+      if (response.success && promoData) {
+        setValidatedPromoCode(promoData);
+        Alert.alert('Success', 'Promo code applied successfully!');
+      }
+    } catch (error: any) {
+      console.error('Error validating promo code:', error);
+      Alert.alert('Error', error.message || 'Invalid promo code');
+      setValidatedPromoCode(null);
+    }
+  };
+
+  // Calculate total amount
+  const calculateTotal = () => {
+    if (!selectedPlan) return 0;
+    let total = selectedPlan.price + selectedPlan.listingFee + selectedPlan.processingFee;
+    
+    // Apply promo code discount if validated
+    if (validatedPromoCode) {
+      if (validatedPromoCode.discountType === 'percentage') {
+        total = total - (total * validatedPromoCode.discountValue / 100);
+      } else {
+        total = total - validatedPromoCode.discountValue;
+      }
+    }
+    
+    return Math.max(0, total);
+  };
+
+  const listingFee = selectedPlan?.listingFee || 0;
+  const processingFee = selectedPlan?.processingFee || 0;
+  const total = calculateTotal();
 
   const handleBack = () => {
     navigation?.goBack();
@@ -54,13 +132,88 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
     setSelectedPlan(plan);
   };
 
-  const handleProceedToPayment = () => {
-    if (selectedPlan) {
-      const paymentData = { plan: selectedPlan, promoCode };
-      navigation?.navigate('SelectRegion', {
-        listingData: route?.params?.listingData,
-        paymentData,
+  const handleProceedToPayment = async () => {
+    if (!selectedPlan || !listingData?.id) {
+      Alert.alert('Error', 'Please select a payment plan and ensure listing data is available');
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      // 1. Create payment intent on backend
+      const createResponse = await paymentService.createPaymentIntent({
+        listingId: listingData.id,
+        paymentPlanId: selectedPlan.id,
+        promoCodeId: validatedPromoCode?.id,
       });
+
+      if (!createResponse.success) {
+        throw new Error(createResponse.message || 'Failed to create payment intent');
+      }
+
+      // Backend returns { success: true, data: {...} }
+      const paymentData = (createResponse.data as any)?.data || createResponse.data;
+      if (!paymentData) {
+        throw new Error('Invalid payment intent response');
+      }
+
+      const { clientSecret, paymentIntentId, subscriptionId } = paymentData;
+
+      // 2. Initialize payment sheet
+      const { error: initError } = await initPaymentSheet({
+        paymentIntentClientSecret: clientSecret,
+        merchantDisplayName: 'Marketplace',
+        allowsDelayedPaymentMethods: true,
+      });
+
+      if (initError) {
+        console.error('Payment sheet initialization error:', initError);
+        Alert.alert('Error', initError.message || 'Failed to initialize payment');
+        return;
+      }
+
+      // 3. Present payment sheet
+      const { error: presentError } = await presentPaymentSheet();
+
+      if (presentError) {
+        if (presentError.code !== 'Canceled') {
+          console.error('Payment sheet error:', presentError);
+          Alert.alert('Error', presentError.message || 'Payment failed');
+        }
+        // User canceled - don't show error
+        return;
+      }
+
+      // 4. Payment succeeded - confirm on backend
+      const confirmResponse = await paymentService.confirmPayment({
+        paymentIntentId,
+        subscriptionId,
+      });
+
+      if (confirmResponse.success) {
+        // Backend returns { success: true, data: {...} }
+        const subscriptionData = (confirmResponse.data as any)?.data || confirmResponse.data;
+        
+        // Navigate to next step with payment data
+        const paymentData = {
+          plan: selectedPlan,
+          promoCode: validatedPromoCode,
+          subscription: subscriptionData,
+        };
+        
+        navigation?.navigate('SelectRegion', {
+          listingData,
+          paymentData,
+        });
+      } else {
+        throw new Error(confirmResponse.message || 'Payment confirmation failed');
+      }
+    } catch (error: any) {
+      console.error('Payment error:', error);
+      Alert.alert('Error', error.message || 'Payment failed. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -157,151 +310,149 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
           Choose how you'd like to pay for your listing
         </Text>
 
-        {/* Monthly Subscription Card */}
-        <TouchableOpacity
-          style={[
-            styles.planCard,
-            selectedPlan === 'monthly' && styles.planCardSelected,
-          ]}
-          onPress={() => handlePlanSelect('monthly')}
-          activeOpacity={0.8}
-        >
-          <View style={styles.planHeader}>
-            <Text style={styles.planPrice}>$10/month</Text>
-            <Text style={styles.planTitle}>Monthly Subscription</Text>
-            <Text style={styles.planSubtitle}>Unlimited Listings</Text>
+        {/* Loading state */}
+        {loadingPlans ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={Colors.light.primary} />
+            <Text style={styles.loadingText}>Loading payment plans...</Text>
           </View>
-          <View style={styles.planFeatures}>
-            <View style={styles.featureItem}>
-              <CheckedIcon size={16} />
-              <Text style={styles.featureText}>Unlimited listings</Text>
-            </View>
-            <View style={styles.featureItem}>
-              <CheckedIcon size={16} />
-              <Text style={styles.featureText}>Priority support</Text>
-            </View>
-            <View style={styles.featureItem}>
-              <CheckedIcon size={16} />
-              <Text style={styles.featureText}>Analytics</Text>
-            </View>
-            <View style={styles.featureItem}>
-              <CheckedIcon size={16} />
-              <Text style={styles.featureText}>Featured placement</Text>
-            </View>
-          </View>
-          <TouchableOpacity
-            style={[
-              styles.selectButton,
-              selectedPlan === 'monthly' && styles.selectButtonSelected,
-            ]}
-            onPress={() => handlePlanSelect('monthly')}
-            activeOpacity={0.8}
-          >
-            <Text
-              style={[
-                styles.selectButtonText,
-                selectedPlan === 'monthly' && styles.selectButtonTextSelected,
-              ]}
-            >
-              Select
-            </Text>
-          </TouchableOpacity>
-        </TouchableOpacity>
-
-        {/* One-time Subscription Card */}
-        <TouchableOpacity
-          style={[
-            styles.planCard,
-            selectedPlan === 'onetime' && styles.planCardSelected,
-          ]}
-          onPress={() => handlePlanSelect('onetime')}
-          activeOpacity={0.8}
-        >
-          <View style={styles.planHeader}>
-            <Text style={styles.planPrice}>$10/Listing</Text>
-            <Text style={styles.planTitle}>One time Subscription</Text>
-            <Text style={styles.planSubtitle}>Pay per listing</Text>
-          </View>
-          <View style={styles.planFeatures}>
-            <View style={styles.featureItem}>
-              <CheckedIcon size={16} />
-              <Text style={styles.featureText}>Single listing</Text>
-            </View>
-            <View style={styles.featureItem}>
-              <CheckedIcon size={16} />
-              <Text style={styles.featureText}>30-day visibility</Text>
-            </View>
-            <View style={styles.featureItem}>
-              <CheckedIcon size={16} />
-              <Text style={styles.featureText}>Basic support</Text>
-            </View>
-          </View>
-          <TouchableOpacity
-            style={[
-              styles.selectButton,
-              selectedPlan === 'onetime' && styles.selectButtonSelected,
-            ]}
-            onPress={() => handlePlanSelect('onetime')}
-            activeOpacity={0.8}
-          >
-            <Text
-              style={[
-                styles.selectButtonText,
-                selectedPlan === 'onetime' && styles.selectButtonTextSelected,
-              ]}
-            >
-              Select
-            </Text>
-          </TouchableOpacity>
-        </TouchableOpacity>
+        ) : (
+          <>
+            {/* Payment Plan Cards */}
+            {paymentPlans.map((plan) => (
+              <View
+                key={plan.id}
+                style={[
+                  styles.planCard,
+                  selectedPlan?.id === plan.id && styles.planCardSelected,
+                ]}
+              >
+                <View style={styles.planHeader}>
+                  <Text style={styles.planPrice}>
+                    ${plan.price.toFixed(2)}
+                    {plan.type === 'monthly' ? '/month' : '/listing'}
+                  </Text>
+                  <Text style={styles.planTitle}>{plan.name}</Text>
+                  <Text style={styles.planSubtitle}>
+                    {plan.type === 'monthly' ? 'Unlimited Listings' : 'Pay per listing'}
+                  </Text>
+                </View>
+                {plan.features && Array.isArray(plan.features) && (
+                  <View style={styles.planFeatures}>
+                    {plan.features.map((feature, index) => (
+                      <View key={index} style={styles.featureItem}>
+                        <CheckedIcon size={16} />
+                        <Text style={styles.featureText}>{feature}</Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+                <TouchableOpacity
+                  style={[
+                    styles.selectButton,
+                    selectedPlan?.id === plan.id && styles.selectButtonSelected,
+                  ]}
+                  onPress={() => handlePlanSelect(plan)}
+                  activeOpacity={0.8}
+                >
+                  <Text
+                    style={[
+                      styles.selectButtonText,
+                      selectedPlan?.id === plan.id && styles.selectButtonTextSelected,
+                    ]}
+                  >
+                    Select
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            ))}
+          </>
+        )}
 
         {/* Price Breakdown */}
-        <View style={styles.priceBreakdownCard}>
-          <Text style={styles.priceBreakdownTitle}>Price Breakdown</Text>
-          <View style={styles.priceRow}>
-            <Text style={styles.priceLabel}>Listing Fee</Text>
-            <Text style={styles.priceValue}>{listingFee}</Text>
+        {selectedPlan && (
+          <View style={styles.priceBreakdownCard}>
+            <Text style={styles.priceBreakdownTitle}>Price Breakdown</Text>
+            <View style={styles.priceRow}>
+              <Text style={styles.priceLabel}>Plan Price</Text>
+              <Text style={styles.priceValue}>${selectedPlan.price.toFixed(2)}</Text>
+            </View>
+            <View style={styles.priceRow}>
+              <Text style={styles.priceLabel}>Listing Fee</Text>
+              <Text style={styles.priceValue}>${listingFee.toFixed(2)}</Text>
+            </View>
+            <View style={styles.priceRow}>
+              <Text style={styles.priceLabel}>Processing Fee</Text>
+              <Text style={styles.priceValue}>${processingFee.toFixed(2)}</Text>
+            </View>
+            {validatedPromoCode && (
+              <View style={styles.priceRow}>
+                <Text style={styles.priceLabel}>Discount</Text>
+                <Text style={[styles.priceValue, styles.discountValue]}>
+                  -$
+                  {validatedPromoCode.discountType === 'percentage'
+                    ? ((selectedPlan.price + listingFee + processingFee) * validatedPromoCode.discountValue / 100).toFixed(2)
+                    : validatedPromoCode.discountValue.toFixed(2)}
+                </Text>
+              </View>
+            )}
+            <View style={[styles.priceRow, styles.totalRow]}>
+              <Text style={styles.totalLabel}>Total</Text>
+              <Text style={styles.totalValue}>${total.toFixed(2)}</Text>
+            </View>
           </View>
-          <View style={styles.priceRow}>
-            <Text style={styles.priceLabel}>Processing Fee</Text>
-            <Text style={styles.priceValue}>{processingFee}</Text>
-          </View>
-          <View style={[styles.priceRow, styles.totalRow]}>
-            <Text style={styles.totalLabel}>Total</Text>
-            <Text style={styles.totalValue}>{total}</Text>
-          </View>
-        </View>
+        )}
 
         {/* Promo Code Section */}
         <View style={styles.promoSection}>
           <Text style={styles.promoLabel}>Promo code (if any)</Text>
-          <TextInput
-            style={styles.promoInput}
-            placeholder="Enter promo code"
-            placeholderTextColor={Colors.light.textSecondary}
-            value={promoCode}
-            onChangeText={setPromoCode}
-          />
+          <View style={styles.promoInputContainer}>
+            <TextInput
+              style={styles.promoInput}
+              placeholder="Enter promo code"
+              placeholderTextColor={Colors.light.textSecondary}
+              value={promoCode}
+              onChangeText={setPromoCode}
+              editable={!loading}
+            />
+            <TouchableOpacity
+              style={styles.validateButton}
+              onPress={handleValidatePromoCode}
+              disabled={!promoCode.trim() || loading}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.validateButtonText}>Apply</Text>
+            </TouchableOpacity>
+          </View>
+          {validatedPromoCode && (
+            <Text style={styles.promoSuccessText}>
+              ✓ Promo code applied: {validatedPromoCode.code}
+            </Text>
+          )}
         </View>
 
         {/* Proceed to Payment Button */}
         <TouchableOpacity
           style={[
             styles.proceedButton,
-            !selectedPlan && styles.proceedButtonDisabled,
+            (!selectedPlan || loading || loadingPlans) && styles.proceedButtonDisabled,
           ]}
           onPress={handleProceedToPayment}
-          disabled={!selectedPlan}
+          disabled={!selectedPlan || loading || loadingPlans}
           activeOpacity={0.8}
         >
-          <Text
-            style={[
-              styles.proceedButtonText,
-              !selectedPlan && styles.proceedButtonTextDisabled,
-            ]}
-          >
-            Proceed to Payment
-          </Text>
+          {loading ? (
+            <ActivityIndicator color="#FFFFFF" />
+          ) : (
+            <Text
+              style={[
+                styles.proceedButtonText,
+                (!selectedPlan || loading || loadingPlans) && styles.proceedButtonTextDisabled,
+              ]}
+            >
+              Proceed to Payment
+            </Text>
+          )}
         </TouchableOpacity>
       </ScrollView>
 
@@ -312,8 +463,14 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
           setActiveTab(tab);
           if (tab === 'Home') {
             navigation?.navigate('Home');
+          } else if (tab === 'MyListings') {
+            navigation?.navigate('MyListings');
+          } else if (tab === 'Messages') {
+            // TODO: Navigate to Messages screen when implemented
+            console.log('Messages screen not yet implemented');
+          } else if (tab === 'Profile') {
+            navigation?.navigate('Profile');
           }
-          // TODO: Handle other tab navigations
         }}
         onCreatePress={() => {}}
         showCreateButton={false}
@@ -553,6 +710,9 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     fontSize: 14,
   },
+  discountValue: {
+    color: '#10B981',
+  },
   totalRow: {
     marginTop: Spacing.sm,
     paddingTop: Spacing.sm,
@@ -581,8 +741,13 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.xs,
     fontSize: 14,
   },
+  promoInputContainer: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+  },
   promoInput: {
     ...Typography.body,
+    flex: 1,
     backgroundColor: Colors.light.background,
     borderWidth: 1,
     borderColor: '#E5E7EB',
@@ -590,6 +755,37 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
     color: Colors.light.text,
+    fontSize: 14,
+  },
+  validateButton: {
+    backgroundColor: Colors.light.primary,
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  validateButtonText: {
+    ...Typography.body,
+    color: '#FFFFFF',
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  promoSuccessText: {
+    ...Typography.caption,
+    color: '#10B981',
+    marginTop: Spacing.xs,
+    fontSize: 12,
+  },
+  loadingContainer: {
+    padding: Spacing.xl,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingText: {
+    ...Typography.body,
+    color: Colors.light.textSecondary,
+    marginTop: Spacing.md,
     fontSize: 14,
   },
   proceedButton: {

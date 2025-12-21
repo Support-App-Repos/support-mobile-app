@@ -144,8 +144,14 @@ export const PublishScreen: React.FC<PublishScreenProps> = ({
           setActiveTab(tab);
           if (tab === 'Home') {
             handleReturnToHome();
+          } else if (tab === 'MyListings') {
+            navigation?.navigate('MyListings');
+          } else if (tab === 'Messages') {
+            // TODO: Navigate to Messages screen when implemented
+            console.log('Messages screen not yet implemented');
+          } else if (tab === 'Profile') {
+            navigation?.navigate('Profile');
           }
-          // TODO: Handle other tab navigations
         }}
         onCreatePress={() => {}}
         showCreateButton={false}
@@ -261,4 +267,5 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
 });
+
 

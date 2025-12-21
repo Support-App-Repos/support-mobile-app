@@ -3,7 +3,7 @@
  * Third step of the multi-step listing creation form
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
@@ -12,11 +12,14 @@ import {
   TouchableOpacity,
   Image,
   ScrollView,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BackIcon, BellIcon, StepCompletedMarkIcon, SimpleSearchIcon } from '../components/common';
 import { BottomNavigation, type BottomNavItem } from '../components/navigation';
 import { Colors, Spacing, Typography, BorderRadius } from '../config/theme';
+import { regionService } from '../services';
 
 type SelectRegionScreenProps = {
   navigation?: any;
@@ -36,43 +39,90 @@ interface Region {
   country: string;
 }
 
-// Mock data for regions
-const ALL_REGIONS: Region[] = [
-  { id: '1', name: 'New York', country: 'United States' },
-  { id: '2', name: 'Los Angeles', country: 'United States' },
-  { id: '3', name: 'Chicago', country: 'United States' },
-  { id: '4', name: 'Houston', country: 'United States' },
-  { id: '5', name: 'Phoenix', country: 'United States' },
-  { id: '6', name: 'Philadelphia', country: 'United States' },
-  { id: '7', name: 'San Antonio', country: 'United States' },
-  { id: '8', name: 'San Diego', country: 'United States' },
-];
-
-// Mock recent regions
-const RECENT_REGIONS = ['New York', 'Los Angeles'];
-
 export const SelectRegionScreen: React.FC<SelectRegionScreenProps> = ({
   navigation,
   route,
 }) => {
+  const [regions, setRegions] = useState<Region[]>([]);
+  const [recentRegions, setRecentRegions] = useState<Region[]>([]);
   const [selectedRegion, setSelectedRegion] = useState<Region | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<BottomNavItem>('Home');
+  const [loading, setLoading] = useState(true);
 
   const currentStep = 2; // Third step (Select Region)
+
+  useEffect(() => {
+    fetchRegions();
+    fetchRecentRegions();
+  }, []);
+
+  // Fetch regions when search query changes (debounced)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (searchQuery.trim()) {
+        fetchRegions(searchQuery);
+      } else {
+        fetchRegions();
+      }
+    }, 300); // Debounce search
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  const fetchRegions = async (search?: string) => {
+    try {
+      setLoading(true);
+      const response = await regionService.getRegions(search);
+      const regionsData = (response.data as any)?.data || response.data || [];
+      
+      if (response.success && Array.isArray(regionsData)) {
+        const convertedRegions: Region[] = regionsData.map((r: any) => ({
+          id: r.id,
+          name: r.name,
+          country: r.country,
+        }));
+        setRegions(convertedRegions);
+      }
+    } catch (error: any) {
+      console.error('Error fetching regions:', error);
+      Alert.alert('Error', error.message || 'Failed to load regions');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchRecentRegions = async () => {
+    try {
+      const response = await regionService.getRecentRegions();
+      const recentData = (response.data as any)?.data || response.data || [];
+      
+      if (response.success && Array.isArray(recentData)) {
+        const convertedRegions: Region[] = recentData.map((r: any) => ({
+          id: r.id,
+          name: r.name,
+          country: r.country,
+        }));
+        setRecentRegions(convertedRegions);
+      }
+    } catch (error: any) {
+      console.error('Error fetching recent regions:', error);
+      // Don't show error for recent regions, just continue
+    }
+  };
 
   // Filter regions based on search query
   const filteredRegions = useMemo(() => {
     if (!searchQuery.trim()) {
-      return ALL_REGIONS;
+      return regions;
     }
     const query = searchQuery.toLowerCase();
-    return ALL_REGIONS.filter(
+    return regions.filter(
       (region) =>
         region.name.toLowerCase().includes(query) ||
         region.country.toLowerCase().includes(query)
     );
-  }, [searchQuery]);
+  }, [regions, searchQuery]);
 
   const handleBack = () => {
     navigation?.goBack();
@@ -82,11 +132,12 @@ export const SelectRegionScreen: React.FC<SelectRegionScreenProps> = ({
     setSelectedRegion(region);
   };
 
-  const handleRecentSelect = (regionName: string) => {
-    const region = ALL_REGIONS.find((r) => r.name === regionName);
-    if (region) {
-      setSelectedRegion(region);
-    }
+  const handleRecentSelect = (region: Region) => {
+    setSelectedRegion(region);
+    // Add to recent regions on backend
+    regionService.addRecentRegion(region.id).catch((error) => {
+      console.error('Error adding recent region:', error);
+    });
   };
 
   const handleConfirmRegion = () => {
@@ -206,27 +257,27 @@ export const SelectRegionScreen: React.FC<SelectRegionScreenProps> = ({
         </View>
 
         {/* Recents Section */}
-        {RECENT_REGIONS.length > 0 && (
+        {recentRegions.length > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Recents</Text>
             <View style={styles.recentsContainer}>
-              {RECENT_REGIONS.map((regionName) => (
+              {recentRegions.map((region) => (
                 <TouchableOpacity
-                  key={regionName}
+                  key={region.id}
                   style={[
                     styles.recentPill,
-                    selectedRegion?.name === regionName && styles.recentPillSelected,
+                    selectedRegion?.id === region.id && styles.recentPillSelected,
                   ]}
-                  onPress={() => handleRecentSelect(regionName)}
+                  onPress={() => handleRecentSelect(region)}
                   activeOpacity={0.7}
                 >
                   <Text
                     style={[
                       styles.recentPillText,
-                      selectedRegion?.name === regionName && styles.recentPillTextSelected,
+                      selectedRegion?.id === region.id && styles.recentPillTextSelected,
                     ]}
                   >
-                    {regionName}
+                    {region.name}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -237,7 +288,13 @@ export const SelectRegionScreen: React.FC<SelectRegionScreenProps> = ({
         {/* All Regions Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>All Regions</Text>
-          {filteredRegions.map((region) => (
+          {loading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="small" color={Colors.light.primary} />
+              <Text style={styles.loadingText}>Loading regions...</Text>
+            </View>
+          ) : filteredRegions.length > 0 ? (
+            filteredRegions.map((region) => (
             <TouchableOpacity
               key={region.id}
               style={[
@@ -252,7 +309,12 @@ export const SelectRegionScreen: React.FC<SelectRegionScreenProps> = ({
                 <Text style={styles.regionCountry}>{region.country}</Text>
               </View>
             </TouchableOpacity>
-          ))}
+            ))
+          ) : (
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>No regions found</Text>
+            </View>
+          )}
         </View>
 
         {/* Confirm Region Button */}
@@ -283,8 +345,14 @@ export const SelectRegionScreen: React.FC<SelectRegionScreenProps> = ({
           setActiveTab(tab);
           if (tab === 'Home') {
             navigation?.navigate('Home');
+          } else if (tab === 'MyListings') {
+            navigation?.navigate('MyListings');
+          } else if (tab === 'Messages') {
+            // TODO: Navigate to Messages screen when implemented
+            console.log('Messages screen not yet implemented');
+          } else if (tab === 'Profile') {
+            navigation?.navigate('Profile');
           }
-          // TODO: Handle other tab navigations
         }}
         onCreatePress={() => {}}
         showCreateButton={false}
@@ -531,6 +599,25 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#9CA3AF',
+  },
+  loadingContainer: {
+    padding: Spacing.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingText: {
+    ...Typography.body,
+    color: Colors.light.textSecondary,
+    marginTop: Spacing.sm,
+  },
+  emptyContainer: {
+    padding: Spacing.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyText: {
+    ...Typography.body,
+    color: Colors.light.textSecondary,
   },
 });
 

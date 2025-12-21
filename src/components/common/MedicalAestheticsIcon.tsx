@@ -62,3 +62,4 @@ export const MedicalAestheticsIcon: React.FC<MedicalAestheticsIconProps> = ({
   );
 };
 
+

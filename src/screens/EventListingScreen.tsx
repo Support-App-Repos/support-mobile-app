@@ -13,11 +13,14 @@ import {
   Image,
   ScrollView,
   Dimensions,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BackIcon, BellIcon, AddPhotoIcon, PriceTypeDropdown, type PriceType } from '../components/common';
 import { BottomNavigation, type BottomNavItem } from '../components/navigation';
 import { Colors, Spacing, Typography, BorderRadius } from '../config/theme';
+import { listingService } from '../services';
 
 const { width } = Dimensions.get('window');
 
@@ -26,7 +29,9 @@ type EventListingScreenProps = {
   route?: {
     params?: {
       category?: string;
+      categoryId?: string;
       eventType?: string;
+      eventTypeId?: string;
     };
   };
 };
@@ -53,10 +58,11 @@ export const EventListingScreen: React.FC<EventListingScreenProps> = ({
   const [tags, setTags] = useState('');
   const [photos, setPhotos] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState<BottomNavItem>('Home');
+  const [loading, setLoading] = useState(false);
 
   const currentStep = 0; // First step
-
-  const eventType = route?.params?.eventType || 'event';
+  const categoryId = route?.params?.categoryId;
+  const eventTypeId = route?.params?.eventTypeId;
 
   // Check if all required fields are filled
   const isFormValid = title.trim() !== '' && 
@@ -66,28 +72,53 @@ export const EventListingScreen: React.FC<EventListingScreenProps> = ({
                       venue.trim() !== '' && 
                       city.trim() !== '';
 
-  const handleSaveAndContinue = () => {
-    if (isFormValid) {
-      const listingData = {
-        title,
-        description,
-        priceType,
-        price: priceType === 'Free' ? '0' : price,
-        venue,
-        city,
-        eventDate,
-        eventTime,
-        duration,
-        maxCapacity,
-        organizerName,
-        organizerContact,
-        organizerEmail,
-        tags,
-        photos,
-        category: 'Events',
-        eventType,
-      };
-      navigation?.navigate('Payment', { listingData });
+  const handleSaveAndContinue = async () => {
+    if (!isFormValid) {
+      Alert.alert('Validation Error', 'Please fill in all required fields');
+      return;
+    }
+
+    if (!categoryId) {
+      Alert.alert('Error', 'Category ID is missing');
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      // Create listing on backend
+      const response = await listingService.createListing({
+        title: title.trim(),
+        description: description.trim(),
+        price: priceType === 'Free' ? 0 : parseFloat(price),
+        priceType: priceType || 'Paid',
+        location: venue.trim(),
+        city: city.trim(),
+        venue: venue.trim(),
+        categoryId,
+        eventTypeId: eventTypeId || undefined,
+        eventDate: eventDate || undefined,
+        eventTime: eventTime || undefined,
+        duration: duration || undefined,
+        maxCapacity: maxCapacity ? parseInt(maxCapacity) : undefined,
+        organizerName: organizerName || undefined,
+        organizerContact: organizerContact || undefined,
+        organizerEmail: organizerEmail || undefined,
+        tags: tags || undefined,
+        photos: photos.length > 0 ? photos : undefined,
+      });
+
+      if (response.success) {
+        const listingData = (response.data as any)?.data || response.data;
+        navigation?.navigate('Payment', { listingData });
+      } else {
+        throw new Error(response.message || 'Failed to create listing');
+      }
+    } catch (error: any) {
+      console.error('Error creating listing:', error);
+      Alert.alert('Error', error.message || 'Failed to create listing. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -190,7 +221,7 @@ export const EventListingScreen: React.FC<EventListingScreenProps> = ({
         showsVerticalScrollIndicator={false}
       >
         <Text style={styles.introText}>
-          Add details about your {eventType.toLowerCase()} event.
+          Add details about your {route?.params?.eventType?.toLowerCase() || 'event'} event.
         </Text>
 
         {/* Event Title Field */}
@@ -404,20 +435,24 @@ export const EventListingScreen: React.FC<EventListingScreenProps> = ({
         <TouchableOpacity
           style={[
             styles.saveButton,
-            !isFormValid && styles.saveButtonDisabled,
+            (!isFormValid || loading) && styles.saveButtonDisabled,
           ]}
           onPress={handleSaveAndContinue}
-          disabled={!isFormValid}
+          disabled={!isFormValid || loading}
           activeOpacity={0.8}
         >
-          <Text
-            style={[
-              styles.saveButtonText,
-              !isFormValid && styles.saveButtonTextDisabled,
-            ]}
-          >
-            Save & Continue
-          </Text>
+          {loading ? (
+            <ActivityIndicator color="#FFFFFF" />
+          ) : (
+            <Text
+              style={[
+                styles.saveButtonText,
+                (!isFormValid || loading) && styles.saveButtonTextDisabled,
+              ]}
+            >
+              Save & Continue
+            </Text>
+          )}
         </TouchableOpacity>
       </ScrollView>
 
@@ -428,8 +463,14 @@ export const EventListingScreen: React.FC<EventListingScreenProps> = ({
           setActiveTab(tab);
           if (tab === 'Home') {
             navigation?.navigate('Home');
+          } else if (tab === 'MyListings') {
+            navigation?.navigate('MyListings');
+          } else if (tab === 'Messages') {
+            // TODO: Navigate to Messages screen when implemented
+            console.log('Messages screen not yet implemented');
+          } else if (tab === 'Profile') {
+            navigation?.navigate('Profile');
           }
-          // TODO: Handle other tab navigations
         }}
         onCreatePress={() => {}}
         showCreateButton={false}

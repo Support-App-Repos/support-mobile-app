@@ -15,10 +15,8 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { OTPInput, BackIcon, LegalDocumentModal } from '../components/common';
+import { OTPInput, BackIcon } from '../components/common';
 import { Colors, Spacing, BorderRadius, Typography } from '../config/theme';
-import { authService } from '../services';
-import { TERMS_AND_CONDITIONS_CONTENT, PRIVACY_POLICY_CONTENT } from '../constants';
 
 interface OTPVerificationScreenProps {
   navigation?: {
@@ -29,7 +27,7 @@ interface OTPVerificationScreenProps {
   route?: {
     params?: {
       phoneNumber?: string;
-      flow?: 'login';
+      flow?: 'login' | 'register';
     };
   };
 }
@@ -44,10 +42,7 @@ export const OTPVerificationScreen: React.FC<OTPVerificationScreenProps> = ({
   const [otpError, setOtpError] = useState(false);
   const [resendTimer, setResendTimer] = useState(60);
   const [canResend, setCanResend] = useState(false);
-  const [showTermsModal, setShowTermsModal] = useState(false);
-  const [showPrivacyModal, setShowPrivacyModal] = useState(false);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
-  const isVerifyingRef = useRef<boolean>(false);
 
   useEffect(() => {
     // Start countdown timer
@@ -73,46 +68,44 @@ export const OTPVerificationScreen: React.FC<OTPVerificationScreenProps> = ({
   const handleOTPChange = (value: string) => {
     setOtp(value);
     setOtpError(false);
+    
+    // Auto-verify when 6 digits are entered
+    if (value.length === 6) {
+      verifyOTP(value);
+    }
   };
 
   const verifyOTP = async (otpValue: string) => {
+    // Simulate API call
+    // In real app, call your API here
+    const isValid = otpValue === '123456'; // Demo: accept 123456 as valid
     
-    try {
-      const response = await authService.verifyOTP(phoneNumber, otpValue, flow);
-      
-      if (response.success) {
-        setOtpError(false);
-        // Navigate to Home after successful login
+    if (isValid) {
+      setOtpError(false);
+      // Navigate based on flow
+      if (flow === 'login') {
         navigation?.reset?.({
           index: 0,
           routes: [{ name: 'Home' }],
         });
       } else {
-        setOtpError(true);
-        Alert.alert('Incorrect OTP', response.message || 'Please enter the correct OTP code.');
+        // For registration, navigate to set password
+        navigation?.navigate?.('SetPassword', { phoneNumber });
       }
-    } catch (error: any) {
+    } else {
       setOtpError(true);
-      Alert.alert('Error', error.message || 'Failed to verify OTP. Please try again.');
+      Alert.alert('Incorrect OTP', 'Please enter the correct OTP code.');
     }
   };
 
-  const handleResendOTP = async () => {
+  const handleResendOTP = () => {
     if (canResend) {
-      try {
-        const response = await authService.sendOTP(phoneNumber);
-        
-        if (response.success) {
-          setResendTimer(60);
-          setCanResend(false);
-          setOtp('');
-          setOtpError(false);
-        } else {
-          Alert.alert('Error', response.message || 'Failed to resend OTP');
-        }
-      } catch (error: any) {
-        Alert.alert('Error', error.message || 'Failed to resend OTP. Please try again.');
-      }
+      // Call API to resend OTP
+      console.log('Resending OTP to:', phoneNumber);
+      setResendTimer(60);
+      setCanResend(false);
+      setOtp('');
+      setOtpError(false);
     }
   };
 
@@ -123,14 +116,6 @@ export const OTPVerificationScreen: React.FC<OTPVerificationScreenProps> = ({
       setOtpError(true);
       Alert.alert('Incomplete OTP', 'Please enter all 6 digits.');
     }
-  };
-
-  const handleTermsPress = () => {
-    setShowTermsModal(true);
-  };
-
-  const handlePrivacyPress = () => {
-    setShowPrivacyModal(true);
   };
 
   return (
@@ -191,11 +176,11 @@ export const OTPVerificationScreen: React.FC<OTPVerificationScreenProps> = ({
           <View style={styles.termsContainer}>
             <Text style={styles.termsText}>
               By continuing, you agree to our{' '}
-              <Text style={styles.linkText} onPress={handleTermsPress}>
+              <Text style={styles.linkText} onPress={() => {}}>
                 Terms and Conditions
               </Text>
               {' & '}
-              <Text style={styles.linkText} onPress={handlePrivacyPress}>
+              <Text style={styles.linkText} onPress={() => {}}>
                 Privacy Policy
               </Text>
             </Text>
@@ -218,22 +203,6 @@ export const OTPVerificationScreen: React.FC<OTPVerificationScreenProps> = ({
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
-
-      {/* Terms and Conditions Modal */}
-      <LegalDocumentModal
-        visible={showTermsModal}
-        title="Terms and Conditions"
-        content={TERMS_AND_CONDITIONS_CONTENT}
-        onClose={() => setShowTermsModal(false)}
-      />
-
-      {/* Privacy Policy Modal */}
-      <LegalDocumentModal
-        visible={showPrivacyModal}
-        title="Privacy Policy"
-        content={PRIVACY_POLICY_CONTENT}
-        onClose={() => setShowPrivacyModal(false)}
-      />
     </SafeAreaView>
   );
 };
@@ -354,11 +323,9 @@ const styles = StyleSheet.create({
     marginRight: Spacing.sm,
   },
   loginButtonArrow: {
-    marginBottom: 8,
     fontSize: 20,
     color: '#FFFFFF',
     fontWeight: '600',
   },
 });
-
 

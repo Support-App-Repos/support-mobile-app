@@ -75,10 +75,10 @@ const styles = StyleSheet.create({
   container: {
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
-    gap: 12, // 12px gap between items
+    gap: 4, // 12px gap between items
   },
   tab: {
-    paddingHorizontal: Spacing.sm,
+    paddingHorizontal: Spacing.xs,
     paddingVertical: 0,
     marginRight: 0,
     height: 23, // Fixed height: 23px

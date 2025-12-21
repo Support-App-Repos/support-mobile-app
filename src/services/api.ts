@@ -7,7 +7,7 @@ import { API_CONFIG, STORAGE_KEYS } from '../constants';
 import { ApiResponse } from '../types';
 import { Storage } from '../utils/storage';
 
-class ApiService {
+export class ApiService {
   private baseURL: string;
   private axiosInstance: AxiosInstance;
 
