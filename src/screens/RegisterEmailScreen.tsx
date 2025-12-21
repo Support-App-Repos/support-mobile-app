@@ -3,6 +3,7 @@
  */
 
 import React, { useState } from 'react';
+import { Snackbar } from '../components/common';
 import {
   View,
   Text,
@@ -45,6 +46,8 @@ export const RegisterEmailScreen: React.FC<RegisterEmailScreenProps> = ({ naviga
     password?: string;
     terms?: string;
   }>({});
+  const [snackbarVisible, setSnackbarVisible] = useState(false);
+  const [snackbarMessage, setSnackbarMessage] = useState('');
 
   const validateForm = () => {
     const newErrors: typeof errors = {};
@@ -102,7 +105,9 @@ export const RegisterEmailScreen: React.FC<RegisterEmailScreenProps> = ({ naviga
           navigation?.navigate?.('Home');
         } else {
           const errorMsg = response.message || 'Registration failed. Please check your information and try again.';
-          setErrors({ email: errorMsg });
+          // Show server error in snackbar instead of under field
+          setSnackbarMessage(errorMsg);
+          setSnackbarVisible(true);
         }
       } catch (error: any) {
         
@@ -119,7 +124,7 @@ export const RegisterEmailScreen: React.FC<RegisterEmailScreenProps> = ({ naviga
           }
           // Network errors
           else if (error.message.includes('Network error') || error.message.includes('Unable to connect')) {
-            errorMessage = 'Unable to connect to server. Please check:\n• Your internet connection\n• The API server is running\n• The API URL is correct in your configuration';
+            errorMessage = 'Unable to connect to server. Please check your internet connection and ensure the backend is running.';
           } 
           // JSON parse errors
           else if (error.message.includes('JSON Parse error')) {
@@ -131,7 +136,9 @@ export const RegisterEmailScreen: React.FC<RegisterEmailScreenProps> = ({ naviga
           }
         }
         
-        setErrors({ email: errorMessage });
+        // Show server error in snackbar instead of under field
+        setSnackbarMessage(errorMessage);
+        setSnackbarVisible(true);
       }
     }
   };
@@ -313,6 +320,22 @@ export const RegisterEmailScreen: React.FC<RegisterEmailScreenProps> = ({ naviga
         title="Privacy Policy"
         content={PRIVACY_POLICY_CONTENT}
         onClose={() => setShowPrivacyModal(false)}
+      />
+
+      {/* Snackbar for server errors */}
+      <Snackbar
+        visible={snackbarVisible}
+        message={snackbarMessage}
+        type="error"
+        onDismiss={() => setSnackbarVisible(false)}
+      />
+
+      {/* Snackbar for server errors */}
+      <Snackbar
+        visible={snackbarVisible}
+        message={snackbarMessage}
+        type="error"
+        onDismiss={() => setSnackbarVisible(false)}
       />
     </SafeAreaView>
   );

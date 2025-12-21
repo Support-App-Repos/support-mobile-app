@@ -59,10 +59,14 @@ export const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({
           setSuccessMessage('Password reset email sent! Please check your inbox and follow the instructions.');
           setEmail('');
         } else {
-          setErrors({ email: response.message || 'Failed to send reset email' });
+          // Show server error in snackbar
+          setSnackbarMessage(response.message || 'Failed to send reset email');
+          setSnackbarVisible(true);
         }
       } catch (error: any) {
-        setErrors({ email: error.message || 'Failed to send reset email. Please try again.' });
+        // Show server error in snackbar
+        setSnackbarMessage(error.message || 'Failed to send reset email. Please try again.');
+        setSnackbarVisible(true);
       } finally {
         setIsLoading(false);
       }
@@ -144,6 +148,14 @@ export const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Snackbar for server errors */}
+      <Snackbar
+        visible={snackbarVisible}
+        message={snackbarMessage}
+        type="error"
+        onDismiss={() => setSnackbarVisible(false)}
+      />
     </SafeAreaView>
   );
 };

@@ -3,6 +3,7 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
+import { Snackbar } from '../components/common';
 import {
   View,
   Text,
@@ -41,6 +42,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
   const [canResend, setCanResend] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
+  const [snackbarVisible, setSnackbarVisible] = useState(false);
+  const [snackbarMessage, setSnackbarMessage] = useState('');
 
   const handleGetCode = async () => {
     // Validate phone number
@@ -65,10 +68,14 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
         setResendTimer(60);
         setCanResend(false);
       } else {
-        setPhoneError(response.message || 'Failed to send OTP');
+        // Show server error in snackbar
+        setSnackbarMessage(response.message || 'Failed to send OTP');
+        setSnackbarVisible(true);
       }
     } catch (error: any) {
-      setPhoneError(error.message || 'Failed to send OTP. Please try again.');
+      // Show server error in snackbar
+      setSnackbarMessage(error.message || 'Failed to send OTP. Please try again.');
+      setSnackbarVisible(true);
     }
   };
 
@@ -179,10 +186,14 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
         // Navigate to Home after successful login
         navigation?.navigate?.('Home');
       } else {
-        setEmailError(response.message || 'Login failed. Please check your credentials.');
+        // Show server error in snackbar
+        setSnackbarMessage(response.message || 'Login failed. Please check your credentials.');
+        setSnackbarVisible(true);
       }
     } catch (error: any) {
-      setEmailError(error.message || 'Login failed. Please try again.');
+      // Show server error in snackbar
+      setSnackbarMessage(error.message || 'Login failed. Please try again.');
+      setSnackbarVisible(true);
     }
   };
 
@@ -372,6 +383,14 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
         title="Privacy Policy"
         content={PRIVACY_POLICY_CONTENT}
         onClose={() => setShowPrivacyModal(false)}
+      />
+
+      {/* Snackbar for server errors */}
+      <Snackbar
+        visible={snackbarVisible}
+        message={snackbarMessage}
+        type="error"
+        onDismiss={() => setSnackbarVisible(false)}
       />
     </SafeAreaView>
   );

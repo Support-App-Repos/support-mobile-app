@@ -4,6 +4,7 @@
  */
 
 import React, { useState } from 'react';
+import { Snackbar } from '../components/common';
 import {
   View,
   Text,
@@ -59,6 +60,8 @@ export const EventListingScreen: React.FC<EventListingScreenProps> = ({
   const [photos, setPhotos] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState<BottomNavItem>('Home');
   const [loading, setLoading] = useState(false);
+  const [snackbarVisible, setSnackbarVisible] = useState(false);
+  const [snackbarMessage, setSnackbarMessage] = useState('');
 
   const currentStep = 0; // First step
   const categoryId = route?.params?.categoryId;
@@ -116,7 +119,9 @@ export const EventListingScreen: React.FC<EventListingScreenProps> = ({
       }
     } catch (error: any) {
       console.error('Error creating listing:', error);
-      Alert.alert('Error', error.message || 'Failed to create listing. Please try again.');
+      // Show server error in snackbar
+      setSnackbarMessage(error.message || 'Failed to create listing. Please try again.');
+      setSnackbarVisible(true);
     } finally {
       setLoading(false);
     }
@@ -474,6 +479,14 @@ export const EventListingScreen: React.FC<EventListingScreenProps> = ({
         }}
         onCreatePress={() => {}}
         showCreateButton={false}
+      />
+
+      {/* Snackbar for server errors */}
+      <Snackbar
+        visible={snackbarVisible}
+        message={snackbarMessage}
+        type="error"
+        onDismiss={() => setSnackbarVisible(false)}
       />
     </SafeAreaView>
   );

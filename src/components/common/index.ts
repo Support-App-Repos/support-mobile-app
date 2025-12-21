@@ -61,4 +61,6 @@ export { PendingStatusIcon } from './PendingStatusIcon';
 export { RejectedStatusIcon } from './RejectedStatusIcon';
 export { ExpiredStatusIcon } from './ExpiredStatusIcon';
 export { NoListingIcon } from './NoListingIcon';
+export { Snackbar } from './Snackbar';
+export type { SnackbarType } from './Snackbar';
 

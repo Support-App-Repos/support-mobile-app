@@ -4,6 +4,7 @@
  */
 
 import React, { useState } from 'react';
+import { Snackbar } from '../components/common';
 import {
   View,
   Text,
@@ -46,6 +47,8 @@ export const ProductListingScreen: React.FC<ProductListingScreenProps> = ({
   const [photos, setPhotos] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState<BottomNavItem>('Home');
   const [loading, setLoading] = useState(false);
+  const [snackbarVisible, setSnackbarVisible] = useState(false);
+  const [snackbarMessage, setSnackbarMessage] = useState('');
 
   const currentStep = 0; // First step
   const categoryId = route?.params?.categoryId;
@@ -92,7 +95,9 @@ export const ProductListingScreen: React.FC<ProductListingScreenProps> = ({
       }
     } catch (error: any) {
       console.error('Error creating listing:', error);
-      Alert.alert('Error', error.message || 'Failed to create listing. Please try again.');
+      // Show server error in snackbar
+      setSnackbarMessage(error.message || 'Failed to create listing. Please try again.');
+      setSnackbarVisible(true);
     } finally {
       setLoading(false);
     }
