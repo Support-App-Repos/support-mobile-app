@@ -9,6 +9,7 @@ export { categoryService } from './categoryService';
 export { listingService } from './listingService';
 export { regionService } from './regionService';
 export { profileService } from './profileService';
+export * from './uploadService';
 
 
 

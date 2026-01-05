@@ -21,4 +21,5 @@ export { ReviewScreen } from './ReviewScreen';
 export { PublishScreen } from './PublishScreen';
 export { ProfileScreen } from './ProfileScreen';
 export { MyListingsScreen } from './MyListingsScreen';
+export { ListingDetailScreen } from './ListingDetailScreen';
 

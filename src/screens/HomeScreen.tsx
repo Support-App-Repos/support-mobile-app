@@ -85,10 +85,32 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 
   // Refetch listings when category changes
   useEffect(() => {
+    // Wait for categories to be loaded before filtering
+    if (Object.keys(categoryMap).length === 0 && selectedCategory !== 'All') {
+      return; // Categories not loaded yet, wait
+    }
+
     if (selectedCategory !== 'All') {
-      const categoryId = categoryMap[selectedCategory];
+      // Map CategoryTabs names to actual backend category names
+      const categoryNameMap: Record<Category, string> = {
+        'All': 'All',
+        'Property': 'Properties', // Backend uses 'Properties' (plural)
+        'Events': 'Events',
+        'Product': 'Products', // Backend uses 'Products' (plural)
+        'Services': 'Services',
+      };
+      
+      const actualCategoryName = categoryNameMap[selectedCategory];
+      const categoryId = categoryMap[actualCategoryName];
+      
       if (categoryId) {
         fetchListings(categoryId);
+      } else {
+        console.warn(`Category ID not found for: ${selectedCategory} (mapped to: ${actualCategoryName})`);
+        console.log('Available categories:', Object.keys(categoryMap));
+        // If category not found, show empty listings
+        setListings([]);
+        setLoading(false);
       }
     } else {
       fetchListings();
@@ -118,7 +140,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     try {
       setLoading(true);
       const response = await listingService.getListings({
-        status: 'published',
+        status: 'Active', // Only show Active (approved) listings on home screen
         categoryId,
         limit: 20,
       });
@@ -142,8 +164,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   };
 
   const handleListingPress = (listing: ListingCardData) => {
-    // TODO: Navigate to listing detail screen
-    console.log('Listing pressed:', listing.id);
+    navigation?.navigate('ListingDetail', { listingId: listing.id });
   };
 
   const handleCreatePress = () => {

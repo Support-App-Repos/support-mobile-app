@@ -25,6 +25,7 @@ import {
   PublishScreen,
   ProfileScreen,
   MyListingsScreen,
+  ListingDetailScreen,
 } from '../screens';
 import { RootStackParamList } from '../types';
 
@@ -153,6 +154,13 @@ export const AppNavigator: React.FC = () => {
         <Stack.Screen
           name="MyListings"
           component={MyListingsScreen}
+          options={{
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="ListingDetail"
+          component={ListingDetailScreen}
           options={{
             headerShown: false,
           }}

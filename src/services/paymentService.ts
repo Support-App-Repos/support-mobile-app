@@ -52,6 +52,20 @@ class PaymentService {
     const response = await this.apiService.post<{ success: boolean; data: any }>('/stripe/confirm-payment', data);
     return response;
   }
+
+  /**
+   * Check if user has a valid active subscription
+   */
+  async checkSubscriptionValidity() {
+    const response = await this.apiService.get<{ 
+      success: boolean; 
+      data: { 
+        hasValidSubscription: boolean; 
+        subscription: any | null;
+      } 
+    }>('/stripe/check-subscription-validity');
+    return response;
+  }
 }
 
 export const paymentService = new PaymentService();

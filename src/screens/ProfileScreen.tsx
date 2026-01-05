@@ -27,10 +27,12 @@ import {
   LockIcon,
   RatingIcon,
   SignOutIcon,
+  DeleteIcon,
 } from '../components/common';
 import { ListingCard, type ListingCardData } from '../components/listings';
 import { BottomNavigation, type BottomNavItem } from '../components/navigation';
 import { profileService } from '../services';
+import { authService } from '../services/authService';
 import { Colors, Spacing, Typography, BorderRadius } from '../config/theme';
 
 // Extended ListingCardData for ProfileScreen
@@ -76,6 +78,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   const [loading, setLoading] = useState(true);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [loadingWishlist, setLoadingWishlist] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
 
   // Update active tab when screen comes into focus
   useFocusEffect(
@@ -168,6 +171,50 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
       index: 0,
       routes: [{ name: 'Login' }],
     });
+  };
+
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      'Delete Account',
+      'Are you sure you want to delete your account? This action cannot be undone and all your data will be permanently deleted.',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setDeletingAccount(true);
+              const response = await profileService.deleteAccount();
+              
+              if (response.success) {
+                // Clear local storage
+                await authService.logout();
+                
+                // Navigate to login screen
+                navigation?.reset({
+                  index: 0,
+                  routes: [{ name: 'Login' }],
+                });
+                
+                Alert.alert('Success', 'Your account has been deleted successfully.');
+              } else {
+                Alert.alert('Error', response.message || 'Failed to delete account');
+              }
+            } catch (error: any) {
+              console.error('Error deleting account:', error);
+              Alert.alert('Error', error.message || 'Failed to delete account. Please try again.');
+            } finally {
+              setDeletingAccount(false);
+            }
+          },
+        },
+      ],
+      { cancelable: true }
+    );
   };
 
   const renderBrowsingHistoryItem = ({ item }: { item: ExtendedListingCardData }) => (
@@ -318,6 +365,21 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             <SignOutIcon size={24} color="#B7B7B7" />
             <Text style={styles.signOutButtonText}>Sign Out</Text>
           </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.accountButton}
+            onPress={handleDeleteAccount}
+            activeOpacity={0.7}
+            disabled={deletingAccount}
+          >
+            {deletingAccount ? (
+              <ActivityIndicator size="small" color="#EF4444" />
+            ) : (
+              <DeleteIcon size={24} color="#B7B7B7" />
+            )}
+            <Text style={styles.deleteButtonText}>
+              {deletingAccount ? 'Deleting...' : 'Delete Account'}
+            </Text>
+          </TouchableOpacity>
         </View>
 
         {/* Tabs Section */}
@@ -451,7 +513,12 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
               <View style={styles.listingsGrid}>
                 {wishlist.map((listing) => (
                 <View key={listing.id} style={styles.listingCardWrapper}>
-                  <ListingCard listing={listing} />
+                  <ListingCard 
+                    listing={listing} 
+                    onPress={(listing) => {
+                      navigation?.navigate('ListingDetail', { listingId: listing.id });
+                    }}
+                  />
                 </View>
                 ))}
               </View>
@@ -627,6 +694,12 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   signOutButtonText: {
+    ...Typography.body,
+    color: Colors.light.textSecondary,
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  deleteButtonText: {
     ...Typography.body,
     color: '#EF4444',
     fontSize: 16,

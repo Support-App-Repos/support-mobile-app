@@ -20,7 +20,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { BackIcon, BellIcon, AddPhotoIcon } from '../components/common';
 import { BottomNavigation, type BottomNavItem } from '../components/navigation';
 import { Colors, Spacing, Typography, BorderRadius } from '../config/theme';
-import { listingService } from '../services';
+import { listingService, paymentService, pickImages, uploadImages } from '../services';
 
 type ServiceListingScreenProps = {
   navigation?: any;
@@ -42,7 +42,8 @@ export const ServiceListingScreen: React.FC<ServiceListingScreenProps> = ({
   const [serviceDescription, setServiceDescription] = useState('');
   const [specialization, setSpecialization] = useState('');
   const [yearsOfExperience, setYearsOfExperience] = useState('');
-  const [photos, setPhotos] = useState<string[]>([]);
+  const [photos, setPhotos] = useState<string[]>([]); // Store local URIs first
+  const [photoUris, setPhotoUris] = useState<string[]>([]); // Store local URIs for upload
   const [activeTab, setActiveTab] = useState<BottomNavItem>('Home');
   const [loading, setLoading] = useState(false);
   const [snackbarVisible, setSnackbarVisible] = useState(false);
@@ -70,7 +71,22 @@ export const ServiceListingScreen: React.FC<ServiceListingScreenProps> = ({
     try {
       setLoading(true);
 
-      // Create listing on backend
+      // Upload images first if any are selected
+      let photoUrls: string[] = [];
+      if (photoUris.length > 0) {
+        try {
+          const uploadedImages = await uploadImages(photoUris, 'listings/');
+          photoUrls = uploadedImages.map((img) => img.url);
+          setPhotos(photoUrls); // Update with uploaded URLs
+        } catch (uploadError: any) {
+          console.error('Error uploading photos:', uploadError);
+          Alert.alert('Upload Error', uploadError.message || 'Failed to upload photos. Please try again.');
+          setLoading(false);
+          return;
+        }
+      }
+
+      // Create listing on backend with uploaded photo URLs
       const response = await listingService.createListing({
         title: businessName.trim(),
         description: serviceDescription.trim(),
@@ -80,12 +96,36 @@ export const ServiceListingScreen: React.FC<ServiceListingScreenProps> = ({
         businessName: businessName.trim(),
         specialization: specialization || undefined,
         yearsOfExperience: yearsOfExperience ? parseInt(yearsOfExperience) : undefined,
-        photos: photos.length > 0 ? photos : undefined,
+        photos: photoUrls.length > 0 ? photoUrls : undefined,
       });
 
       if (response.success) {
         const listingData = (response.data as any)?.data || response.data;
-        navigation?.navigate('Payment', { listingData });
+        
+        // Check if user has a valid subscription
+        try {
+          const subscriptionCheck = await paymentService.checkSubscriptionValidity();
+          const subscriptionData = (subscriptionCheck.data as any)?.data || subscriptionCheck.data;
+          
+          if (subscriptionData?.hasValidSubscription) {
+            // User has valid subscription - skip payment and go directly to region selection
+            navigation?.navigate('SelectRegion', {
+              listingData,
+              paymentData: {
+                plan: 'monthly',
+                subscription: subscriptionData.subscription,
+                skipPayment: true, // Flag to indicate payment was skipped
+              },
+            });
+          } else {
+            // No valid subscription - proceed to payment screen
+            navigation?.navigate('Payment', { listingData });
+          }
+        } catch (subscriptionError: any) {
+          console.error('Error checking subscription:', subscriptionError);
+          // If subscription check fails, default to payment screen
+          navigation?.navigate('Payment', { listingData });
+        }
       } else {
         throw new Error(response.message || 'Failed to create listing');
       }
@@ -103,9 +143,30 @@ export const ServiceListingScreen: React.FC<ServiceListingScreenProps> = ({
     navigation?.goBack();
   };
 
-  const handlePhotoUpload = () => {
-    // TODO: Implement photo upload functionality
-    console.log('Photo upload pressed');
+  const handlePhotoUpload = async () => {
+    try {
+      // Check if already at max photos (6)
+      if (photoUris.length >= 6) {
+        Alert.alert('Limit Reached', 'You can upload a maximum of 6 photos.');
+        return;
+      }
+
+      // Pick images (store local URIs, don't upload yet)
+      const selectedUris = await pickImages();
+
+      if (selectedUris && selectedUris.length > 0) {
+        // Add new photo URIs (limit to 6 total)
+        const updatedUris = [...photoUris, ...selectedUris].slice(0, 6);
+        setPhotoUris(updatedUris);
+        // Also update photos for preview (using local URIs)
+        setPhotos(updatedUris);
+        setSnackbarMessage(`Added ${selectedUris.length} photo(s). They will be uploaded when you save.`);
+        setSnackbarVisible(true);
+      }
+    } catch (error: any) {
+      console.error('Error picking photos:', error);
+      Alert.alert('Error', error.message || 'Failed to select photos. Please try again.');
+    }
   };
 
   return (
@@ -263,6 +324,7 @@ export const ServiceListingScreen: React.FC<ServiceListingScreenProps> = ({
               style={styles.photoIconButton}
               onPress={handlePhotoUpload}
               activeOpacity={0.7}
+              disabled={photoUris.length >= 6 || loading}
             >
               <AddPhotoIcon size={57} />
             </TouchableOpacity>
@@ -270,16 +332,59 @@ export const ServiceListingScreen: React.FC<ServiceListingScreenProps> = ({
               style={styles.photoUploadArea}
               onPress={handlePhotoUpload}
               activeOpacity={0.7}
+              disabled={photoUris.length >= 6 || loading}
             >
               <Text style={styles.uploadText}>
-                Click to upload or drag and drop
+                {photoUris.length >= 6
+                  ? 'Maximum photos reached'
+                  : 'Click to select photos'}
               </Text>
               <Text style={styles.uploadSubtext}>
-                SVG, PNG, JPG or GIF (max. 800x400px)
+                Photos will be uploaded when you save (SVG, PNG, JPG or GIF, max. 10MB per file)
               </Text>
             </TouchableOpacity>
           </View>
-          <Text style={styles.photoHint}>Add upto 6 photos</Text>
+          <Text style={styles.photoHint}>
+            {photoUris.length > 0
+              ? `${photoUris.length}/6 photos selected (will upload on save)`
+              : 'Add up to 6 photos'}
+          </Text>
+          {/* Display uploaded photos */}
+          {photoUris.length > 0 && (
+            <View style={styles.photosPreview}>
+              {photoUris.map((photoUri, index) => {
+                // Ensure URI is properly formatted for React Native Image
+                const imageUri = photoUri.startsWith('file://') || photoUri.startsWith('content://') || photoUri.startsWith('http')
+                  ? photoUri
+                  : `file://${photoUri}`;
+                
+                return (
+                  <View key={`photo-${index}-${photoUri}`} style={styles.photoPreviewItem}>
+                    <Image 
+                      source={{ uri: imageUri }} 
+                      style={styles.photoPreview}
+                      onError={(error) => {
+                        console.error(`[Image Preview] Error loading image ${index}:`, error.nativeEvent.error);
+                      }}
+                      onLoad={() => {
+                        console.log(`[Image Preview] Successfully loaded image ${index}`);
+                      }}
+                    />
+                    <TouchableOpacity
+                      style={styles.removePhotoButton}
+                      onPress={() => {
+                        const updatedUris = photoUris.filter((_, i) => i !== index);
+                        setPhotoUris(updatedUris);
+                        setPhotos(updatedUris);
+                      }}
+                    >
+                      <Text style={styles.removePhotoText}>×</Text>
+                    </TouchableOpacity>
+                  </View>
+                );
+              })}
+            </View>
+          )}
         </View>
 
         {/* Continue Button */}
@@ -539,6 +644,41 @@ const styles = StyleSheet.create({
     color: Colors.light.textSecondary,
     marginTop: Spacing.xs,
     fontSize: 12,
+  },
+  photosPreview: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.sm,
+    marginTop: Spacing.md,
+  },
+  photoPreviewItem: {
+    position: 'relative',
+    width: 100,
+    height: 100,
+    borderRadius: BorderRadius.md,
+    overflow: 'hidden',
+  },
+  photoPreview: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+  },
+  removePhotoButton: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  removePhotoText: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: 'bold',
+    lineHeight: 20,
   },
   continueButton: {
     backgroundColor: Colors.light.primary,

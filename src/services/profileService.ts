@@ -68,6 +68,13 @@ class ProfileService {
     
     return this.apiService.get<{ success: boolean; data: any[]; pagination?: any }>(endpoint);
   }
+
+  /**
+   * Delete user account
+   */
+  async deleteAccount() {
+    return this.apiService.delete<{ success: boolean; message?: string }>('/profile');
+  }
 }
 
 export const profileService = new ProfileService();

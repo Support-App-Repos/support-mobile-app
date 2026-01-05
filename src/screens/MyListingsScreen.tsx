@@ -219,8 +219,7 @@ export const MyListingsScreen: React.FC<{
                   key={listing.id}
                   listing={cardData}
                   onPress={(listing) => {
-                    // TODO: Navigate to listing details
-                    console.log('Listing pressed:', listing.id);
+                    navigation?.navigate('ListingDetail', { listingId: listing.id });
                   }}
                 />
               );

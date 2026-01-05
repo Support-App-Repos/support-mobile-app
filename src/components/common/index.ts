@@ -63,4 +63,9 @@ export { ExpiredStatusIcon } from './ExpiredStatusIcon';
 export { NoListingIcon } from './NoListingIcon';
 export { Snackbar } from './Snackbar';
 export type { SnackbarType } from './Snackbar';
+export { SaveIcon } from './SaveIcon';
+export { ShareIcon } from './ShareIcon';
+export { ReportIcon } from './ReportIcon';
+export { PhoneIcon } from './PhoneIcon';
+export { DeleteIcon } from './DeleteIcon';
 

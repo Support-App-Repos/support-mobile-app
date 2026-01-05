@@ -60,8 +60,11 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
 
   const handleEditDetails = () => {
     // Navigate back to ProductListingScreen with current data
+    const categoryName = listingData?.category?.name || 
+                         (typeof listingData?.category === 'string' ? listingData.category : 'Products');
     navigation?.navigate('ProductListing', {
-      category: listingData.category || 'Products',
+      category: categoryName,
+      categoryId: listingData?.category?.id || listingData?.categoryId,
       ...listingData,
     });
   };
@@ -229,7 +232,10 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
           </View>
           <View style={styles.cardContent}>
             <View style={styles.previewRow}>
-              <Text style={styles.previewLabel}>{listingData?.category || 'Category'}</Text>
+              <Text style={styles.previewLabel}>
+                {listingData?.category?.name || 
+                 (typeof listingData?.category === 'string' ? listingData.category : 'Category')}
+              </Text>
             </View>
             <Text style={styles.previewValue}>{listingData?.title || 'Title'}</Text>
             <Text style={styles.previewPrice}>
@@ -258,17 +264,30 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
             </TouchableOpacity>
           </View>
           <View style={styles.cardContent}>
-            <View style={styles.paymentRow}>
-              <CardIcon size={22} />
-              <Text style={styles.paymentType}>
-                {paymentData?.plan === 'monthly'
-                  ? 'Monthly payment'
-                  : 'One-time payment'}
-              </Text>
-            </View>
-            <Text style={styles.paymentTotal}>
-              {paymentData?.total ? `${paymentData.total} Total` : 'Total'}
-            </Text>
+            {paymentData?.skipPayment ? (
+              <>
+                <View style={styles.paymentRow}>
+                  <CardIcon size={22} />
+                  <Text style={styles.paymentType}>
+                    Active Subscription
+                  </Text>
+                </View>
+              </>
+            ) : (
+              <>
+                <View style={styles.paymentRow}>
+                  <CardIcon size={22} />
+                  <Text style={styles.paymentType}>
+                    {paymentData?.plan === 'monthly'
+                      ? 'Monthly payment'
+                      : 'One-time payment'}
+                  </Text>
+                </View>
+                <Text style={styles.paymentTotal}>
+                  {paymentData?.total ? `${paymentData.total} Total` : 'Total'}
+                </Text>
+              </>
+            )}
           </View>
         </View>
 

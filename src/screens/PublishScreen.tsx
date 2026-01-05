@@ -36,9 +36,8 @@ export const PublishScreen: React.FC<PublishScreenProps> = ({
   };
 
   const handleViewListing = () => {
-    // TODO: Navigate to listing detail page
-    console.log('View listing pressed');
-    // navigation?.navigate('ListingDetail', { id: route?.params?.listingId });
+    // Navigate to MyListings screen
+    navigation?.navigate('MyListings');
   };
 
   const handleCreateAnother = () => {
