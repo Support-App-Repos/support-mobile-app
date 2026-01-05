@@ -87,14 +87,14 @@ exports.seedDatabase = async (req, res) => {
 
     // Create Regions
     const regions = [
-      { name: 'New York', country: 'United States', countryCode: 'US' },
-      { name: 'Los Angeles', country: 'United States', countryCode: 'US' },
-      { name: 'Chicago', country: 'United States', countryCode: 'US' },
-      { name: 'Houston', country: 'United States', countryCode: 'US' },
-      { name: 'Phoenix', country: 'United States', countryCode: 'US' },
-      { name: 'Philadelphia', country: 'United States', countryCode: 'US' },
-      { name: 'San Antonio', country: 'United States', countryCode: 'US' },
-      { name: 'San Diego', country: 'United States', countryCode: 'US' },
+      { name: 'New York', country: 'United States', country_code: 'US' },
+      { name: 'Los Angeles', country: 'United States', country_code: 'US' },
+      { name: 'Chicago', country: 'United States', country_code: 'US' },
+      { name: 'Houston', country: 'United States', country_code: 'US' },
+      { name: 'Phoenix', country: 'United States', country_code: 'US' },
+      { name: 'Philadelphia', country: 'United States', country_code: 'US' },
+      { name: 'San Antonio', country: 'United States', country_code: 'US' },
+      { name: 'San Diego', country: 'United States', country_code: 'US' },
     ];
 
     const regionsCollection = await getCollection('Region');
@@ -106,8 +106,9 @@ exports.seedDatabase = async (req, res) => {
       if (!existing) {
         await regionsCollection.insertOne({
           ...region,
-          createdAt: new Date(),
-          updatedAt: new Date(),
+          is_active: true,
+          created_at: new Date(),
+          updated_at: new Date(),
         });
       }
     }

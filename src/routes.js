@@ -7,8 +7,10 @@ const paymentController = require('./controllers/paymentController');
 const stripeController = require('./controllers/stripeController');
 const profileController = require('./controllers/profileController');
 const seedController = require('./controllers/seedController');
+const uploadController = require('./controllers/uploadController');
 
 const { jwtAuth, addReqUser } = require('./middlewares');
+const { uploadMultiple } = require('./middlewares/upload');
 
 // ============================================
 // PUBLIC ROUTES (No authentication required)
@@ -17,6 +19,7 @@ const { jwtAuth, addReqUser } = require('./middlewares');
 // Auth routes
 router.post('/auth/signup', authController.signup);
 router.post('/auth/signin', authController.signin);
+router.post('/auth/login', authController.signin); // Alias for admin portal
 router.post('/auth/send-otp', authController.sendOTP);
 router.post('/auth/verify-otp', authController.verifyOTP);
 router.post('/auth/forgetPassword', authController.forgetPassword);
@@ -56,6 +59,7 @@ router.post('/auth/logout', authController.logout);
 router.post('/listings', listingController.createListing);
 router.put('/listings/:id', listingController.updateListing);
 router.post('/listings/:id/publish', listingController.publishListing);
+router.put('/listings/:id/status', listingController.updateListingStatus); // Admin: Update listing status (approve/reject)
 
 // Region routes (for SelectRegionScreen)
 router.get('/regions/recent', regionController.getRecentRegions);
@@ -65,6 +69,7 @@ router.post('/regions/recent', regionController.addRecentRegion);
 router.post('/subscriptions', paymentController.createSubscription);
 
 // Stripe payment routes
+router.get('/stripe/check-subscription-validity', stripeController.checkSubscriptionValidity);
 router.post('/stripe/create-payment-intent', stripeController.createPaymentIntent);
 router.post('/stripe/create-checkout-session', stripeController.createCheckoutSession);
 router.post('/stripe/confirm-payment', stripeController.confirmPayment);
@@ -79,6 +84,13 @@ router.get('/profile/wishlist', profileController.getWishlist);
 router.post('/profile/wishlist', profileController.addToWishlist);
 router.delete('/profile/wishlist/:listingId', profileController.removeFromWishlist);
 router.get('/profile/listings', profileController.getMyListings);
+
+// Admin routes
+router.get('/users', profileController.getAllUsers); // Admin: Get all users
+
+// Upload routes (for image uploads) - Protected
+router.post('/upload/images', uploadMultiple, uploadController.uploadImages);
+router.delete('/upload/images/:imageUrl', uploadController.deleteImage);
 
 module.exports = {
   router,

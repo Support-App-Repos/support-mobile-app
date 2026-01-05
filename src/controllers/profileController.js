@@ -4,7 +4,9 @@
  */
 
 const { prisma } = require('../lib/prisma');
+const { getCollection } = require('../lib/mongodb');
 const { getUserId } = require('../helpers/userHelper');
+const { ObjectId } = require('mongodb');
 
 // Get user profile
 exports.getProfile = async (req, res) => {
@@ -182,12 +184,14 @@ exports.addToWishlist = async (req, res) => {
       });
     }
 
-    // Check if already in wishlist
-    const existing = await prisma.wishlist.findFirst({
-      where: {
-        userId,
-        listingId,
-      },
+    const wishlistCollection = await getCollection('Wishlist');
+    const userIdObj = new ObjectId(userId);
+    const listingIdObj = new ObjectId(listingId);
+
+    // Check if already in wishlist using MongoDB
+    const existing = await wishlistCollection.findOne({
+      user_id: userIdObj,
+      listing_id: listingIdObj,
     });
 
     if (existing) {
@@ -197,19 +201,26 @@ exports.addToWishlist = async (req, res) => {
       });
     }
 
-    const wishlistItem = await prisma.wishlist.create({
-      data: {
-        userId,
-        listingId,
-      },
-      include: {
-        listing: true,
-      },
+    // Create wishlist item using MongoDB
+    const result = await wishlistCollection.insertOne({
+      user_id: userIdObj,
+      listing_id: listingIdObj,
+      created_at: new Date(),
+    });
+
+    // Fetch the created item
+    const wishlistItem = await wishlistCollection.findOne({
+      _id: result.insertedId,
     });
 
     res.status(201).json({
       success: true,
-      data: wishlistItem,
+      data: {
+        id: wishlistItem._id.toString(),
+        userId: wishlistItem.user_id.toString(),
+        listingId: wishlistItem.listing_id.toString(),
+        createdAt: wishlistItem.created_at,
+      },
     });
   } catch (error) {
     console.error('Error adding to wishlist:', error);
@@ -234,23 +245,22 @@ exports.removeFromWishlist = async (req, res) => {
       });
     }
 
-    const wishlistItem = await prisma.wishlist.findFirst({
-      where: {
-        userId,
-        listingId,
-      },
+    const wishlistCollection = await getCollection('Wishlist');
+    const userIdObj = new ObjectId(userId);
+    const listingIdObj = new ObjectId(listingId);
+
+    // Find and delete wishlist item using MongoDB
+    const result = await wishlistCollection.deleteOne({
+      user_id: userIdObj,
+      listing_id: listingIdObj,
     });
 
-    if (!wishlistItem) {
+    if (result.deletedCount === 0) {
       return res.status(404).json({
         success: false,
         message: 'Item not found in wishlist',
       });
     }
-
-    await prisma.wishlist.delete({
-      where: { id: wishlistItem.id },
-    });
 
     res.json({
       success: true,
@@ -266,7 +276,7 @@ exports.removeFromWishlist = async (req, res) => {
   }
 };
 
-// Get user's listings
+// Get user's listings (shows all statuses: Active, Pending, Rejected, Expired)
 exports.getMyListings = async (req, res) => {
   try {
     const userId = getUserId(req);
@@ -280,38 +290,93 @@ exports.getMyListings = async (req, res) => {
     const { status, page = 1, limit = 20 } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
-    const where = {
-      userId,
-      ...(status && { status }),
+    const { getCollection } = require('../lib/mongodb');
+    const { ObjectId } = require('mongodb');
+
+    const listingCollection = await getCollection('Listing');
+    const listingPhotoCollection = await getCollection('ListingPhoto');
+    const categoryCollection = await getCollection('Category');
+    const reviewCollection = await getCollection('Review');
+
+    const userIdObj = new ObjectId(userId);
+
+    // Build query - show all statuses for user's own listings
+    const query = {
+      user_id: userIdObj,
     };
 
-    const [listings, total] = await Promise.all([
-      prisma.listing.findMany({
-        where,
-        include: {
-          photos: {
-            where: { isPrimary: true },
-            take: 1,
-          },
-          category: true,
+    // Filter by status if provided
+    if (status && status !== 'All') {
+      query.status = status;
+    }
+
+    // Get listings
+    const listings = await listingCollection
+      .find(query)
+      .sort({ created_at: -1 })
+      .skip(skip)
+      .limit(parseInt(limit))
+      .toArray();
+
+    // Get total count
+    const total = await listingCollection.countDocuments(query);
+
+    // Get photos and related data for each listing
+    const listingsWithRelations = await Promise.all(
+      listings.map(async (listing) => {
+        // Get primary photo
+        const primaryPhoto = await listingPhotoCollection.findOne({
+          listing_id: listing._id,
+          is_primary: true,
+        });
+
+        // Get category
+        const category = listing.category_id
+          ? await categoryCollection.findOne({ _id: listing.category_id })
+          : null;
+
+        // Get review count
+        const reviewCount = await reviewCollection.countDocuments({
+          listing_id: listing._id,
+        });
+
+        return {
+          id: listing._id.toString(),
+          title: listing.title,
+          description: listing.description,
+          price: listing.price,
+          priceType: listing.price_type,
+          location: listing.location,
+          city: listing.city,
+          venue: listing.venue,
+          status: listing.status, // Shows all statuses: Active, Pending, Rejected, Expired
+          viewsCount: listing.views_count || 0,
+          ratingAverage: listing.rating_average || 0,
+          reviewsCount: reviewCount,
+          publishedAt: listing.published_at,
+          createdAt: listing.created_at,
+          updatedAt: listing.updated_at,
+          photos: primaryPhoto ? [{
+            id: primaryPhoto._id.toString(),
+            photoUrl: primaryPhoto.photo_url,
+            isPrimary: primaryPhoto.is_primary,
+          }] : [],
+          category: category ? {
+            id: category._id.toString(),
+            name: category.name,
+            slug: category.slug,
+            iconUrl: category.icon_url,
+          } : null,
           _count: {
-            select: {
-              reviews: true,
-            },
+            reviews: reviewCount,
           },
-        },
-        orderBy: {
-          createdAt: 'desc',
-        },
-        skip,
-        take: parseInt(limit),
-      }),
-      prisma.listing.count({ where }),
-    ]);
+        };
+      })
+    );
 
     res.json({
       success: true,
-      data: listings,
+      data: listingsWithRelations,
       pagination: {
         page: parseInt(page),
         limit: parseInt(limit),
@@ -324,6 +389,101 @@ exports.getMyListings = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to fetch listings',
+      error: error.message,
+    });
+  }
+};
+
+// Get all users (Admin only)
+exports.getAllUsers = async (req, res) => {
+  try {
+    const { page = 1, limit = 100 } = req.query;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    const { getCollection } = require('../lib/mongodb');
+    const userCollection = await getCollection('User');
+
+    // Get users
+    const users = await userCollection
+      .find({})
+      .sort({ created_at: -1 })
+      .skip(skip)
+      .limit(parseInt(limit))
+      .toArray();
+
+    // Get total count
+    const total = await userCollection.countDocuments({});
+
+    // Format users for response
+    const formattedUsers = users.map((user) => ({
+      id: user._id.toString(),
+      email: user.email,
+      phoneNumber: user.phone_number,
+      fullName: user.full_name,
+      profileImageUrl: user.profile_image_url,
+      isVerified: user.is_verified !== false,
+      isActive: user.is_active !== false,
+      createdAt: user.created_at,
+      updatedAt: user.updated_at,
+    }));
+
+    res.json({
+      success: true,
+      data: formattedUsers,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        totalPages: Math.ceil(total / parseInt(limit)),
+      },
+    });
+  } catch (error) {
+    console.error('Error fetching users:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch users',
+      error: error.message,
+    });
+  }
+};
+
+// Delete user account
+exports.deleteAccount = async (req, res) => {
+  try {
+    const userId = getUserId(req);
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Unauthorized',
+      });
+    }
+
+    // Check if user exists
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found',
+      });
+    }
+
+    // Delete user (cascade delete will handle related records)
+    await prisma.user.delete({
+      where: { id: userId },
+    });
+
+    res.json({
+      success: true,
+      message: 'Account deleted successfully',
+    });
+  } catch (error) {
+    console.error('Error deleting account:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to delete account',
       error: error.message,
     });
   }

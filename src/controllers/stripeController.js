@@ -5,7 +5,9 @@
 
 const stripe = require('../lib/stripe');
 const { prisma } = require('../lib/prisma');
+const { getCollection } = require('../lib/mongodb');
 const { getUserId } = require('../helpers/userHelper');
+const { ObjectId } = require('mongodb');
 
 // Create payment intent for one-time payments
 exports.createPaymentIntent = async (req, res) => {
@@ -127,36 +129,34 @@ exports.createPaymentIntent = async (req, res) => {
       description: `Payment for listing: ${listing.title}`,
     });
 
-    // Create pending subscription record
-    const subscription = await prisma.subscription.create({
-      data: {
-        listingId,
-        userId,
-        paymentPlanId,
-        promoCodeId: promoCodeId || null,
-        amountPaid: totalAmount,
-        discountAmount,
-        status: 'pending',
-        transactionId: paymentIntent.id,
-        paymentMethod: 'stripe',
-      },
-      include: {
-        paymentPlan: true,
-        listing: {
-          select: {
-            id: true,
-            title: true,
-          },
-        },
-      },
-    });
+    // Create pending subscription record using MongoDB directly (bypasses replica set requirement)
+    const subscriptionCollection = await getCollection('Subscription');
+    const subscriptionData = {
+      listing_id: new ObjectId(listingId),
+      user_id: new ObjectId(userId),
+      payment_plan_id: new ObjectId(paymentPlanId),
+      promo_code_id: promoCodeId ? new ObjectId(promoCodeId) : null,
+      amount_paid: totalAmount,
+      discount_amount: discountAmount,
+      status: 'pending',
+      transaction_id: paymentIntent.id,
+      payment_method: 'stripe',
+      created_at: new Date(),
+      updated_at: new Date(),
+    };
+
+    const subscriptionResult = await subscriptionCollection.insertOne(subscriptionData);
+    const subscription = await subscriptionCollection.findOne({ _id: subscriptionResult.insertedId });
+    
+    // Convert to string ID for response
+    const subscriptionId = subscription._id.toString();
 
     res.json({
       success: true,
       data: {
         clientSecret: paymentIntent.client_secret,
         paymentIntentId: paymentIntent.id,
-        subscriptionId: subscription.id,
+        subscriptionId: subscriptionId,
         amount: totalAmount,
       },
     });
@@ -306,27 +306,32 @@ exports.createCheckoutSession = async (req, res) => {
       cancel_url: cancelUrl || `${process.env.MOBILE_APP_SCHEME || 'supportapp'}://payment/cancel`,
     });
 
-    // Create pending subscription record
-    const subscription = await prisma.subscription.create({
-      data: {
-        listingId,
-        userId,
-        paymentPlanId,
-        promoCodeId: promoCodeId || null,
-        amountPaid: totalAmount,
-        discountAmount,
-        status: 'pending',
-        transactionId: session.id,
-        paymentMethod: 'stripe',
-      },
-    });
+    // Create pending subscription record using MongoDB directly (bypasses replica set requirement)
+    const subscriptionCollection = await getCollection('Subscription');
+    const subscriptionData = {
+      listing_id: new ObjectId(listingId),
+      user_id: new ObjectId(userId),
+      payment_plan_id: new ObjectId(paymentPlanId),
+      promo_code_id: promoCodeId ? new ObjectId(promoCodeId) : null,
+      amount_paid: totalAmount,
+      discount_amount: discountAmount,
+      status: 'pending',
+      transaction_id: session.id,
+      payment_method: 'stripe',
+      created_at: new Date(),
+      updated_at: new Date(),
+    };
+
+    const subscriptionResult = await subscriptionCollection.insertOne(subscriptionData);
+    const subscription = await subscriptionCollection.findOne({ _id: subscriptionResult.insertedId });
+    const subscriptionId = subscription._id.toString();
 
     res.json({
       success: true,
       data: {
         sessionId: session.id,
         url: session.url,
-        subscriptionId: subscription.id,
+        subscriptionId: subscriptionId,
       },
     });
   } catch (error) {
@@ -363,21 +368,36 @@ exports.confirmPayment = async (req, res) => {
     const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
 
     if (paymentIntent.status === 'succeeded') {
-      // Update subscription status
-      const subscription = await prisma.subscription.findUnique({
-        where: { id: subscriptionId },
+      // Update subscription status using MongoDB directly (bypasses replica set requirement)
+      const subscriptionCollection = await getCollection('Subscription');
+      const paymentPlanCollection = await getCollection('PaymentPlan');
+      const listingCollection = await getCollection('Listing');
+      const promoCodeCollection = await getCollection('PromoCode');
+
+      // Find subscription by ID
+      const subscription = await subscriptionCollection.findOne({
+        _id: new ObjectId(subscriptionId),
       });
 
-      if (!subscription || subscription.userId !== userId) {
+      if (!subscription) {
         return res.status(404).json({
           success: false,
-          message: 'Subscription not found or access denied',
+          message: 'Subscription not found',
+        });
+      }
+
+      // Verify user owns this subscription
+      const subscriptionUserId = subscription.user_id?.toString();
+      if (subscriptionUserId !== userId) {
+        return res.status(403).json({
+          success: false,
+          message: 'Access denied',
         });
       }
 
       // Get payment plan to calculate dates
-      const paymentPlan = await prisma.paymentPlan.findUnique({
-        where: { id: subscription.paymentPlanId },
+      const paymentPlan = await paymentPlanCollection.findOne({
+        _id: subscription.payment_plan_id,
       });
 
       const startsAt = new Date();
@@ -389,47 +409,83 @@ exports.confirmPayment = async (req, res) => {
       }
 
       // Update subscription
-      const updatedSubscription = await prisma.subscription.update({
-        where: { id: subscriptionId },
-        data: {
-          status: 'paid',
-          startsAt,
-          endsAt,
-          transactionId: paymentIntentId,
-        },
-        include: {
-          paymentPlan: true,
-          listing: {
-            select: {
-              id: true,
-              title: true,
-            },
+      await subscriptionCollection.updateOne(
+        { _id: new ObjectId(subscriptionId) },
+        {
+          $set: {
+            status: 'paid',
+            starts_at: startsAt,
+            ends_at: endsAt,
+            transaction_id: paymentIntentId,
+            updated_at: new Date(),
           },
-        },
+        }
+      );
+
+      // Get updated subscription with related data
+      const updatedSubscription = await subscriptionCollection.findOne({
+        _id: new ObjectId(subscriptionId),
+      });
+
+      // Get payment plan and listing for response
+      const updatedPaymentPlan = await paymentPlanCollection.findOne({
+        _id: subscription.payment_plan_id,
+      });
+      const listing = await listingCollection.findOne({
+        _id: subscription.listing_id,
+      }, {
+        projection: { _id: 1, title: 1 },
       });
 
       // Update promo code usage if applicable
-      if (subscription.promoCodeId) {
-        await prisma.promoCode.update({
-          where: { id: subscription.promoCodeId },
-          data: {
-            usedCount: { increment: 1 },
-          },
-        });
+      if (subscription.promo_code_id) {
+        await promoCodeCollection.updateOne(
+          { _id: subscription.promo_code_id },
+          { $inc: { used_count: 1 } }
+        );
       }
 
       // Publish listing if payment successful
-      await prisma.listing.update({
-        where: { id: subscription.listingId },
-        data: {
-          status: 'published',
-          publishedAt: new Date(),
-        },
-      });
+      await listingCollection.updateOne(
+        { _id: subscription.listing_id },
+        {
+          $set: {
+            status: 'Pending', // Set to Pending - admin approval required to make it Active
+            published_at: new Date(),
+            updated_at: new Date(),
+          },
+        }
+      );
+
+      // Format response to match expected structure
+      const responseData = {
+        id: updatedSubscription._id.toString(),
+        listingId: updatedSubscription.listing_id.toString(),
+        userId: updatedSubscription.user_id.toString(),
+        paymentPlanId: updatedSubscription.payment_plan_id.toString(),
+        promoCodeId: updatedSubscription.promo_code_id?.toString() || null,
+        amountPaid: updatedSubscription.amount_paid,
+        discountAmount: updatedSubscription.discount_amount,
+        status: updatedSubscription.status,
+        transactionId: updatedSubscription.transaction_id,
+        paymentMethod: updatedSubscription.payment_method,
+        startsAt: updatedSubscription.starts_at,
+        endsAt: updatedSubscription.ends_at,
+        paymentPlan: updatedPaymentPlan ? {
+          id: updatedPaymentPlan._id.toString(),
+          name: updatedPaymentPlan.name,
+          type: updatedPaymentPlan.type,
+          price: updatedPaymentPlan.price,
+        } : null,
+        listing: listing ? {
+          id: listing._id.toString(),
+          title: listing.title,
+        } : null,
+      };
 
       res.json({
         success: true,
-        data: updatedSubscription,
+        data: responseData,
         message: 'Payment confirmed successfully',
       });
     } else {
@@ -548,14 +604,21 @@ async function handlePaymentIntentSucceeded(paymentIntent) {
       });
     }
 
-    // Publish listing
-    await prisma.listing.update({
-      where: { id: listingId },
-      data: {
-        status: 'published',
-        publishedAt: new Date(),
-      },
-    });
+    // Update listing status to Pending (admin approval required)
+    const { getCollection } = require('../lib/mongodb');
+    const { ObjectId } = require('mongodb');
+    const listingCollection = await getCollection('Listing');
+    
+    await listingCollection.updateOne(
+      { _id: new ObjectId(listingId) },
+      {
+        $set: {
+          status: 'Pending', // Set to Pending - admin approval required to make it Active
+          published_at: new Date(),
+          updated_at: new Date(),
+        },
+      }
+    );
   }
 }
 
@@ -595,14 +658,21 @@ async function handleCheckoutSessionCompleted(session) {
       });
     }
 
-    // Publish listing
-    await prisma.listing.update({
-      where: { id: listingId },
-      data: {
-        status: 'published',
-        publishedAt: new Date(),
-      },
-    });
+    // Update listing status to Pending (admin approval required)
+    const { getCollection } = require('../lib/mongodb');
+    const { ObjectId } = require('mongodb');
+    const listingCollection = await getCollection('Listing');
+    
+    await listingCollection.updateOne(
+      { _id: new ObjectId(listingId) },
+      {
+        $set: {
+          status: 'Pending', // Set to Pending - admin approval required to make it Active
+          published_at: new Date(),
+          updated_at: new Date(),
+        },
+      }
+    );
   }
 }
 
@@ -650,6 +720,86 @@ async function handleSubscriptionDeleted(subscription) {
     });
   }
 }
+
+// Check if user has a valid active subscription
+exports.checkSubscriptionValidity = async (req, res) => {
+  try {
+    const userId = getUserId(req);
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Unauthorized',
+      });
+    }
+
+    const subscriptionCollection = await getCollection('Subscription');
+    const paymentPlanCollection = await getCollection('PaymentPlan');
+    const now = new Date();
+
+    // Find active subscriptions for this user
+    // A subscription is valid if:
+    // 1. status is 'paid'
+    // 2. payment_plan type is 'monthly'
+    // 3. ends_at is in the future (or null for lifetime subscriptions)
+    const subscriptions = await subscriptionCollection.find({
+      user_id: new ObjectId(userId),
+      status: 'paid',
+    }).toArray();
+
+    // Check each subscription for validity
+    let validSubscription = null;
+    for (const sub of subscriptions) {
+      const paymentPlan = await paymentPlanCollection.findOne({
+        _id: sub.payment_plan_id,
+      });
+
+      // Only monthly subscriptions need validity check
+      if (paymentPlan && paymentPlan.type === 'monthly') {
+        // Check if subscription hasn't expired
+        if (!sub.ends_at || new Date(sub.ends_at) > now) {
+          validSubscription = {
+            id: sub._id.toString(),
+            status: sub.status,
+            startsAt: sub.starts_at,
+            endsAt: sub.ends_at,
+            paymentPlan: {
+              id: paymentPlan._id.toString(),
+              name: paymentPlan.name,
+              type: paymentPlan.type,
+            },
+          };
+          break; // Found a valid subscription, no need to check others
+        }
+      }
+    }
+
+    if (validSubscription) {
+      return res.json({
+        success: true,
+        data: {
+          hasValidSubscription: true,
+          subscription: validSubscription,
+        },
+      });
+    }
+
+    // No valid subscription found
+    return res.json({
+      success: true,
+      data: {
+        hasValidSubscription: false,
+        subscription: null,
+      },
+    });
+  } catch (error) {
+    console.error('Error checking subscription validity:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to check subscription validity',
+      error: error.message,
+    });
+  }
+};
 
 // Helper function to handle invoice payment succeeded
 async function handleInvoicePaymentSucceeded(invoice) {

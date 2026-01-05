@@ -1,37 +1,51 @@
 /**
  * Region Controller
  * Handles region-related endpoints
+ * Uses MongoDB directly to bypass Prisma's replica set requirement
  */
 
-const { prisma } = require('../lib/prisma');
+const { getCollection } = require('../lib/mongodb');
 const { getUserId } = require('../helpers/userHelper');
+const { ObjectId } = require('mongodb');
 
 // Get all regions
 exports.getRegions = async (req, res) => {
   try {
     const { search } = req.query;
+    const regionCollection = await getCollection('Region');
 
-    const where = {
-      isActive: true,
-      ...(search && {
-        OR: [
-          { name: { contains: search } },
-          { country: { contains: search } },
-        ],
-      }),
+    // Build query
+    const query = {
+      is_active: { $ne: false }, // Active regions (true or not set)
     };
 
-    const regions = await prisma.region.findMany({
-      where,
-      orderBy: [
-        { country: 'asc' },
-        { name: 'asc' },
-      ],
-    });
+    // Add search filter if provided
+    if (search) {
+      query.$or = [
+        { name: { $regex: search, $options: 'i' } },
+        { country: { $regex: search, $options: 'i' } },
+      ];
+    }
+
+    const regions = await regionCollection
+      .find(query)
+      .sort({ country: 1, name: 1 }) // Sort by country, then name (ascending)
+      .toArray();
+
+    // Format regions for response (convert _id to id, camelCase fields)
+    const formattedRegions = regions.map((region) => ({
+      id: region._id.toString(),
+      name: region.name,
+      country: region.country,
+      countryCode: region.country_code || null,
+      isActive: region.is_active !== false,
+      createdAt: region.created_at,
+      updatedAt: region.updated_at,
+    }));
 
     res.json({
       success: true,
-      data: regions,
+      data: formattedRegions,
     });
   } catch (error) {
     console.error('Error fetching regions:', error);
@@ -54,22 +68,39 @@ exports.getRecentRegions = async (req, res) => {
       });
     }
 
-    const recentRegions = await prisma.userRecentRegion.findMany({
-      where: {
-        userId,
-      },
-      include: {
-        region: true,
-      },
-      orderBy: {
-        lastUsedAt: 'desc',
-      },
-      take: 5,
-    });
+    const userRecentRegionCollection = await getCollection('UserRecentRegion');
+    const regionCollection = await getCollection('Region');
+
+    // Get recent regions for user
+    const recentRegions = await userRecentRegionCollection
+      .find({
+        user_id: new ObjectId(userId),
+      })
+      .sort({ last_used_at: -1 }) // Descending order
+      .limit(5)
+      .toArray();
+
+    // Get full region data for each recent region
+    const regionIds = recentRegions.map((ur) => ur.region_id);
+    const regions = await regionCollection
+      .find({
+        _id: { $in: regionIds },
+        is_active: { $ne: false },
+      })
+      .toArray();
+
+    // Format regions for response
+    const formattedRegions = regions.map((region) => ({
+      id: region._id.toString(),
+      name: region.name,
+      country: region.country,
+      countryCode: region.country_code || null,
+      isActive: region.is_active !== false,
+    }));
 
     res.json({
       success: true,
-      data: recentRegions.map((ur) => ur.region),
+      data: formattedRegions,
     });
   } catch (error) {
     console.error('Error fetching recent regions:', error);
@@ -101,28 +132,30 @@ exports.addRecentRegion = async (req, res) => {
       });
     }
 
+    const userRecentRegionCollection = await getCollection('UserRecentRegion');
+
     // Check if already exists
-    const existing = await prisma.userRecentRegion.findFirst({
-      where: {
-        userId,
-        regionId,
-      },
+    const existing = await userRecentRegionCollection.findOne({
+      user_id: new ObjectId(userId),
+      region_id: new ObjectId(regionId),
     });
 
     if (existing) {
       // Update last used time
-      await prisma.userRecentRegion.update({
-        where: { id: existing.id },
-        data: { lastUsedAt: new Date() },
-      });
+      await userRecentRegionCollection.updateOne(
+        { _id: existing._id },
+        {
+          $set: {
+            last_used_at: new Date(),
+          },
+        }
+      );
     } else {
       // Create new
-      await prisma.userRecentRegion.create({
-        data: {
-          userId,
-          regionId,
-          lastUsedAt: new Date(),
-        },
+      await userRecentRegionCollection.insertOne({
+        user_id: new ObjectId(userId),
+        region_id: new ObjectId(regionId),
+        last_used_at: new Date(),
       });
     }
 
