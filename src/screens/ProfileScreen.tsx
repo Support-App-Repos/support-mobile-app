@@ -51,17 +51,18 @@ type TabType = 'Browsing History' | 'Wishlist';
 
 // Helper function to convert listing to ListingCardData
 const convertToListingCardData = (listing: any): ExtendedListingCardData => {
-  const primaryPhoto = listing.photos?.find((p: any) => p.isPrimary) || listing.photos?.[0];
-  const imageUrl = primaryPhoto?.photoUrl || 'https://via.placeholder.com/400';
+  // Handle both photoUrl (from backend) and isPrimary properties
+  const primaryPhoto = listing.photos?.find((p: any) => p.isPrimary || p.is_primary) || listing.photos?.[0];
+  const imageUrl = primaryPhoto?.photoUrl || primaryPhoto?.photo_url || 'https://via.placeholder.com/400';
   
   return {
     id: listing.id,
-    title: listing.title,
+    title: listing.title || 'Untitled',
     price: listing.price ? listing.price.toFixed(0) : '0',
     priceUnit: listing.priceType === 'Per Hour' ? 'hr' : listing.priceType === 'Per Seat' ? 'seat' : undefined,
     image: imageUrl,
-    rating: listing._count?.reviews || 0,
-    views: listing.viewsCount || 0,
+    rating: listing._count?.reviews || listing.reviewsCount || 0,
+    views: listing.viewsCount || listing.views_count || 0,
     timePosted: listing.publishedAt ? 'Recently' : 'Recently',
     category: listing.category?.name || 'Unknown',
   };
@@ -111,7 +112,24 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
       const historyData = (response.data as any)?.data || response.data || [];
       
       if (response.success && Array.isArray(historyData)) {
-        const converted = historyData.map(convertToListingCardData);
+        // Extract listing from each history item and convert to ListingCardData
+        const converted = historyData
+          .map((historyItem: any) => {
+            // Each history item has a `listing` property
+            if (historyItem.listing) {
+              const listing = historyItem.listing;
+              // Add _count for reviews if reviewsCount exists
+              const listingWithCount = {
+                ...listing,
+                _count: {
+                  reviews: listing.reviewsCount || 0,
+                },
+              };
+              return convertToListingCardData(listingWithCount);
+            }
+            return null;
+          })
+          .filter((item: any) => item !== null);
         setBrowsingHistory(converted);
       }
     } catch (error: any) {
@@ -216,32 +234,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
       { cancelable: true }
     );
   };
-
-  const renderBrowsingHistoryItem = ({ item }: { item: ExtendedListingCardData }) => (
-    <View style={styles.horizontalCard}>
-      <View style={styles.horizontalImageContainer}>
-        {typeof item.image === 'string' ? (
-          <Image
-            source={{ uri: item.image }}
-            style={styles.horizontalImage}
-            resizeMode="cover"
-          />
-        ) : (
-          <Image
-            source={item.image}
-            style={styles.horizontalImage}
-            resizeMode="cover"
-          />
-        )}
-        {item.badge && (
-          <View style={styles.badge}>
-            <Text style={styles.badgeText}>{item.badge}</Text>
-          </View>
-        )}
-      </View>
-      <Text style={styles.horizontalPrice}>$ {item.price}</Text>
-    </View>
-  );
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -423,31 +415,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
           </TouchableOpacity>
         </View>
 
-        {/* Horizontal Scrollable List */}
-        {activeTab === 'Browsing History' && (
-          <View style={styles.horizontalSection}>
-            {loadingHistory ? (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator size="small" color={Colors.light.primary} />
-              </View>
-            ) : (
-              <FlatList
-                data={browsingHistory}
-                renderItem={renderBrowsingHistoryItem}
-                keyExtractor={(item) => item.id}
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.horizontalList}
-                ListEmptyComponent={
-                  <View style={styles.emptyContainer}>
-                    <Text style={styles.emptyText}>No browsing history</Text>
-                  </View>
-                }
-              />
-            )}
-          </View>
-        )}
-
         {/* Product Listings Grid */}
         <View style={styles.listingsSection}>
           {activeTab === 'Browsing History' ? (
@@ -459,7 +426,14 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             ) : browsingHistory.length > 0 ? (
               <View style={styles.listingsGrid}>
                 {browsingHistory.map((listing) => (
-                <View key={listing.id} style={styles.listingCardWrapper}>
+                <TouchableOpacity
+                  key={listing.id}
+                  style={styles.listingCardWrapper}
+                  activeOpacity={0.7}
+                  onPress={() => {
+                    navigation?.navigate('ListingDetail', { listingId: listing.id });
+                  }}
+                >
                   <View style={styles.listingImageContainer}>
                     {typeof listing.image === 'string' ? (
                       <Image
@@ -495,7 +469,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                       </Text>
                     </View>
                   </View>
-                </View>
+                </TouchableOpacity>
                 ))}
               </View>
             ) : (
