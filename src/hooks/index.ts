@@ -3,6 +3,7 @@
  */
 
 export { useTheme } from './useTheme';
+export { useProfile } from './useProfile';
 
 
 

@@ -20,6 +20,7 @@ import { BackIcon, BellIcon, StepCompletedMarkIcon, SimpleSearchIcon } from '../
 import { BottomNavigation, type BottomNavItem } from '../components/navigation';
 import { Colors, Spacing, Typography, BorderRadius } from '../config/theme';
 import { regionService } from '../services';
+import { useProfile } from '../hooks';
 
 type SelectRegionScreenProps = {
   navigation?: any;
@@ -49,6 +50,7 @@ export const SelectRegionScreen: React.FC<SelectRegionScreenProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<BottomNavItem>('Home');
   const [loading, setLoading] = useState(true);
+  const { profileImageUrl } = useProfile();
 
   const currentStep = 2; // Third step (Select Region)
 
@@ -182,7 +184,7 @@ export const SelectRegionScreen: React.FC<SelectRegionScreenProps> = ({
             }}
           >
             <Image
-              source={{ uri: 'https://i.pravatar.cc/150?img=12' }}
+              source={{ uri: profileImageUrl || 'https://i.pravatar.cc/150?img=12' }}
               style={styles.profileImage}
             />
           </TouchableOpacity>

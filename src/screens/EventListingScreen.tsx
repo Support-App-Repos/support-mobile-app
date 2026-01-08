@@ -22,6 +22,7 @@ import { BackIcon, BellIcon, AddPhotoIcon, PriceTypeDropdown, type PriceType } f
 import { BottomNavigation, type BottomNavItem } from '../components/navigation';
 import { Colors, Spacing, Typography, BorderRadius } from '../config/theme';
 import { listingService, paymentService, pickImages, uploadImages } from '../services';
+import { useProfile } from '../hooks';
 
 const { width } = Dimensions.get('window');
 
@@ -63,6 +64,8 @@ export const EventListingScreen: React.FC<EventListingScreenProps> = ({
   const [loading, setLoading] = useState(false);
   const [snackbarVisible, setSnackbarVisible] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
+  const [snackbarType, setSnackbarType] = useState<'error' | 'success' | 'info'>('error');
+  const { profileImageUrl } = useProfile();
 
   const currentStep = 0; // First step
   const categoryId = route?.params?.categoryId;
@@ -74,11 +77,15 @@ export const EventListingScreen: React.FC<EventListingScreenProps> = ({
                       priceType !== null &&
                       (priceType === 'Free' || price.trim() !== '') &&
                       venue.trim() !== '' && 
-                      city.trim() !== '';
+                      city.trim() !== '' &&
+                      organizerName.trim() !== '' &&
+                      organizerContact.trim() !== '' &&
+                      organizerEmail.trim() !== '' &&
+                      photoUris.length > 0;
 
   const handleSaveAndContinue = async () => {
     if (!isFormValid) {
-      Alert.alert('Validation Error', 'Please fill in all required fields');
+      Alert.alert('Validation Error', 'Please fill in all required fields and upload at least one photo');
       return;
     }
 
@@ -120,11 +127,11 @@ export const EventListingScreen: React.FC<EventListingScreenProps> = ({
         eventTime: eventTime || undefined,
         duration: duration || undefined,
         maxCapacity: maxCapacity ? parseInt(maxCapacity) : undefined,
-        organizerName: organizerName || undefined,
-        organizerContact: organizerContact || undefined,
-        organizerEmail: organizerEmail || undefined,
+        organizerName: organizerName.trim(),
+        organizerContact: organizerContact.trim(),
+        organizerEmail: organizerEmail.trim(),
         tags: tags || undefined,
-        photos: photoUrls.length > 0 ? photoUrls : undefined,
+        photos: photoUrls,
       });
 
       if (response.success) {
@@ -161,6 +168,7 @@ export const EventListingScreen: React.FC<EventListingScreenProps> = ({
       console.error('Error creating listing:', error);
       // Show server error in snackbar
       setSnackbarMessage(error.message || 'Failed to create listing. Please try again.');
+      setSnackbarType('error');
       setSnackbarVisible(true);
     } finally {
       setLoading(false);
@@ -184,7 +192,8 @@ export const EventListingScreen: React.FC<EventListingScreenProps> = ({
         const updatedUris = [...photoUris, ...selectedUris].slice(0, 6);
         setPhotoUris(updatedUris);
         setPhotos(updatedUris);
-        setSnackbarMessage(`Added ${selectedUris.length} photo(s). They will be uploaded when you save.`);
+        setSnackbarMessage(`Added ${selectedUris.length} photo(s).`);
+        setSnackbarType('success');
         setSnackbarVisible(true);
       }
     } catch (error: any) {
@@ -224,7 +233,7 @@ export const EventListingScreen: React.FC<EventListingScreenProps> = ({
             }}
           >
             <Image
-              source={{ uri: 'https://i.pravatar.cc/150?img=12' }}
+              source={{ uri: profileImageUrl || 'https://i.pravatar.cc/150?img=12' }}
               style={styles.profileImage}
             />
           </TouchableOpacity>
@@ -427,17 +436,17 @@ export const EventListingScreen: React.FC<EventListingScreenProps> = ({
 
         {/* Host/Organizer Details */}
         <View style={styles.fieldContainer}>
-          <Text style={styles.label}>Host/Organizer details</Text>
+          <Text style={styles.label}>Host/Organizer details <Text style={styles.required}>*</Text></Text>
           <TextInput
             style={[styles.input, styles.marginBottom]}
-            placeholder="Name"
+            placeholder="Name *"
             placeholderTextColor={Colors.light.textSecondary}
             value={organizerName}
             onChangeText={setOrganizerName}
           />
           <TextInput
             style={[styles.input, styles.marginBottom]}
-            placeholder="Contact"
+            placeholder="Contact *"
             placeholderTextColor={Colors.light.textSecondary}
             value={organizerContact}
             onChangeText={setOrganizerContact}
@@ -445,7 +454,7 @@ export const EventListingScreen: React.FC<EventListingScreenProps> = ({
           />
           <TextInput
             style={styles.input}
-            placeholder="Email"
+            placeholder="Email *"
             placeholderTextColor={Colors.light.textSecondary}
             value={organizerEmail}
             onChangeText={setOrganizerEmail}
@@ -468,7 +477,7 @@ export const EventListingScreen: React.FC<EventListingScreenProps> = ({
 
         {/* Photo Upload Section */}
         <View style={styles.fieldContainer}>
-          <Text style={styles.label}>Photo</Text>
+          <Text style={styles.label}>Photo <Text style={styles.required}>*</Text></Text>
           <View style={styles.photoSection}>
             <TouchableOpacity
               style={styles.photoIconButton}
@@ -490,7 +499,7 @@ export const EventListingScreen: React.FC<EventListingScreenProps> = ({
                   : 'Click to select photos'}
               </Text>
               <Text style={styles.uploadSubtext}>
-                Photos will be uploaded when you save (SVG, PNG, JPG or GIF, max. 10MB per file)
+                (SVG, PNG, JPG or GIF, max. 10MB per file)
               </Text>
             </TouchableOpacity>
           </View>
@@ -568,8 +577,10 @@ export const EventListingScreen: React.FC<EventListingScreenProps> = ({
           } else if (tab === 'MyListings') {
             navigation?.navigate('MyListings');
           } else if (tab === 'Messages') {
-            // TODO: Navigate to Messages screen when implemented
-            console.log('Messages screen not yet implemented');
+            // Show coming soon snackbar
+            setSnackbarVisible(true);
+            setSnackbarMessage('Coming soon feature');
+            setSnackbarType('info');
           } else if (tab === 'Profile') {
             navigation?.navigate('Profile');
           }
@@ -578,11 +589,11 @@ export const EventListingScreen: React.FC<EventListingScreenProps> = ({
         showCreateButton={false}
       />
 
-      {/* Snackbar for server errors */}
+      {/* Snackbar for messages */}
       <Snackbar
         visible={snackbarVisible}
         message={snackbarMessage}
-        type="error"
+        type={snackbarType}
         onDismiss={() => setSnackbarVisible(false)}
       />
     </SafeAreaView>

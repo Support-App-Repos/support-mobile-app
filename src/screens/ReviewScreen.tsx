@@ -26,6 +26,7 @@ import {
 import { BottomNavigation, type BottomNavItem } from '../components/navigation';
 import { Colors, Spacing, Typography, BorderRadius } from '../config/theme';
 import { listingService } from '../services';
+import { useProfile } from '../hooks';
 
 type ReviewScreenProps = {
   navigation?: any;
@@ -46,6 +47,7 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<BottomNavItem>('Home');
   const [loading, setLoading] = useState(false);
+  const { profileImageUrl } = useProfile();
 
   const currentStep = 3; // Final step (Confirm)
 
@@ -156,7 +158,7 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
             }}
           >
             <Image
-              source={{ uri: 'https://i.pravatar.cc/150?img=12' }}
+              source={{ uri: profileImageUrl || 'https://i.pravatar.cc/150?img=12' }}
               style={styles.profileImage}
             />
           </TouchableOpacity>

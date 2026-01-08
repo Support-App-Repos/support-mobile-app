@@ -23,11 +23,13 @@ import {
   RejectedStatusIcon,
   ExpiredStatusIcon,
   NoListingIcon,
+  Snackbar,
 } from '../components/common';
 import { BottomNavigation, type BottomNavItem } from '../components/navigation';
 import { MyListingCard, type MyListingCardData } from '../components/listings';
 import { profileService } from '../services';
 import { Colors, Spacing, Typography, BorderRadius } from '../config/theme';
+import { useProfile } from '../hooks';
 
 type ListingStatus = 'All' | 'Active' | 'Pending' | 'Rejected' | 'Expired';
 
@@ -40,6 +42,12 @@ interface Listing {
   viewsCount?: number;
   photos?: Array<{ photoUrl: string }>;
   createdAt: string;
+  category?: {
+    id: string;
+    name: string;
+    slug: string;
+    iconUrl?: string;
+  };
 }
 
 export const MyListingsScreen: React.FC<{
@@ -50,6 +58,8 @@ export const MyListingsScreen: React.FC<{
   const [selectedStatus, setSelectedStatus] = useState<ListingStatus>('All');
   const [listings, setListings] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
+  const [snackbarVisible, setSnackbarVisible] = useState(false);
+  const { profileImageUrl } = useProfile();
 
   // Update active tab when screen comes into focus
   useFocusEffect(
@@ -137,7 +147,7 @@ export const MyListingsScreen: React.FC<{
             }}
           >
             <Image
-              source={{ uri: 'https://i.pravatar.cc/150?img=12' }}
+              source={{ uri: profileImageUrl || 'https://i.pravatar.cc/150?img=12' }}
               style={styles.profileImage}
             />
           </TouchableOpacity>
@@ -212,6 +222,7 @@ export const MyListingsScreen: React.FC<{
                 status: listing.status as 'Active' | 'Pending' | 'Rejected' | 'Expired',
                 createdAt: listing.createdAt,
                 photos: listing.photos,
+                category: listing.category, // Pass category for navigation
               };
 
               return (
@@ -219,7 +230,23 @@ export const MyListingsScreen: React.FC<{
                   key={listing.id}
                   listing={cardData}
                   onPress={(listing) => {
-                    navigation?.navigate('ListingDetail', { listingId: listing.id });
+                    // Determine the correct detail screen based on category
+                    const categorySlug = listing.category?.slug?.toLowerCase() || '';
+                    const categoryName = listing.category?.name?.toLowerCase() || '';
+                    const isEvent = categorySlug.includes('event') || categoryName.includes('event');
+                    const isProperty = categorySlug.includes('propert') || categoryName.includes('propert');
+                    const isService = categorySlug.includes('service') || categoryName.includes('service');
+                    
+                    if (isEvent) {
+                      navigation?.navigate('EventListingDetail', { listingId: listing.id });
+                    } else if (isProperty) {
+                      navigation?.navigate('PropertyListingDetail', { listingId: listing.id });
+                    } else if (isService) {
+                      navigation?.navigate('ServiceListingDetail', { listingId: listing.id });
+                    } else {
+                      // Default to ListingDetail for Products or unknown categories
+                      navigation?.navigate('ListingDetail', { listingId: listing.id });
+                    }
                   }}
                 />
               );
@@ -238,8 +265,8 @@ export const MyListingsScreen: React.FC<{
           } else if (tab === 'MyListings') {
             // Already on MyListings screen
           } else if (tab === 'Messages') {
-            // TODO: Navigate to Messages screen when implemented
-            console.log('Messages screen not yet implemented');
+            // Show coming soon snackbar
+            setSnackbarVisible(true);
           } else if (tab === 'Profile') {
             navigation?.navigate('Profile');
           }
@@ -248,6 +275,14 @@ export const MyListingsScreen: React.FC<{
           navigation?.navigate('SelectCategory');
         }}
         showCreateButton={true}
+      />
+
+      {/* Snackbar for Messages */}
+      <Snackbar
+        visible={snackbarVisible}
+        message="Coming soon feature"
+        type="info"
+        onDismiss={() => setSnackbarVisible(false)}
       />
     </SafeAreaView>
   );

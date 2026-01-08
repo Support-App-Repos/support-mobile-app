@@ -20,6 +20,7 @@ import { BackIcon, BellIcon, ForwardIcon, PartyIcon, MeetingIcon, WorkshopIcon }
 import { BottomNavigation, type BottomNavItem } from '../components/navigation';
 import { Colors, Spacing, Typography, BorderRadius } from '../config/theme';
 import { categoryService } from '../services';
+import { useProfile } from '../hooks';
 
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = (width - Spacing.md * 3) / 2; // Account for padding and gap
@@ -65,6 +66,7 @@ export const SelectEventTypeScreen: React.FC<SelectEventTypeScreenProps> = ({
   const [selectedEventType, setSelectedEventType] = useState<any | null>(null);
   const [activeTab, setActiveTab] = useState<BottomNavItem>('Home');
   const [loading, setLoading] = useState(true);
+  const { profileImageUrl } = useProfile();
   const categoryId = route?.params?.categoryId;
 
   useEffect(() => {
@@ -142,7 +144,7 @@ export const SelectEventTypeScreen: React.FC<SelectEventTypeScreenProps> = ({
             }}
           >
             <Image
-              source={{ uri: 'https://i.pravatar.cc/150?img=12' }}
+              source={{ uri: profileImageUrl || 'https://i.pravatar.cc/150?img=12' }}
               style={styles.profileImage}
             />
           </TouchableOpacity>

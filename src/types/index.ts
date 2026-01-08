@@ -51,8 +51,20 @@ export type RootStackParamList = {
     listingId?: string;
   };
   Profile: undefined;
+  EditProfile: {
+    user?: any;
+  };
   MyListings: undefined;
   ListingDetail: {
+    listingId: string;
+  };
+  EventListingDetail: {
+    listingId: string;
+  };
+  PropertyListingDetail: {
+    listingId: string;
+  };
+  ServiceListingDetail: {
     listingId: string;
   };
   // Add more screen params as needed

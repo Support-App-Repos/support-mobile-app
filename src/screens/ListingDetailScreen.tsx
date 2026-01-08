@@ -86,6 +86,9 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
       
       if (response.success) {
         const listingData = (response.data as any)?.data || response.data;
+        
+        // Navigation logic has been moved to ListingCard component
+        // This screen now only handles Product listings or fallback
         setListing(listingData);
         // Check wishlist status after listing is loaded
         if (listingId) {
@@ -166,7 +169,7 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
 
   const handlePhoneCall = () => {
     // TODO: Get phone number from listing or user data
-    const phoneNumber = listing?.user?.phone || listing?.organizerContact;
+    const phoneNumber = listing?.organizerContact;
     Linking.openURL(`tel:${phoneNumber}`);
   };
 

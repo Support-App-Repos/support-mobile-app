@@ -40,6 +40,7 @@ export { SimpleSearchIcon } from './SimpleSearchIcon';
 export { StepCompletedMarkIcon } from './StepCompletedMarkIcon';
 export { EditIcon } from './EditIcon';
 export { LocationIcon } from './LocationIcon';
+export { LocationColorIcon } from './LocationColorIcon';
 export { CardIcon } from './CardIcon';
 export { SuccessIcon } from './SuccessIcon';
 export { PartyIcon } from './PartyIcon';
@@ -68,4 +69,8 @@ export { ShareIcon } from './ShareIcon';
 export { ReportIcon } from './ReportIcon';
 export { PhoneIcon } from './PhoneIcon';
 export { DeleteIcon } from './DeleteIcon';
+export { CalendarIcon } from './CalendarIcon';
+export { DurationIcon } from './DurationIcon';
+export { MultiColoredUserIcon } from './MultiColoredUserIcon';
+export { MultiUserIcon } from './MultiUserIcon';
 

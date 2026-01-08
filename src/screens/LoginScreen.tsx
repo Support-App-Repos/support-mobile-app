@@ -3,6 +3,7 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import { Snackbar } from '../components/common';
 import {
   View,
@@ -12,6 +13,7 @@ import {
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Input, SegmentedControl, PhoneNumberInput, OTPInput, LegalDocumentModal } from '../components/common';
@@ -44,6 +46,27 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
   const [snackbarVisible, setSnackbarVisible] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
+  const [loadingGetCode, setLoadingGetCode] = useState(false);
+  const [loadingLogin, setLoadingLogin] = useState(false);
+  const [loadingOTP, setLoadingOTP] = useState(false);
+  const [loadingResend, setLoadingResend] = useState(false);
+
+  // Check if user is already authenticated when screen loads or comes into focus
+  useFocusEffect(
+    React.useCallback(() => {
+      const checkAuth = async () => {
+        const isAuthenticated = await authService.isAuthenticated();
+        if (isAuthenticated) {
+          // User is already logged in, redirect to Home
+          navigation?.reset?.({
+            index: 0,
+            routes: [{ name: 'Home' }],
+          });
+        }
+      };
+      checkAuth();
+    }, [navigation])
+  );
 
   const handleGetCode = async () => {
     // Validate phone number
@@ -61,6 +84,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
     const fullPhoneNumber = `${countryCode}${phoneNumber.replace(/\D/g, '')}`;
     
     try {
+      setLoadingGetCode(true);
       const response = await authService.sendOTP(fullPhoneNumber);
       
       if (response.success) {
@@ -76,6 +100,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
       // Show server error in snackbar
       setSnackbarMessage(error.message || 'Failed to send OTP. Please try again.');
       setSnackbarVisible(true);
+    } finally {
+      setLoadingGetCode(false);
     }
   };
 
@@ -94,6 +120,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
     const fullPhoneNumber = `${countryCode}${phoneNumber.replace(/\D/g, '')}`;
     
     try {
+      setLoadingOTP(true);
       const response = await authService.verifyOTP(fullPhoneNumber, otpValue, 'login');
       
       if (response.success && response.token) {
@@ -106,15 +133,18 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
     } catch (error: any) {
       setOtpError(true);
       console.error('OTP verification error:', error);
+    } finally {
+      setLoadingOTP(false);
     }
   };
 
   const handleResendOTP = async () => {
-    if (canResend) {
+    if (canResend && !loadingResend) {
       // Combine country code with phone number
       const fullPhoneNumber = `${countryCode}${phoneNumber.replace(/\D/g, '')}`;
       
       try {
+        setLoadingResend(true);
         const response = await authService.sendOTP(fullPhoneNumber);
         
         if (response.success) {
@@ -125,6 +155,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
         }
       } catch (error: any) {
         console.error('Resend OTP error:', error);
+      } finally {
+        setLoadingResend(false);
       }
     }
   };
@@ -180,6 +212,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
     setEmailError('');
     
     try {
+      setLoadingLogin(true);
       const response = await authService.signin(email.trim(), password);
       
       if (response.success && response.token) {
@@ -194,6 +227,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
       // Show server error in snackbar
       setSnackbarMessage(error.message || 'Login failed. Please try again.');
       setSnackbarVisible(true);
+    } finally {
+      setLoadingLogin(false);
     }
   };
 
@@ -253,6 +288,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
               onGetCode={handleGetCode}
               onCountryChange={(code, dialCode) => setCountryCode(dialCode)}
               error={phoneError}
+              loading={loadingGetCode}
             />
           )}
 
@@ -279,8 +315,16 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
               <View style={styles.resendContainer}>
                 <Text style={styles.resendText}>Haven't received OTP?</Text>
                 {canResend ? (
-                  <TouchableOpacity onPress={handleResendOTP} activeOpacity={0.7}>
-                    <Text style={styles.resendLink}>Resend</Text>
+                  <TouchableOpacity
+                    onPress={handleResendOTP}
+                    activeOpacity={0.7}
+                    disabled={loadingResend}
+                  >
+                    {loadingResend ? (
+                      <ActivityIndicator size="small" color={Colors.light.primary} />
+                    ) : (
+                      <Text style={styles.resendLink}>Resend</Text>
+                    )}
                   </TouchableOpacity>
                 ) : (
                   <Text style={styles.resendTimer}>{resendTimer}s</Text>
@@ -344,14 +388,27 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
             <TouchableOpacity
               style={[
                 styles.loginButton,
-                loginMethod === 'OTP' && otpSent && otp.length !== 6 && styles.loginButtonDisabled,
+                (loginMethod === 'OTP' && otpSent && otp.length !== 6) || loadingLogin || loadingOTP || loadingGetCode
+                  ? styles.loginButtonDisabled
+                  : null,
               ]}
               onPress={handleLogin}
               activeOpacity={0.8}
-              disabled={loginMethod === 'OTP' && otpSent && otp.length !== 6}
+              disabled={
+                (loginMethod === 'OTP' && otpSent && otp.length !== 6) ||
+                loadingLogin ||
+                loadingOTP ||
+                loadingGetCode
+              }
             >
-              <Text style={styles.loginButtonText}>Login</Text>
-              <Text style={styles.loginButtonArrow}>→</Text>
+              {(loadingLogin || loadingOTP) ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <>
+                  <Text style={styles.loginButtonText}>Login</Text>
+                  <Text style={styles.loginButtonArrow}>→</Text>
+                </>
+              )}
             </TouchableOpacity>
           </View>
 

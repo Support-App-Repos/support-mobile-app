@@ -39,6 +39,7 @@ interface PhoneNumberInputProps {
   containerStyle?: ViewStyle;
   showGetCodeButton?: boolean;
   onCountryChange?: (countryCode: string, dialCode: string) => void;
+  loading?: boolean;
 }
 
 export const PhoneNumberInput: React.FC<PhoneNumberInputProps> = ({
@@ -50,6 +51,7 @@ export const PhoneNumberInput: React.FC<PhoneNumberInputProps> = ({
   containerStyle,
   showGetCodeButton = true,
   onCountryChange,
+  loading = false,
 }) => {
   const [selectedCountry, setSelectedCountry] = useState<Country>(COUNTRIES[0]);
   const [showCountryPicker, setShowCountryPicker] = useState(false);

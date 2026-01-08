@@ -13,21 +13,27 @@ import {
   TouchableOpacity,
   Image,
   ScrollView,
+  Dimensions,
   Alert,
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { BackIcon, BellIcon, AddPhotoIcon } from '../components/common';
+import { BackIcon, BellIcon, AddPhotoIcon, PriceTypeDropdown, type PriceType } from '../components/common';
 import { BottomNavigation, type BottomNavItem } from '../components/navigation';
 import { Colors, Spacing, Typography, BorderRadius } from '../config/theme';
 import { listingService, paymentService, pickImages, uploadImages } from '../services';
+import { useProfile } from '../hooks';
+
+const { width } = Dimensions.get('window');
 
 type ServiceListingScreenProps = {
   navigation?: any;
   route?: {
     params?: {
       category?: string;
+      categoryId?: string;
       serviceType?: string;
+      serviceTypeId?: string;
     };
   };
 };
@@ -38,28 +44,46 @@ export const ServiceListingScreen: React.FC<ServiceListingScreenProps> = ({
   navigation,
   route,
 }) => {
-  const [businessName, setBusinessName] = useState('');
-  const [serviceDescription, setServiceDescription] = useState('');
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [priceType, setPriceType] = useState<PriceType | null>(null);
+  const [price, setPrice] = useState('');
+  const [location, setLocation] = useState('');
+  const [city, setCity] = useState('');
   const [specialization, setSpecialization] = useState('');
   const [yearsOfExperience, setYearsOfExperience] = useState('');
+  const [serviceProviderName, setServiceProviderName] = useState('');
+  const [serviceProviderContact, setServiceProviderContact] = useState('');
+  const [serviceProviderEmail, setServiceProviderEmail] = useState('');
+  const [tags, setTags] = useState('');
   const [photos, setPhotos] = useState<string[]>([]); // Store local URIs first
   const [photoUris, setPhotoUris] = useState<string[]>([]); // Store local URIs for upload
   const [activeTab, setActiveTab] = useState<BottomNavItem>('Home');
   const [loading, setLoading] = useState(false);
   const [snackbarVisible, setSnackbarVisible] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
+  const [snackbarType, setSnackbarType] = useState<'error' | 'success' | 'info'>('error');
+  const { profileImageUrl } = useProfile();
 
   const currentStep = 0; // First step
   const categoryId = route?.params?.categoryId;
   const serviceTypeId = route?.params?.serviceTypeId;
 
   // Check if all required fields are filled
-  const isFormValid =
-    businessName.trim() !== '' && serviceDescription.trim() !== '';
+  const isFormValid = title.trim() !== '' && 
+                      description.trim() !== '' && 
+                      priceType !== null &&
+                      (priceType === 'Free' || price.trim() !== '') &&
+                      location.trim() !== '' && 
+                      city.trim() !== '' &&
+                      serviceProviderName.trim() !== '' &&
+                      serviceProviderContact.trim() !== '' &&
+                      serviceProviderEmail.trim() !== '' &&
+                      photoUris.length > 0;
 
-  const handleContinue = async () => {
+  const handleSaveAndContinue = async () => {
     if (!isFormValid) {
-      Alert.alert('Validation Error', 'Please fill in all required fields');
+      Alert.alert('Validation Error', 'Please fill in all required fields and upload at least one photo');
       return;
     }
 
@@ -77,7 +101,7 @@ export const ServiceListingScreen: React.FC<ServiceListingScreenProps> = ({
         try {
           const uploadedImages = await uploadImages(photoUris, 'listings/');
           photoUrls = uploadedImages.map((img) => img.url);
-          setPhotos(photoUrls); // Update with uploaded URLs
+          setPhotos(photoUrls);
         } catch (uploadError: any) {
           console.error('Error uploading photos:', uploadError);
           Alert.alert('Upload Error', uploadError.message || 'Failed to upload photos. Please try again.');
@@ -87,16 +111,32 @@ export const ServiceListingScreen: React.FC<ServiceListingScreenProps> = ({
       }
 
       // Create listing on backend with uploaded photo URLs
+      let finalPrice: number | undefined;
+      if (priceType === 'Free') {
+        finalPrice = 0;
+      } else if (price.trim()) {
+        const parsedPrice = parseFloat(price);
+        finalPrice = isNaN(parsedPrice) ? undefined : parsedPrice;
+      } else {
+        finalPrice = undefined;
+      }
+
       const response = await listingService.createListing({
-        title: businessName.trim(),
-        description: serviceDescription.trim(),
-        location: businessName.trim() || 'Service Location', // Use business name as location fallback
+        title: title.trim(),
+        description: description.trim(),
+        price: finalPrice,
+        priceType: priceType || 'Paid',
+        location: location.trim(),
+        city: city.trim() || undefined,
         categoryId,
         serviceTypeId: serviceTypeId || undefined,
-        businessName: businessName.trim(),
-        specialization: specialization || undefined,
+        specialization: specialization.trim() || undefined,
         yearsOfExperience: yearsOfExperience ? parseInt(yearsOfExperience) : undefined,
-        photos: photoUrls.length > 0 ? photoUrls : undefined,
+        serviceProviderName: serviceProviderName.trim(),
+        serviceProviderContact: serviceProviderContact.trim(),
+        serviceProviderEmail: serviceProviderEmail.trim(),
+        tags: tags.trim() || undefined,
+        photos: photoUrls,
       });
 
       if (response.success) {
@@ -127,12 +167,13 @@ export const ServiceListingScreen: React.FC<ServiceListingScreenProps> = ({
           navigation?.navigate('Payment', { listingData });
         }
       } else {
-        throw new Error(response.message || 'Failed to create listing');
+        throw new Error(response.message || 'Failed to save listing');
       }
     } catch (error: any) {
       console.error('Error creating listing:', error);
       // Show server error in snackbar
       setSnackbarMessage(error.message || 'Failed to create listing. Please try again.');
+      setSnackbarType('error');
       setSnackbarVisible(true);
     } finally {
       setLoading(false);
@@ -145,22 +186,19 @@ export const ServiceListingScreen: React.FC<ServiceListingScreenProps> = ({
 
   const handlePhotoUpload = async () => {
     try {
-      // Check if already at max photos (6)
       if (photoUris.length >= 6) {
         Alert.alert('Limit Reached', 'You can upload a maximum of 6 photos.');
         return;
       }
 
-      // Pick images (store local URIs, don't upload yet)
       const selectedUris = await pickImages();
 
       if (selectedUris && selectedUris.length > 0) {
-        // Add new photo URIs (limit to 6 total)
         const updatedUris = [...photoUris, ...selectedUris].slice(0, 6);
         setPhotoUris(updatedUris);
-        // Also update photos for preview (using local URIs)
         setPhotos(updatedUris);
-        setSnackbarMessage(`Added ${selectedUris.length} photo(s). They will be uploaded when you save.`);
+        setSnackbarMessage(`Added ${selectedUris.length} photo(s).`);
+        setSnackbarType('success');
         setSnackbarVisible(true);
       }
     } catch (error: any) {
@@ -200,7 +238,7 @@ export const ServiceListingScreen: React.FC<ServiceListingScreenProps> = ({
             }}
           >
             <Image
-              source={{ uri: 'https://i.pravatar.cc/150?img=12' }}
+              source={{ uri: profileImageUrl || 'https://i.pravatar.cc/150?img=12' }}
               style={styles.profileImage}
             />
           </TouchableOpacity>
@@ -244,7 +282,9 @@ export const ServiceListingScreen: React.FC<ServiceListingScreenProps> = ({
                   />
                 )}
               </View>
-              <Text style={styles.progressLabel}>{step}</Text>
+              <Text style={styles.progressLabel}>
+                {step}
+              </Text>
             </View>
           </React.Fragment>
         ))}
@@ -257,68 +297,167 @@ export const ServiceListingScreen: React.FC<ServiceListingScreenProps> = ({
         showsVerticalScrollIndicator={false}
       >
         <Text style={styles.introText}>
-          Add details about your business.
+          Add details about your {route?.params?.serviceType?.toLowerCase() || 'service'} service.
         </Text>
 
-        {/* Business Name Field */}
+        {/* Service Title Field */}
         <View style={styles.fieldContainer}>
           <Text style={styles.label}>
-            Business Name <Text style={styles.required}>*</Text>
+            Service Title <Text style={styles.required}>*</Text>
           </Text>
           <TextInput
             style={styles.input}
-            placeholder="Enter your business name"
+            placeholder="Give your listing a great title."
             placeholderTextColor={Colors.light.textSecondary}
-            value={businessName}
-            onChangeText={setBusinessName}
+            value={title}
+            onChangeText={setTitle}
           />
         </View>
 
-        {/* Service Description Field */}
+        {/* Description Field */}
         <View style={styles.fieldContainer}>
           <Text style={styles.label}>
-            Service Description <Text style={styles.required}>*</Text>
+            Description <Text style={styles.required}>*</Text>
           </Text>
           <TextInput
             style={[styles.input, styles.textArea]}
             placeholder="Describe your service in detail..."
             placeholderTextColor={Colors.light.textSecondary}
-            value={serviceDescription}
-            onChangeText={setServiceDescription}
+            value={description}
+            onChangeText={setDescription}
             multiline
             numberOfLines={4}
             textAlignVertical="top"
           />
         </View>
 
-        {/* Specialization Field */}
+        {/* Price Type and Price Row */}
+        <View style={styles.rowContainer}>
+          <View style={[styles.fieldContainer, styles.halfWidth]}>
+            <Text style={styles.label}>
+              Price Type <Text style={styles.required}>*</Text>
+            </Text>
+            <PriceTypeDropdown
+              value={priceType}
+              onSelect={setPriceType}
+            />
+          </View>
+          <View style={[styles.fieldContainer, styles.halfWidth]}>
+            <Text style={styles.label}>
+              Price <Text style={styles.required}>*</Text>
+            </Text>
+            <TextInput
+              style={[
+                styles.input,
+                (priceType === 'Free' || priceType === null) && styles.inputDisabled,
+              ]}
+              placeholder="0.00"
+              placeholderTextColor={Colors.light.textSecondary}
+              value={price}
+              onChangeText={setPrice}
+              keyboardType="decimal-pad"
+              editable={priceType !== 'Free' && priceType !== null}
+            />
+          </View>
+        </View>
+
+        {/* Location and City Row */}
+        <View style={styles.rowContainer}>
+          <View style={[styles.fieldContainer, styles.halfWidth]}>
+            <Text style={styles.label}>
+              Location <Text style={styles.required}>*</Text>
+            </Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Service location"
+              placeholderTextColor={Colors.light.textSecondary}
+              value={location}
+              onChangeText={setLocation}
+            />
+          </View>
+          <View style={[styles.fieldContainer, styles.halfWidth]}>
+            <Text style={styles.label}>
+              City <Text style={styles.required}>*</Text>
+            </Text>
+            <TextInput
+              style={styles.input}
+              placeholder="City, State"
+              placeholderTextColor={Colors.light.textSecondary}
+              value={city}
+              onChangeText={setCity}
+            />
+          </View>
+        </View>
+
+        {/* Specialization and Years of Experience Row */}
+        <View style={styles.rowContainer}>
+          <View style={[styles.fieldContainer, styles.halfWidth]}>
+            <Text style={styles.label}>Specialization</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="e.g manicure, nails"
+              placeholderTextColor={Colors.light.textSecondary}
+              value={specialization}
+              onChangeText={setSpecialization}
+            />
+          </View>
+          <View style={[styles.fieldContainer, styles.halfWidth]}>
+            <Text style={styles.label}>Years of Experience</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="e.g 03"
+              placeholderTextColor={Colors.light.textSecondary}
+              value={yearsOfExperience}
+              onChangeText={setYearsOfExperience}
+              keyboardType="numeric"
+            />
+          </View>
+        </View>
+
+        {/* Service Provider Details */}
         <View style={styles.fieldContainer}>
-          <Text style={styles.label}>Specialization</Text>
+          <Text style={styles.label}>Service Provider details <Text style={styles.required}>*</Text></Text>
+          <TextInput
+            style={[styles.input, styles.marginBottom]}
+            placeholder="Name *"
+            placeholderTextColor={Colors.light.textSecondary}
+            value={serviceProviderName}
+            onChangeText={setServiceProviderName}
+          />
+          <TextInput
+            style={[styles.input, styles.marginBottom]}
+            placeholder="Contact *"
+            placeholderTextColor={Colors.light.textSecondary}
+            value={serviceProviderContact}
+            onChangeText={setServiceProviderContact}
+            keyboardType="phone-pad"
+          />
           <TextInput
             style={styles.input}
-            placeholder="e.g manicure, nails"
+            placeholder="Email *"
             placeholderTextColor={Colors.light.textSecondary}
-            value={specialization}
-            onChangeText={setSpecialization}
+            value={serviceProviderEmail}
+            onChangeText={setServiceProviderEmail}
+            keyboardType="email-address"
+            autoCapitalize="none"
           />
         </View>
 
-        {/* Years of Experience Field */}
+        {/* Additional Tags */}
         <View style={styles.fieldContainer}>
-          <Text style={styles.label}>Years of Experience</Text>
+          <Text style={styles.label}>Additional Tags</Text>
           <TextInput
             style={styles.input}
-            placeholder="e.g 03"
+            placeholder="e.g Professional, Certified"
             placeholderTextColor={Colors.light.textSecondary}
-            value={yearsOfExperience}
-            onChangeText={setYearsOfExperience}
-            keyboardType="numeric"
+            value={tags}
+            onChangeText={setTags}
           />
         </View>
 
         {/* Photo Upload Section */}
         <View style={styles.fieldContainer}>
-          <Text style={styles.label}>Photo</Text>
+          <Text style={styles.label}>Photo <Text style={styles.required}>*</Text></Text>
           <View style={styles.photoSection}>
             <TouchableOpacity
               style={styles.photoIconButton}
@@ -340,7 +479,7 @@ export const ServiceListingScreen: React.FC<ServiceListingScreenProps> = ({
                   : 'Click to select photos'}
               </Text>
               <Text style={styles.uploadSubtext}>
-                Photos will be uploaded when you save (SVG, PNG, JPG or GIF, max. 10MB per file)
+                (SVG, PNG, JPG or GIF, max. 10MB per file)
               </Text>
             </TouchableOpacity>
           </View>
@@ -349,7 +488,6 @@ export const ServiceListingScreen: React.FC<ServiceListingScreenProps> = ({
               ? `${photoUris.length}/6 photos selected (will upload on save)`
               : 'Add up to 6 photos'}
           </Text>
-          {/* Display uploaded photos */}
           {photoUris.length > 0 && (
             <View style={styles.photosPreview}>
               {photoUris.map((photoUri, index) => {
@@ -365,9 +503,6 @@ export const ServiceListingScreen: React.FC<ServiceListingScreenProps> = ({
                       style={styles.photoPreview}
                       onError={(error) => {
                         console.error(`[Image Preview] Error loading image ${index}:`, error.nativeEvent.error);
-                      }}
-                      onLoad={() => {
-                        console.log(`[Image Preview] Successfully loaded image ${index}`);
                       }}
                     />
                     <TouchableOpacity
@@ -387,13 +522,13 @@ export const ServiceListingScreen: React.FC<ServiceListingScreenProps> = ({
           )}
         </View>
 
-        {/* Continue Button */}
+        {/* Save & Continue Button */}
         <TouchableOpacity
           style={[
-            styles.continueButton,
-            (!isFormValid || loading) && styles.continueButtonDisabled,
+            styles.saveButton,
+            (!isFormValid || loading) && styles.saveButtonDisabled,
           ]}
-          onPress={handleContinue}
+          onPress={handleSaveAndContinue}
           disabled={!isFormValid || loading}
           activeOpacity={0.8}
         >
@@ -402,11 +537,11 @@ export const ServiceListingScreen: React.FC<ServiceListingScreenProps> = ({
           ) : (
             <Text
               style={[
-                styles.continueButtonText,
-                (!isFormValid || loading) && styles.continueButtonTextDisabled,
+                styles.saveButtonText,
+                (!isFormValid || loading) && styles.saveButtonTextDisabled,
               ]}
             >
-              Continue
+              Save & Continue
             </Text>
           )}
         </TouchableOpacity>
@@ -422,8 +557,10 @@ export const ServiceListingScreen: React.FC<ServiceListingScreenProps> = ({
           } else if (tab === 'MyListings') {
             navigation?.navigate('MyListings');
           } else if (tab === 'Messages') {
-            // TODO: Navigate to Messages screen when implemented
-            console.log('Messages screen not yet implemented');
+            // Show coming soon snackbar
+            setSnackbarVisible(true);
+            setSnackbarMessage('Coming soon feature');
+            setSnackbarType('info');
           } else if (tab === 'Profile') {
             navigation?.navigate('Profile');
           }
@@ -432,11 +569,11 @@ export const ServiceListingScreen: React.FC<ServiceListingScreenProps> = ({
         showCreateButton={false}
       />
 
-      {/* Snackbar for server errors */}
+      {/* Snackbar for messages */}
       <Snackbar
         visible={snackbarVisible}
         message={snackbarMessage}
-        type="error"
+        type={snackbarType}
         onDismiss={() => setSnackbarVisible(false)}
       />
     </SafeAreaView>
@@ -582,6 +719,14 @@ const styles = StyleSheet.create({
   fieldContainer: {
     marginBottom: Spacing.lg,
   },
+  rowContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: Spacing.md,
+  },
+  halfWidth: {
+    flex: 1,
+  },
   label: {
     ...Typography.body,
     color: Colors.light.text,
@@ -603,9 +748,16 @@ const styles = StyleSheet.create({
     color: Colors.light.text,
     fontSize: 14,
   },
+  inputDisabled: {
+    backgroundColor: '#F9FAFB',
+    color: Colors.light.textSecondary,
+  },
   textArea: {
     minHeight: 100,
     paddingTop: Spacing.sm,
+  },
+  marginBottom: {
+    marginBottom: Spacing.sm,
   },
   photoSection: {
     flexDirection: 'row',
@@ -680,7 +832,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     lineHeight: 20,
   },
-  continueButton: {
+  saveButton: {
     backgroundColor: Colors.light.primary,
     borderRadius: BorderRadius.md,
     paddingVertical: Spacing.md,
@@ -689,16 +841,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginTop: Spacing.lg,
   },
-  continueButtonDisabled: {
+  saveButtonDisabled: {
     backgroundColor: '#F3F4F6',
   },
-  continueButtonText: {
+  saveButtonText: {
     ...Typography.body,
     color: '#FFFFFF',
     fontWeight: '600',
     fontSize: 16,
   },
-  continueButtonTextDisabled: {
+  saveButtonTextDisabled: {
     color: '#9CA3AF',
   },
 });

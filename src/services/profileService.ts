@@ -70,6 +70,21 @@ class ProfileService {
   }
 
   /**
+   * Update user profile
+   */
+  async updateProfile(data: {
+    firstName?: string;
+    lastName?: string;
+    fullName?: string; // For backward compatibility
+    email?: string;
+    phoneNumber?: string;
+    profileImage?: string;
+    profileImageUrl?: string; // For backward compatibility
+  }) {
+    return this.apiService.put<{ success: boolean; data: any; message?: string }>('/profile', data);
+  }
+
+  /**
    * Delete user account
    */
   async deleteAccount() {

@@ -16,7 +16,7 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { BackIcon, BellIcon, ForwardIcon } from '../components/common';
+import { BackIcon, BellIcon, ForwardIcon, Snackbar } from '../components/common';
 import {
   CategoryEventIcon,
   CategoryProductIcon,
@@ -26,6 +26,7 @@ import {
 import { BottomNavigation, type BottomNavItem } from '../components/navigation';
 import { Colors, Spacing, Typography, BorderRadius } from '../config/theme';
 import { categoryService } from '../services';
+import { useProfile } from '../hooks';
 
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = (width - Spacing.md * 3) / 2; // Account for padding and gap
@@ -68,6 +69,8 @@ export const SelectCategoryScreen: React.FC<SelectCategoryScreenProps> = ({
   const [selectedCategory, setSelectedCategory] = useState<any | null>(null);
   const [activeTab, setActiveTab] = useState<BottomNavItem>('Home');
   const [loading, setLoading] = useState(true);
+  const [snackbarVisible, setSnackbarVisible] = useState(false);
+  const { profileImageUrl } = useProfile();
 
   useEffect(() => {
     fetchCategories();
@@ -167,7 +170,7 @@ export const SelectCategoryScreen: React.FC<SelectCategoryScreenProps> = ({
             }}
           >
             <Image
-              source={{ uri: 'https://i.pravatar.cc/150?img=12' }}
+              source={{ uri: profileImageUrl || 'https://i.pravatar.cc/150?img=12' }}
               style={styles.profileImage}
             />
           </TouchableOpacity>
@@ -254,14 +257,22 @@ export const SelectCategoryScreen: React.FC<SelectCategoryScreenProps> = ({
           } else if (tab === 'MyListings') {
             navigation?.navigate('MyListings');
           } else if (tab === 'Messages') {
-            // TODO: Navigate to Messages screen when implemented
-            console.log('Messages screen not yet implemented');
+            // Show coming soon snackbar
+            setSnackbarVisible(true);
           } else if (tab === 'Profile') {
             navigation?.navigate('Profile');
           }
         }}
         onCreatePress={() => {}}
         showCreateButton={false}
+      />
+
+      {/* Snackbar for Messages */}
+      <Snackbar
+        visible={snackbarVisible}
+        message="Coming soon feature"
+        type="info"
+        onDismiss={() => setSnackbarVisible(false)}
       />
     </SafeAreaView>
   );

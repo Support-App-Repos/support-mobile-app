@@ -17,11 +17,12 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { HomeHeader, SearchIcon, ScanIcon } from '../components/common';
+import { HomeHeader, SearchIcon, ScanIcon, Snackbar } from '../components/common';
 import { CategoryTabs, ListingCard, type Category, type ListingCardData } from '../components/listings';
 import { BottomNavigation, type BottomNavItem } from '../components/navigation';
 import { Colors, Spacing, Typography, BorderRadius } from '../config/theme';
 import { listingService, categoryService } from '../services';
+import { useProfile } from '../hooks';
 
 type HomeScreenProps = {
   navigation?: any;
@@ -69,6 +70,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const [loading, setLoading] = useState(true);
   const [categories, setCategories] = useState<any[]>([]);
   const [categoryMap, setCategoryMap] = useState<Record<string, string>>({});
+  const [snackbarVisible, setSnackbarVisible] = useState(false);
+  const { profileImageUrl } = useProfile();
 
   // Update active tab when screen comes into focus
   useFocusEffect(
@@ -164,7 +167,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   };
 
   const handleListingPress = (listing: ListingCardData) => {
-    navigation?.navigate('ListingDetail', { listingId: listing.id });
+    // Navigation is now handled inside ListingCard based on category
+    // This is kept for backward compatibility
   };
 
   const handleCreatePress = () => {
@@ -178,8 +182,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     } else if (tab === 'MyListings') {
       navigation?.navigate('MyListings');
     } else if (tab === 'Messages') {
-      // TODO: Navigate to Messages screen when implemented
-      console.log('Messages screen not yet implemented');
+      // Show coming soon snackbar
+      setSnackbarVisible(true);
     } else if (tab === 'Profile') {
       navigation?.navigate('Profile');
     }
@@ -206,7 +210,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
             <Text style={styles.title}>Marketplace</Text>
             <TouchableOpacity style={styles.profileButton} activeOpacity={0.7}>
               <Image
-                source={{ uri: 'https://i.pravatar.cc/150?img=12' }}
+                source={{ uri: profileImageUrl || 'https://i.pravatar.cc/150?img=12' }}
                 style={styles.profileImage}
               />
             </TouchableOpacity>
@@ -232,7 +236,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 
         {/* Promotional Banner */}
         {/* <HomeHeader onCreatePress={handleCreatePress} /> */}
-        <Image source={require('../assets/images/home_header.png')} />
+        <Image 
+          source={require('../assets/images/home_header.png')} 
+          style={styles.homeHeaderImage}
+          resizeMode="cover"
+        />
 
         {/* Category Tabs */}
         <CategoryTabs
@@ -251,7 +259,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
             <View style={styles.listingsGrid}>
               {filteredListings.map((listing) => (
                 <View key={listing.id} style={styles.cardWrapper}>
-                  <ListingCard listing={listing} onPress={handleListingPress} />
+                  <ListingCard listing={listing} onPress={handleListingPress} navigation={navigation} />
                 </View>
               ))}
             </View>
@@ -269,6 +277,14 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         onTabPress={handleTabPress}
         onCreatePress={handleCreatePress}
         showCreateButton={true}
+      />
+
+      {/* Snackbar for Messages */}
+      <Snackbar
+        visible={snackbarVisible}
+        message="Coming soon feature"
+        type="info"
+        onDismiss={() => setSnackbarVisible(false)}
       />
     </SafeAreaView>
   );
@@ -347,6 +363,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginLeft: 0,
+  },
+  homeHeaderImage: {
+    width: '100%',
   },
   listingsContainer: {
     paddingHorizontal: Spacing.md,

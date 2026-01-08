@@ -12,6 +12,7 @@ import {
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Input, BackIcon, LegalDocumentModal } from '../components/common';
@@ -48,6 +49,7 @@ export const RegisterEmailScreen: React.FC<RegisterEmailScreenProps> = ({ naviga
   }>({});
   const [snackbarVisible, setSnackbarVisible] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const validateForm = () => {
     const newErrors: typeof errors = {};
@@ -92,6 +94,7 @@ export const RegisterEmailScreen: React.FC<RegisterEmailScreenProps> = ({ naviga
       }
       
       try {
+        setLoading(true);
         const signupData = {
           email: email.trim(),
           password: password.trim(),
@@ -139,6 +142,8 @@ export const RegisterEmailScreen: React.FC<RegisterEmailScreenProps> = ({ naviga
         // Show server error in snackbar instead of under field
         setSnackbarMessage(errorMessage);
         setSnackbarVisible(true);
+      } finally {
+        setLoading(false);
       }
     }
   };
@@ -295,12 +300,19 @@ export const RegisterEmailScreen: React.FC<RegisterEmailScreenProps> = ({ naviga
           {/* Register Button */}
           <View style={styles.registerButtonContainer}>
             <TouchableOpacity
-              style={styles.registerButton}
+              style={[styles.registerButton, loading && styles.registerButtonDisabled]}
               onPress={handleRegister}
               activeOpacity={0.8}
+              disabled={loading}
             >
-              <Text style={styles.registerButtonText}>Register</Text>
-              <Text style={styles.registerButtonArrow}>→</Text>
+              {loading ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <>
+                  <Text style={styles.registerButtonText}>Register</Text>
+                  <Text style={styles.registerButtonArrow}>→</Text>
+                </>
+              )}
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -320,14 +332,6 @@ export const RegisterEmailScreen: React.FC<RegisterEmailScreenProps> = ({ naviga
         title="Privacy Policy"
         content={PRIVACY_POLICY_CONTENT}
         onClose={() => setShowPrivacyModal(false)}
-      />
-
-      {/* Snackbar for server errors */}
-      <Snackbar
-        visible={snackbarVisible}
-        message={snackbarMessage}
-        type="error"
-        onDismiss={() => setSnackbarVisible(false)}
       />
 
       {/* Snackbar for server errors */}
@@ -444,6 +448,9 @@ const styles = StyleSheet.create({
     fontSize: 20,
     color: '#FFFFFF',
     fontWeight: '600',
+  },
+  registerButtonDisabled: {
+    opacity: 0.7,
   },
 });
 

@@ -22,6 +22,7 @@ import { BackIcon, BellIcon, AddPhotoIcon } from '../components/common';
 import { BottomNavigation, type BottomNavItem } from '../components/navigation';
 import { Colors, Spacing, Typography, BorderRadius } from '../config/theme';
 import { listingService, paymentService, pickImages, uploadImages } from '../services';
+import { useProfile } from '../hooks';
 
 const { width } = Dimensions.get('window');
 
@@ -50,6 +51,8 @@ export const ProductListingScreen: React.FC<ProductListingScreenProps> = ({
   const [loading, setLoading] = useState(false);
   const [snackbarVisible, setSnackbarVisible] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
+  const [snackbarType, setSnackbarType] = useState<'error' | 'success' | 'info'>('error');
+  const { profileImageUrl } = useProfile();
 
   const currentStep = 0; // First step
   const categoryId = route?.params?.categoryId;
@@ -58,11 +61,12 @@ export const ProductListingScreen: React.FC<ProductListingScreenProps> = ({
   const isFormValid = title.trim() !== '' && 
                       description.trim() !== '' && 
                       price.trim() !== '' && 
-                      location.trim() !== '';
+                      location.trim() !== '' &&
+                      photoUris.length > 0;
 
   const handleSaveAndContinue = async () => {
     if (!isFormValid) {
-      Alert.alert('Validation Error', 'Please fill in all required fields');
+      Alert.alert('Validation Error', 'Please fill in all required fields and upload at least one photo');
       return;
     }
 
@@ -97,7 +101,7 @@ export const ProductListingScreen: React.FC<ProductListingScreenProps> = ({
         priceType: 'Paid', // Default for products
         location: location.trim(),
         categoryId,
-        photos: photoUrls.length > 0 ? photoUrls : undefined,
+        photos: photoUrls,
       });
 
       if (response.success) {
@@ -135,6 +139,7 @@ export const ProductListingScreen: React.FC<ProductListingScreenProps> = ({
       console.error('Error creating listing:', error);
       // Show server error in snackbar
       setSnackbarMessage(error.message || 'Failed to create listing. Please try again.');
+      setSnackbarType('error');
       setSnackbarVisible(true);
     } finally {
       setLoading(false);
@@ -158,7 +163,8 @@ export const ProductListingScreen: React.FC<ProductListingScreenProps> = ({
         const updatedUris = [...photoUris, ...selectedUris].slice(0, 6);
         setPhotoUris(updatedUris);
         setPhotos(updatedUris);
-        setSnackbarMessage(`Added ${selectedUris.length} photo(s). They will be uploaded when you save.`);
+        setSnackbarMessage(`Added ${selectedUris.length} photo(s).`);
+        setSnackbarType('success');
         setSnackbarVisible(true);
       }
     } catch (error: any) {
@@ -198,7 +204,7 @@ export const ProductListingScreen: React.FC<ProductListingScreenProps> = ({
             }}
           >
             <Image
-              source={{ uri: 'https://i.pravatar.cc/150?img=12' }}
+              source={{ uri: profileImageUrl || 'https://i.pravatar.cc/150?img=12' }}
               style={styles.profileImage}
             />
           </TouchableOpacity>
@@ -322,7 +328,7 @@ export const ProductListingScreen: React.FC<ProductListingScreenProps> = ({
 
         {/* Photo Upload Section */}
         <View style={styles.fieldContainer}>
-          <Text style={styles.label}>Photo</Text>
+          <Text style={styles.label}>Photo <Text style={styles.required}>*</Text></Text>
           <View style={styles.photoSection}>
             <TouchableOpacity
               style={styles.photoIconButton}
@@ -344,7 +350,7 @@ export const ProductListingScreen: React.FC<ProductListingScreenProps> = ({
                   : 'Click to select photos'}
               </Text>
               <Text style={styles.uploadSubtext}>
-                Photos will be uploaded when you save (SVG, PNG, JPG or GIF, max. 10MB per file)
+                (SVG, PNG, JPG or GIF, max. 10MB per file)
               </Text>
             </TouchableOpacity>
           </View>
@@ -422,14 +428,24 @@ export const ProductListingScreen: React.FC<ProductListingScreenProps> = ({
           } else if (tab === 'MyListings') {
             navigation?.navigate('MyListings');
           } else if (tab === 'Messages') {
-            // TODO: Navigate to Messages screen when implemented
-            console.log('Messages screen not yet implemented');
+            // Show coming soon snackbar
+            setSnackbarVisible(true);
+            setSnackbarMessage('Coming soon feature');
+            setSnackbarType('info');
           } else if (tab === 'Profile') {
             navigation?.navigate('Profile');
           }
         }}
         onCreatePress={() => {}}
         showCreateButton={false}
+      />
+
+      {/* Snackbar for messages */}
+      <Snackbar
+        visible={snackbarVisible}
+        message={snackbarMessage}
+        type={snackbarType}
+        onDismiss={() => setSnackbarVisible(false)}
       />
     </SafeAreaView>
   );

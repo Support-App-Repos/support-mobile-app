@@ -21,6 +21,7 @@ import { BackIcon, BellIcon, CheckedIcon, StepCompletedMarkIcon } from '../compo
 import { BottomNavigation, type BottomNavItem } from '../components/navigation';
 import { Colors, Spacing, Typography, BorderRadius } from '../config/theme';
 import { paymentService } from '../services/paymentService';
+import { useProfile } from '../hooks';
 
 type PaymentScreenProps = {
   navigation?: any;
@@ -55,6 +56,7 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
   const [activeTab, setActiveTab] = useState<BottomNavItem>('Home');
   const [loading, setLoading] = useState(false);
   const [loadingPlans, setLoadingPlans] = useState(true);
+  const { profileImageUrl } = useProfile();
 
   const currentStep = 1; // Second step (Payment)
   const listingData = route?.params?.listingData;
@@ -248,7 +250,7 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
             }}
           >
             <Image
-              source={{ uri: 'https://i.pravatar.cc/150?img=12' }}
+              source={{ uri: profileImageUrl || 'https://i.pravatar.cc/150?img=12' }}
               style={styles.profileImage}
             />
           </TouchableOpacity>

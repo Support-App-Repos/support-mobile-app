@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { BackIcon, BellIcon, SuccessIcon } from '../components/common';
 import { BottomNavigation, type BottomNavItem } from '../components/navigation';
 import { Colors, Spacing, Typography, BorderRadius } from '../config/theme';
+import { useProfile } from '../hooks';
 
 type PublishScreenProps = {
   navigation?: any;
@@ -30,6 +31,7 @@ export const PublishScreen: React.FC<PublishScreenProps> = ({
   route,
 }) => {
   const [activeTab, setActiveTab] = useState<BottomNavItem>('Home');
+  const { profileImageUrl } = useProfile();
 
   const handleBack = () => {
     navigation?.goBack();
@@ -86,7 +88,7 @@ export const PublishScreen: React.FC<PublishScreenProps> = ({
             }}
           >
             <Image
-              source={{ uri: 'https://i.pravatar.cc/150?img=12' }}
+              source={{ uri: profileImageUrl || 'https://i.pravatar.cc/150?img=12' }}
               style={styles.profileImage}
             />
           </TouchableOpacity>

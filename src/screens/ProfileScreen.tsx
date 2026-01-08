@@ -28,12 +28,14 @@ import {
   RatingIcon,
   SignOutIcon,
   DeleteIcon,
+  Snackbar,
 } from '../components/common';
 import { ListingCard, type ListingCardData } from '../components/listings';
 import { BottomNavigation, type BottomNavItem } from '../components/navigation';
 import { profileService } from '../services';
 import { authService } from '../services/authService';
 import { Colors, Spacing, Typography, BorderRadius } from '../config/theme';
+import { useProfileContext } from '../contexts/ProfileContext';
 
 // Extended ListingCardData for ProfileScreen
 interface ExtendedListingCardData extends ListingCardData {
@@ -71,39 +73,23 @@ const convertToListingCardData = (listing: any): ExtendedListingCardData => {
 export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   navigation,
 }) => {
+  const { user, loading, refreshProfile } = useProfileContext();
   const [activeTab, setActiveTab] = useState<TabType>('Browsing History');
   const [bottomNavTab, setBottomNavTab] = useState<BottomNavItem>('Profile');
-  const [user, setUser] = useState<any>(null);
   const [browsingHistory, setBrowsingHistory] = useState<ExtendedListingCardData[]>([]);
   const [wishlist, setWishlist] = useState<ListingCardData[]>([]);
-  const [loading, setLoading] = useState(true);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [loadingWishlist, setLoadingWishlist] = useState(false);
   const [deletingAccount, setDeletingAccount] = useState(false);
+  const [snackbarVisible, setSnackbarVisible] = useState(false);
 
-  // Update active tab when screen comes into focus
+  // Update active tab and refetch profile when screen comes into focus
   useFocusEffect(
     React.useCallback(() => {
       setBottomNavTab('Profile');
-    }, [])
+      refreshProfile(); // Refetch profile data when screen comes into focus
+    }, [refreshProfile])
   );
-
-  const fetchProfile = useCallback(async () => {
-    try {
-      setLoading(true);
-      const response = await profileService.getProfile();
-      const profileData = (response.data as any)?.data || response.data;
-      
-      if (response.success && profileData) {
-        setUser(profileData);
-      }
-    } catch (error: any) {
-      console.error('Error fetching profile:', error);
-      Alert.alert('Error', error.message || 'Failed to load profile');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
 
   const fetchBrowsingHistory = useCallback(async () => {
     try {
@@ -159,10 +145,9 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   }, []);
 
   useEffect(() => {
-    fetchProfile();
     fetchBrowsingHistory();
     fetchWishlist();
-  }, [fetchProfile, fetchBrowsingHistory, fetchWishlist]);
+  }, [fetchBrowsingHistory, fetchWishlist]);
 
   // Refetch when tab changes
   useEffect(() => {
@@ -183,12 +168,25 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
     console.log('Help & Support pressed');
   };
 
-  const handleSignOut = () => {
-    // TODO: Implement sign out logic
-    navigation?.reset({
-      index: 0,
-      routes: [{ name: 'Login' }],
-    });
+  const handleSignOut = async () => {
+    try {
+      // Clear token and user data
+      await authService.logout();
+      
+      // Navigate to login screen
+      navigation?.reset({
+        index: 0,
+        routes: [{ name: 'Login' }],
+      });
+    } catch (error: any) {
+      console.error('Error signing out:', error);
+      // Even if logout fails, clear local storage and navigate to login
+      await authService.logout();
+      navigation?.reset({
+        index: 0,
+        routes: [{ name: 'Login' }],
+      });
+    }
   };
 
   const handleDeleteAccount = () => {
@@ -260,7 +258,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             }}
           >
             <Image
-              source={{ uri: user?.profileImage || user?.avatar || 'https://i.pravatar.cc/150?img=12' }}
+              source={{ uri: user?.profileImage || user?.profileImageUrl || user?.avatar || 'https://i.pravatar.cc/150?img=12' }}
               style={styles.headerProfileImage}
             />
           </TouchableOpacity>
@@ -291,7 +289,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             ) : (
               <>
                 <Image
-                  source={{ uri: user?.profileImage || user?.avatar || 'https://i.pravatar.cc/150?img=12' }}
+                  source={{ uri: user?.profileImageUrl || user?.profileImage || user?.avatar || 'https://i.pravatar.cc/150?img=12' }}
                   style={styles.profileImage}
                 />
                 <View style={styles.profileInfo}>
@@ -299,13 +297,12 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                     <Text style={styles.userName}>{user?.name || user?.fullName || 'User'}</Text>
                     <TouchableOpacity
                       style={styles.editButton}
-                      activeOpacity={0.7}
                       onPress={() => {
-                        // TODO: Edit name
-                        console.log('Edit name pressed');
+                        navigation?.navigate('EditProfile', { user });
                       }}
+                      activeOpacity={0.7}
                     >
-                      <EditIcon size={16} color="#6B7280" />
+                      <EditIcon size={20} color={Colors.light.primary} />
                     </TouchableOpacity>
                   </View>
                   <View style={styles.statsRow}>
@@ -448,9 +445,9 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                         resizeMode="cover"
                       />
                     )}
-                    <View style={styles.listingBadge}>
+                    {/* <View style={styles.listingBadge}>
                       <Text style={styles.listingBadgeText}>Casta Auto</Text>
-                    </View>
+                    </View> */}
                   </View>
                   <View style={styles.listingContent}>
                     <Text style={styles.listingTitle} numberOfLines={1}>
@@ -489,8 +486,9 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                 <View key={listing.id} style={styles.listingCardWrapper}>
                   <ListingCard 
                     listing={listing} 
+                    navigation={navigation}
                     onPress={(listing) => {
-                      navigation?.navigate('ListingDetail', { listingId: listing.id });
+                      // Navigation is now handled inside ListingCard based on category
                     }}
                   />
                 </View>
@@ -515,8 +513,8 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
           } else if (tab === 'MyListings') {
             navigation?.navigate('MyListings');
           } else if (tab === 'Messages') {
-            // TODO: Navigate to Messages screen when implemented
-            console.log('Messages screen not yet implemented');
+            // Show coming soon snackbar
+            setSnackbarVisible(true);
           } else if (tab === 'Profile') {
             // Already on Profile screen
           }
@@ -525,6 +523,14 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
           navigation?.navigate('SelectCategory');
         }}
         showCreateButton={false}
+      />
+
+      {/* Snackbar for Messages */}
+      <Snackbar
+        visible={snackbarVisible}
+        message="Coming soon feature"
+        type="info"
+        onDismiss={() => setSnackbarVisible(false)}
       />
     </SafeAreaView>
   );

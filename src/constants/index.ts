@@ -15,29 +15,22 @@ import { Platform } from 'react-native';
 // API Configuration
 // Automatically detects platform and uses appropriate URL
 const getBaseURL = () => {
-  if (__DEV__) {
-    // Use platform-specific URLs from .env
-    // Priority: API_BASE_URL_ANDROID/API_BASE_URL_IOS > API_BASE_URL > default
-    let baseURL: string;
-    if (Platform.OS === 'android') {
-      // Use API_BASE_URL_ANDROID if set, otherwise use API_BASE_URL, otherwise default to localhost
-      // Note: For Android emulator, you may need to use 10.0.2.2 instead of localhost
-      // For physical Android devices, use your computer's IP address (e.g., http://192.168.1.100:3000/api)
-      baseURL = API_BASE_URL_ANDROID || API_BASE_URL || 'http://localhost:3000/api';
-    } else {
-      baseURL = API_BASE_URL_IOS || API_BASE_URL || 'http://localhost:3000/api';
-    }
-    
-    // Log the API URL being used (helpful for debugging)
-    console.log(`[API Config] Platform: ${Platform.OS}, Base URL: ${baseURL}`);
-    console.log(`[API Config] API_BASE_URL_ANDROID: ${API_BASE_URL_ANDROID || 'not set'}`);
-    console.log(`[API Config] API_BASE_URL: ${API_BASE_URL || 'not set'}`);
-    
-    return baseURL;
+  // Always use environment variables, regardless of __DEV__ mode
+  let baseURL: string;
+  if (Platform.OS === 'android') {
+    baseURL = API_BASE_URL_ANDROID || API_BASE_URL || 'http://13.62.185.179:3000/api';
+  } else {
+    baseURL = API_BASE_URL_IOS || API_BASE_URL || 'http://13.62.185.179:3000/api';
   }
-  const prodURL = API_BASE_URL || 'https://api.production.com/api';
-  console.log(`[API Config] Production Base URL: ${prodURL}`);
-  return prodURL;
+  
+  // Log the API URL being used (helpful for debugging)
+  // if (__DEV__) {
+  //   console.log(`[API Config] Platform: ${Platform.OS}, Base URL: ${baseURL}`);
+  //   console.log(`[API Config] API_BASE_URL_ANDROID: ${API_BASE_URL_ANDROID || 'not set'}`);
+  //   console.log(`[API Config] API_BASE_URL: ${API_BASE_URL || 'not set'}`);
+  // }
+  
+  return baseURL;
 };
 
 export const API_CONFIG = {

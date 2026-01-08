@@ -23,6 +23,12 @@ export interface MyListingCardData {
   status: 'Active' | 'Pending' | 'Rejected' | 'Expired';
   createdAt: string;
   photos?: Array<{ photoUrl: string }>;
+  category?: {
+    id: string;
+    name: string;
+    slug: string;
+    iconUrl?: string;
+  };
 }
 
 interface MyListingCardProps {

@@ -20,6 +20,10 @@ export { SelectRegionScreen } from './SelectRegionScreen';
 export { ReviewScreen } from './ReviewScreen';
 export { PublishScreen } from './PublishScreen';
 export { ProfileScreen } from './ProfileScreen';
+export { EditProfileScreen } from './EditProfileScreen';
 export { MyListingsScreen } from './MyListingsScreen';
 export { ListingDetailScreen } from './ListingDetailScreen';
+export { EventListingDetailScreen } from './EventListingDetailScreen';
+export { PropertyListingDetailScreen } from './PropertyListingDetailScreen';
+export { ServiceListingDetailScreen } from './ServiceListingDetailScreen';
 

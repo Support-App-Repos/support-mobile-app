@@ -30,13 +30,49 @@ export interface ListingCardData {
 interface ListingCardProps {
   listing: ListingCardData;
   onPress?: (listing: ListingCardData) => void;
+  navigation?: any;
 }
 
 export const ListingCard: React.FC<ListingCardProps> = ({
   listing,
   onPress,
+  navigation,
 }) => {
   const handlePress = () => {
+    // If navigation is provided, handle navigation based on category
+    if (navigation) {
+      const categoryName = listing.category || '';
+      const categoryLower = categoryName.toLowerCase();
+      
+      // Determine which detail screen to navigate to based on category
+      const isEvent = categoryLower.includes('event') || categoryName === 'Events';
+      const isProperty = categoryLower.includes('propert') || categoryName === 'Properties' || categoryName === 'Property';
+      const isService = categoryLower.includes('service') || categoryName === 'Services';
+      
+      if (isEvent) {
+        // Navigate to EventListingDetailScreen
+        navigation.navigate('EventListingDetail', { listingId: listing.id });
+        return;
+      }
+      
+      if (isProperty) {
+        // Navigate to PropertyListingDetailScreen
+        navigation.navigate('PropertyListingDetail', { listingId: listing.id });
+        return;
+      }
+      
+      if (isService) {
+        // Navigate to ServiceListingDetailScreen
+        navigation.navigate('ServiceListingDetail', { listingId: listing.id });
+        return;
+      }
+      
+      // Default to generic ListingDetailScreen for Products or unknown categories
+      navigation.navigate('ListingDetail', { listingId: listing.id });
+      return;
+    }
+    
+    // Fallback to onPress callback if navigation is not provided
     onPress?.(listing);
   };
 
