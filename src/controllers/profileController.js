@@ -45,9 +45,20 @@ exports.getProfile = async (req, res) => {
       });
     }
 
+    // Split fullName into firstName and lastName
+    const fullName = user.fullName || '';
+    const nameParts = fullName.trim().split(/\s+/);
+    const firstName = nameParts[0] || '';
+    const lastName = nameParts.slice(1).join(' ') || '';
+
     res.json({
       success: true,
-      data: user,
+      data: {
+        ...user,
+        firstName: firstName,
+        lastName: lastName,
+        profileImage: user.profileImageUrl, // Add profileImage alias
+      },
     });
   } catch (error) {
     console.error('Error fetching profile:', error);
@@ -73,32 +84,102 @@ exports.getBrowsingHistory = async (req, res) => {
     const { page = 1, limit = 20 } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
-    const [history, total] = await Promise.all([
-      prisma.browsingHistory.findMany({
-        where: { userId },
-        include: {
-          listing: {
-            include: {
-              photos: {
-                where: { isPrimary: true },
-                take: 1,
-              },
-              category: true,
-            },
-          },
-        },
-        orderBy: {
-          viewedAt: 'desc',
-        },
-        skip,
-        take: parseInt(limit),
-      }),
-      prisma.browsingHistory.count({ where: { userId } }),
-    ]);
+    // Use raw MongoDB to avoid Prisma namespace issues
+    const browsingHistoryCollection = await getCollection('BrowsingHistory');
+    const listingCollection = await getCollection('Listing');
+    const listingPhotoCollection = await getCollection('ListingPhoto');
+    const categoryCollection = await getCollection('Category');
+
+    const userIdObj = new ObjectId(userId);
+
+    // Get browsing history records
+    const historyRecords = await browsingHistoryCollection
+      .find({ user_id: userIdObj })
+      .sort({ viewed_at: -1 })
+      .skip(skip)
+      .limit(parseInt(limit))
+      .toArray();
+
+    // Get total count
+    const total = await browsingHistoryCollection.countDocuments({ user_id: userIdObj });
+
+    // Fetch listing details for each history record
+    const history = await Promise.all(
+      historyRecords.map(async (record) => {
+        const listingIdObj = record.listing_id instanceof ObjectId 
+          ? record.listing_id 
+          : new ObjectId(record.listing_id);
+
+        // Get listing
+        const listing = await listingCollection.findOne({ _id: listingIdObj });
+        if (!listing) {
+          return null;
+        }
+
+        // Get primary photo
+        const primaryPhoto = await listingPhotoCollection.findOne({
+          listing_id: listingIdObj,
+          is_primary: true,
+        });
+
+        // Get category
+        const categoryId = listing.category_id || listing.categoryId;
+        let category = null;
+        if (categoryId) {
+          const categoryIdObj = categoryId instanceof ObjectId 
+            ? categoryId 
+            : new ObjectId(categoryId);
+          const cat = await categoryCollection.findOne({ _id: categoryIdObj });
+          if (cat) {
+            category = {
+              id: cat._id.toString(),
+              name: cat.name,
+              slug: cat.slug,
+              iconUrl: cat.icon_url || null,
+              description: cat.description || null,
+              isActive: cat.is_active !== false,
+            };
+          }
+        }
+
+        // Format listing
+        const formattedListing = {
+          id: listing._id.toString(),
+          title: listing.title,
+          description: listing.description,
+          price: listing.price || null,
+          priceType: listing.price_type || null,
+          location: listing.location,
+          city: listing.city || null,
+          status: listing.status,
+          viewsCount: listing.views_count || 0,
+          ratingAverage: listing.rating_average || 0,
+          reviewsCount: listing.reviews_count || 0,
+          category,
+          photos: primaryPhoto ? [{
+            id: primaryPhoto._id.toString(),
+            photoUrl: primaryPhoto.photo_url,
+            isPrimary: primaryPhoto.is_primary || false,
+          }] : [],
+        };
+
+        return {
+          id: record._id.toString(),
+          userId: record.user_id.toString(),
+          listingId: listingIdObj.toString(),
+          viewedAt: record.viewed_at || record.viewedAt,
+          viewDuration: record.view_duration || record.viewDuration || null,
+          listing: formattedListing,
+        };
+      })
+    );
+
+    // Filter out null values (deleted listings)
+    const validHistory = history.filter(h => h !== null);
 
     res.json({
       success: true,
-      data: history,
+      data: validHistory,
       pagination: {
         page: parseInt(page),
         limit: parseInt(limit),
@@ -420,7 +501,8 @@ exports.getAllUsers = async (req, res) => {
       email: user.email,
       phoneNumber: user.phone_number,
       fullName: user.full_name,
-      profileImageUrl: user.profile_image_url,
+      profileImage: user.profile_image_url,
+      profileImageUrl: user.profile_image_url, // Keep for backward compatibility
       isVerified: user.is_verified !== false,
       isActive: user.is_active !== false,
       createdAt: user.created_at,
@@ -442,6 +524,210 @@ exports.getAllUsers = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to fetch users',
+      error: error.message,
+    });
+  }
+};
+
+// Update user (Admin only)
+exports.updateUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updateData = req.body;
+
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        message: 'User ID is required',
+      });
+    }
+
+    const { getCollection } = require('../lib/mongodb');
+    const { ObjectId } = require('mongodb');
+    const userCollection = await getCollection('User');
+
+    const userIdObj = new ObjectId(id);
+
+    // Check if user exists
+    const existingUser = await userCollection.findOne({ _id: userIdObj });
+    if (!existingUser) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found',
+      });
+    }
+
+    // Build update object with snake_case field names
+    const mongoUpdateData = {
+      updated_at: new Date(),
+    };
+
+    // Map camelCase to snake_case for MongoDB
+    if (updateData.email !== undefined) {
+      mongoUpdateData.email = updateData.email.toLowerCase();
+    }
+    if (updateData.phoneNumber !== undefined) {
+      mongoUpdateData.phone_number = updateData.phoneNumber || null;
+    }
+    if (updateData.fullName !== undefined) {
+      mongoUpdateData.full_name = updateData.fullName || null;
+    }
+    if (updateData.isVerified !== undefined) {
+      mongoUpdateData.is_verified = updateData.isVerified;
+    }
+    if (updateData.isActive !== undefined) {
+      mongoUpdateData.is_active = updateData.isActive;
+    }
+    // Handle profileImage and profileImageUrl (both map to profile_image_url)
+    if (updateData.profileImage !== undefined) {
+      mongoUpdateData.profile_image_url = updateData.profileImage?.trim() || null;
+    }
+    if (updateData.profileImageUrl !== undefined) {
+      mongoUpdateData.profile_image_url = updateData.profileImageUrl?.trim() || null;
+    }
+
+    // Update user
+    await userCollection.updateOne(
+      { _id: userIdObj },
+      { $set: mongoUpdateData }
+    );
+
+    // Fetch updated user
+    const updatedUser = await userCollection.findOne({ _id: userIdObj });
+
+    // Format response
+    const formattedUser = {
+      id: updatedUser._id.toString(),
+      email: updatedUser.email,
+      phoneNumber: updatedUser.phone_number,
+      fullName: updatedUser.full_name,
+      profileImage: updatedUser.profile_image_url,
+      profileImageUrl: updatedUser.profile_image_url, // Keep for backward compatibility
+      isVerified: updatedUser.is_verified !== false,
+      isActive: updatedUser.is_active !== false,
+      createdAt: updatedUser.created_at,
+      updatedAt: updatedUser.updated_at,
+    };
+
+    res.json({
+      success: true,
+      data: formattedUser,
+      message: 'User updated successfully',
+    });
+  } catch (error) {
+    console.error('Error updating user:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update user',
+      error: error.message,
+    });
+  }
+};
+
+// Update current user's profile
+exports.updateProfile = async (req, res) => {
+  try {
+    const userId = getUserId(req);
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Unauthorized',
+      });
+    }
+
+    const updateData = req.body;
+    const userCollection = await getCollection('User');
+    const userIdObj = new ObjectId(userId);
+
+    // Check if user exists
+    const existingUser = await userCollection.findOne({ _id: userIdObj });
+    if (!existingUser) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found',
+      });
+    }
+
+    // Build update object with snake_case field names
+    const mongoUpdateData = {
+      updated_at: new Date(),
+    };
+
+    // Map camelCase to snake_case for MongoDB
+    if (updateData.email !== undefined) {
+      mongoUpdateData.email = updateData.email.toLowerCase().trim();
+    }
+    if (updateData.phoneNumber !== undefined) {
+      mongoUpdateData.phone_number = updateData.phoneNumber?.trim() || null;
+    }
+    // Handle firstName and lastName - combine into full_name
+    if (updateData.firstName !== undefined || updateData.lastName !== undefined) {
+      const firstName = updateData.firstName?.trim() || '';
+      const lastName = updateData.lastName?.trim() || '';
+      mongoUpdateData.full_name = `${firstName} ${lastName}`.trim() || null;
+      // Also store separately if fields exist in DB
+      if (updateData.firstName !== undefined) {
+        mongoUpdateData.first_name = firstName || null;
+      }
+      if (updateData.lastName !== undefined) {
+        mongoUpdateData.last_name = lastName || null;
+      }
+    }
+    // Keep backward compatibility with fullName
+    if (updateData.fullName !== undefined) {
+      mongoUpdateData.full_name = updateData.fullName?.trim() || null;
+    }
+    // Handle profileImage and profileImageUrl (both map to profile_image_url)
+    if (updateData.profileImage !== undefined && updateData.profileImage !== null && updateData.profileImage !== '') {
+      mongoUpdateData.profile_image_url = updateData.profileImage.trim();
+    } else if (updateData.profileImageUrl !== undefined && updateData.profileImageUrl !== null && updateData.profileImageUrl !== '') {
+      mongoUpdateData.profile_image_url = updateData.profileImageUrl.trim();
+    }
+
+    console.log('[UpdateProfile] MongoDB update data:', JSON.stringify(mongoUpdateData, null, 2));
+
+    // Update user
+    const updateResult = await userCollection.updateOne(
+      { _id: userIdObj },
+      { $set: mongoUpdateData }
+    );
+
+    console.log('[UpdateProfile] Update result - Modified:', updateResult.modifiedCount, 'Matched:', updateResult.matchedCount);
+
+    // Fetch updated user
+    const updatedUser = await userCollection.findOne({ _id: userIdObj });
+
+    // Format response - split full_name into firstName and lastName if possible
+    const fullName = updatedUser.full_name || '';
+    const nameParts = fullName.trim().split(/\s+/);
+    const firstName = updatedUser.first_name || nameParts[0] || '';
+    const lastName = updatedUser.last_name || nameParts.slice(1).join(' ') || '';
+
+    const formattedUser = {
+      id: updatedUser._id.toString(),
+      email: updatedUser.email,
+      phoneNumber: updatedUser.phone_number,
+      fullName: updatedUser.full_name,
+      firstName: firstName,
+      lastName: lastName,
+      profileImage: updatedUser.profile_image_url,
+      profileImageUrl: updatedUser.profile_image_url, // Keep for backward compatibility
+      isVerified: updatedUser.is_verified !== false,
+      isActive: updatedUser.is_active !== false,
+      createdAt: updatedUser.created_at,
+      updatedAt: updatedUser.updated_at,
+    };
+
+    res.json({
+      success: true,
+      data: formattedUser,
+      message: 'Profile updated successfully',
+    });
+  } catch (error) {
+    console.error('Error updating profile:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update profile',
       error: error.message,
     });
   }

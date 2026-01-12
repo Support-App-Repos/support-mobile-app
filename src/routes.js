@@ -79,14 +79,17 @@ router.post('/stripe/confirm-payment', stripeController.confirmPayment);
 
 // Profile routes (for ProfileScreen)
 router.get('/profile', profileController.getProfile);
+router.put('/profile', profileController.updateProfile); // Update current user's profile
 router.get('/profile/browsing-history', profileController.getBrowsingHistory);
 router.get('/profile/wishlist', profileController.getWishlist);
 router.post('/profile/wishlist', profileController.addToWishlist);
 router.delete('/profile/wishlist/:listingId', profileController.removeFromWishlist);
 router.get('/profile/listings', profileController.getMyListings);
+router.delete('/profile', profileController.deleteAccount);
 
 // Admin routes
 router.get('/users', profileController.getAllUsers); // Admin: Get all users
+router.put('/users/:id', profileController.updateUser); // Admin: Update user
 
 // Upload routes (for image uploads) - Protected
 router.post('/upload/images', uploadMultiple, uploadController.uploadImages);

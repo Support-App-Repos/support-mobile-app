@@ -39,12 +39,33 @@ async function init() {
     'exp://localhost:19000', // Expo dev client
     'http://10.0.2.2:8081', // Android emulator Metro bundler
     'http://10.0.2.2:3000', // Android emulator backend
+    // Production admin portal origins
+    'http://13.62.185.179',
+    'http://13.62.185.179:80',
   ];
+
+  // Add admin portal origin from environment variable if set
+  if (process.env.ADMIN_PORTAL_URL) {
+    allowedOrigins.push(process.env.ADMIN_PORTAL_URL);
+  }
 
   if (NODE_ENV === 'development') {
     // In development, allow all origins for easier testing
     allowedOrigins.push('*');
   }
+
+  // Handle OPTIONS requests early (before CORS middleware)
+  app.options('*', (req, res) => {
+    const origin = req.headers.origin || '';
+    if (NODE_ENV === 'development' || allowedOrigins.includes(origin) || !origin) {
+      res.setHeader('Access-Control-Allow-Origin', origin || '*');
+      res.setHeader('Access-Control-Allow-Methods', 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization,Origin,Accept,Content-Security-Policy');
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
+      return res.status(200).end();
+    }
+    return res.status(403).end();
+  });
 
   const corsOptions = {
     origin: (origin, callback) => {

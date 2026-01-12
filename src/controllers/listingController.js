@@ -43,6 +43,10 @@ exports.createListing = async (req, res) => {
       businessName,
       specialization,
       yearsOfExperience,
+      // Service provider fields (alternative to organizer fields for services)
+      serviceProviderName,
+      serviceProviderContact,
+      serviceProviderEmail,
       // Property-specific fields
       bedrooms,
       bathrooms,
@@ -102,10 +106,11 @@ exports.createListing = async (req, res) => {
       // EventTypeId is optional but recommended
       // Note: We'll allow listings without eventTypeId for flexibility
     } else if (categorySlug.includes('service')) {
-      // Services: businessName is required (used as title)
-      if (!businessName?.trim()) {
-        validationErrors.push('Business name is required for service listings');
+      // Services: location is required
+      if (!location?.trim()) {
+        validationErrors.push('Location is required for service listings');
       }
+      // businessName is optional (can use title instead)
       // ServiceTypeId is optional but recommended
       // Note: We'll allow listings without serviceTypeId for flexibility
     } else if (categorySlug.includes('product')) {
@@ -162,8 +167,8 @@ exports.createListing = async (req, res) => {
       // For events: use venue or location
       finalLocation = location?.trim() || venue?.trim() || 'TBD';
     } else if (categorySlug.includes('service')) {
-      // For services: location is optional, use business name or default
-      finalLocation = location?.trim() || businessName?.trim() || 'Service Location';
+      // For services: use location or title as fallback
+      finalLocation = location?.trim() || title?.trim() || businessName?.trim() || 'Service Location';
     } else {
       // For products and properties: location is required
       finalLocation = location?.trim() || 'Location TBD';
@@ -186,9 +191,16 @@ exports.createListing = async (req, res) => {
       event_time: eventTime || null,
       duration: duration || null,
       max_capacity: maxCapacity ? parseInt(maxCapacity) : null,
-      organizer_name: organizerName || null,
-      organizer_contact: organizerContact || null,
-      organizer_email: organizerEmail || null,
+      // Use service provider fields for services, organizer fields for events
+      organizer_name: categorySlug.includes('service') 
+        ? (serviceProviderName || organizerName || null)
+        : (organizerName || null),
+      organizer_contact: categorySlug.includes('service')
+        ? (serviceProviderContact || organizerContact || null)
+        : (organizerContact || null),
+      organizer_email: categorySlug.includes('service')
+        ? (serviceProviderEmail || organizerEmail || null)
+        : (organizerEmail || null),
       tags: tags || null,
       // Service fields
       business_name: businessName || null,
@@ -293,6 +305,10 @@ exports.createListing = async (req, res) => {
       organizerName: listingDoc.organizer_name,
       organizerContact: listingDoc.organizer_contact,
       organizerEmail: listingDoc.organizer_email,
+      // For services, also expose as serviceProvider fields
+      serviceProviderName: categorySlug.includes('service') ? listingDoc.organizer_name : null,
+      serviceProviderContact: categorySlug.includes('service') ? listingDoc.organizer_contact : null,
+      serviceProviderEmail: categorySlug.includes('service') ? listingDoc.organizer_email : null,
       tags: listingDoc.tags,
       businessName: listingDoc.business_name,
       specialization: listingDoc.specialization,
@@ -502,6 +518,10 @@ exports.getListingById = async (req, res) => {
       organizerName: listing.organizer_name,
       organizerContact: listing.organizer_contact,
       organizerEmail: listing.organizer_email,
+      // For services, also expose as serviceProvider fields
+      serviceProviderName: category?.slug?.toLowerCase().includes('service') ? listing.organizer_name : null,
+      serviceProviderContact: category?.slug?.toLowerCase().includes('service') ? listing.organizer_contact : null,
+      serviceProviderEmail: category?.slug?.toLowerCase().includes('service') ? listing.organizer_email : null,
       tags: listing.tags,
       businessName: listing.business_name,
       specialization: listing.specialization,
@@ -756,19 +776,52 @@ exports.updateListing = async (req, res) => {
     if (updateData.city !== undefined) mongoUpdateData.city = updateData.city?.trim() || null;
     if (updateData.venue !== undefined) mongoUpdateData.venue = updateData.venue?.trim() || null;
     
+    // Get category to determine if this is a service listing
+    const categoryCollection = await getCollection('Category');
+    const existingCategoryId = existingListing.category_id instanceof ObjectId
+      ? existingListing.category_id
+      : (existingListing.category_id ? new ObjectId(existingListing.category_id) : null);
+    const existingCategory = existingCategoryId
+      ? await categoryCollection.findOne({ _id: existingCategoryId })
+      : null;
+    const categorySlug = existingCategory?.slug?.toLowerCase() || existingCategory?.name?.toLowerCase() || '';
+    const isService = categorySlug.includes('service');
+    
     // Event fields
     if (updateData.eventDate !== undefined) mongoUpdateData.event_date = updateData.eventDate ? new Date(updateData.eventDate) : null;
     if (updateData.eventTime !== undefined) mongoUpdateData.event_time = updateData.eventTime || null;
     if (updateData.duration !== undefined) mongoUpdateData.duration = updateData.duration || null;
     if (updateData.maxCapacity !== undefined) mongoUpdateData.max_capacity = updateData.maxCapacity ? parseInt(updateData.maxCapacity) : null;
-    if (updateData.organizerName !== undefined) mongoUpdateData.organizer_name = updateData.organizerName || null;
-    if (updateData.organizerContact !== undefined) mongoUpdateData.organizer_contact = updateData.organizerContact || null;
-    if (updateData.organizerEmail !== undefined) mongoUpdateData.organizer_email = updateData.organizerEmail || null;
+    
+    // Organizer/Service Provider fields - handle both organizer and serviceProvider fields
+    if (isService) {
+      // For services, use serviceProvider fields if provided, otherwise use organizer fields
+      if (updateData.serviceProviderName !== undefined) {
+        mongoUpdateData.organizer_name = updateData.serviceProviderName?.trim() || null;
+      } else if (updateData.organizerName !== undefined) {
+        mongoUpdateData.organizer_name = updateData.organizerName?.trim() || null;
+      }
+      if (updateData.serviceProviderContact !== undefined) {
+        mongoUpdateData.organizer_contact = updateData.serviceProviderContact?.trim() || null;
+      } else if (updateData.organizerContact !== undefined) {
+        mongoUpdateData.organizer_contact = updateData.organizerContact?.trim() || null;
+      }
+      if (updateData.serviceProviderEmail !== undefined) {
+        mongoUpdateData.organizer_email = updateData.serviceProviderEmail?.trim() || null;
+      } else if (updateData.organizerEmail !== undefined) {
+        mongoUpdateData.organizer_email = updateData.organizerEmail?.trim() || null;
+      }
+    } else {
+      // For events, use organizer fields
+      if (updateData.organizerName !== undefined) mongoUpdateData.organizer_name = updateData.organizerName?.trim() || null;
+      if (updateData.organizerContact !== undefined) mongoUpdateData.organizer_contact = updateData.organizerContact?.trim() || null;
+      if (updateData.organizerEmail !== undefined) mongoUpdateData.organizer_email = updateData.organizerEmail?.trim() || null;
+    }
     if (updateData.tags !== undefined) mongoUpdateData.tags = updateData.tags || null;
     
     // Service fields
     if (updateData.businessName !== undefined) mongoUpdateData.business_name = updateData.businessName?.trim() || null;
-    if (updateData.specialization !== undefined) mongoUpdateData.specialization = updateData.specialization || null;
+    if (updateData.specialization !== undefined) mongoUpdateData.specialization = updateData.specialization?.trim() || null;
     if (updateData.yearsOfExperience !== undefined) mongoUpdateData.years_of_experience = updateData.yearsOfExperience ? parseInt(updateData.yearsOfExperience) : null;
     
     // Property fields
@@ -802,11 +855,21 @@ exports.updateListing = async (req, res) => {
     const listingPhotos = await listingPhotoCollection.find({ listing_id: listingIdObj }).sort({ photo_order: 1 }).toArray();
     const listingRegions = await listingRegionCollection.find({ listing_id: listingIdObj }).toArray();
     
-    // Get related data
-    const categoryCollection = await getCollection('Category');
-    const category = updatedListing.category_id 
-      ? await categoryCollection.findOne({ _id: updatedListing.category_id })
+    // Get related data (reuse categoryCollection and existingCategoryId from earlier)
+    // Use existingCategory if category_id hasn't changed, otherwise fetch updated category
+    const updatedCategoryId = updatedListing.category_id 
+      ? (updatedListing.category_id instanceof ObjectId 
+          ? updatedListing.category_id 
+          : new ObjectId(updatedListing.category_id))
       : null;
+    
+    // Reuse existingCategoryId from earlier in the function (line 781)
+    const responseCategory = (updatedCategoryId && existingCategoryId && updatedCategoryId.toString() === existingCategoryId.toString())
+      ? existingCategory
+      : (updatedCategoryId 
+          ? await categoryCollection.findOne({ _id: updatedCategoryId })
+          : null);
+    const responseCategorySlug = responseCategory?.slug?.toLowerCase() || responseCategory?.name?.toLowerCase() || '';
 
     // Format response
     const formattedListing = {
@@ -819,6 +882,17 @@ exports.updateListing = async (req, res) => {
       city: updatedListing.city,
       venue: updatedListing.venue,
       status: updatedListing.status,
+      organizerName: updatedListing.organizer_name,
+      organizerContact: updatedListing.organizer_contact,
+      organizerEmail: updatedListing.organizer_email,
+      // For services, also expose as serviceProvider fields
+      serviceProviderName: responseCategorySlug.includes('service') ? updatedListing.organizer_name : null,
+      serviceProviderContact: responseCategorySlug.includes('service') ? updatedListing.organizer_contact : null,
+      serviceProviderEmail: responseCategorySlug.includes('service') ? updatedListing.organizer_email : null,
+      tags: updatedListing.tags,
+      businessName: updatedListing.business_name,
+      specialization: updatedListing.specialization,
+      yearsOfExperience: updatedListing.years_of_experience,
       photos: listingPhotos.map(p => ({
         id: p._id.toString(),
         photoUrl: p.photo_url,
@@ -829,10 +903,10 @@ exports.updateListing = async (req, res) => {
         id: lr._id.toString(),
         regionId: lr.region_id.toString(),
       })),
-      category: category ? {
-        id: category._id.toString(),
-        name: category.name,
-        slug: category.slug,
+      category: responseCategory ? {
+        id: responseCategory._id.toString(),
+        name: responseCategory.name,
+        slug: responseCategory.slug,
       } : null,
     };
 
@@ -842,6 +916,7 @@ exports.updateListing = async (req, res) => {
     });
   } catch (error) {
     console.error('Error updating listing:', error);
+    console.error('Error stack:', error.stack);
     res.status(500).json({
       success: false,
       message: 'Failed to update listing',

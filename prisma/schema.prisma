@@ -19,6 +19,8 @@ model User {
   phoneNumber     String?  @map("phone_number")
   passwordHash    String?  @map("password_hash")
   fullName        String?  @map("full_name")
+  firstName       String?  @map("first_name")
+  lastName        String?  @map("last_name")
   profileImageUrl String?  @map("profile_image_url")
   isVerified      Boolean  @default(false) @map("is_verified")
   isActive        Boolean  @default(true) @map("is_active")

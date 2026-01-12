@@ -31,13 +31,13 @@ class EmailService {
    */
   async sendUserRegisterEmail(props) {
     const template = await this.getTemplate('UserRegister', {
-      title: `Welcome to HM Awani`,
+      title: `Welcome to Youzell`,
       ...props,
     });
     const options = {
       from: `${this.fromName} <${this.fromEmail}>`,
       to: props.email,
-      subject: 'Welcome to HM Awani: Your Registration',
+      subject: 'Welcome to Youzell: Your Registration',
       html: template,
     };
     await this.transporter.sendMail(options);
@@ -66,7 +66,7 @@ class EmailService {
     const options = {
       from: `${this.fromName} <${this.fromEmail}>`,
       to: props.email,
-      subject: "Welcome to HM Awani: Order Placed Successfully!",
+      subject: "Welcome to Youzell: Order Placed Successfully!",
       html: template,
     };
     await this.transporter.sendMail(options);
