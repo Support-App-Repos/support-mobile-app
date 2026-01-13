@@ -20,6 +20,7 @@ import { BackIcon } from '../components/common';
 import { profileService, pickImages, uploadImages } from '../services';
 import { Colors, Spacing, Typography, BorderRadius } from '../config/theme';
 import { useProfileContext } from '../contexts/ProfileContext';
+import { filterLettersOnly, filterNumbersOnly } from '../utils/validation';
 
 type EditProfileScreenProps = {
   navigation?: any;
@@ -107,7 +108,6 @@ export const EditProfileScreen: React.FC<EditProfileScreenProps> = ({
       }
     } catch (error: any) {
       console.error('Error picking/uploading profile image:', error);
-      Alert.alert('Error', error.message || 'Failed to upload profile picture. Please try again.');
     } finally {
       setUploadingImage(false);
     }
@@ -255,7 +255,7 @@ export const EditProfileScreen: React.FC<EditProfileScreenProps> = ({
             <TextInput
               style={styles.input}
               value={firstName}
-              onChangeText={setFirstName}
+              onChangeText={(text) => setFirstName(filterLettersOnly(text))}
               placeholder="Enter your first name"
               placeholderTextColor={Colors.light.textSecondary}
               autoCapitalize="words"
@@ -268,7 +268,7 @@ export const EditProfileScreen: React.FC<EditProfileScreenProps> = ({
             <TextInput
               style={styles.input}
               value={lastName}
-              onChangeText={setLastName}
+              onChangeText={(text) => setLastName(filterLettersOnly(text))}
               placeholder="Enter your last name"
               placeholderTextColor={Colors.light.textSecondary}
               autoCapitalize="words"
@@ -296,7 +296,7 @@ export const EditProfileScreen: React.FC<EditProfileScreenProps> = ({
             <TextInput
               style={styles.input}
               value={phoneNumber}
-              onChangeText={setPhoneNumber}
+              onChangeText={(text) => setPhoneNumber(filterNumbersOnly(text, false))}
               placeholder="Enter your phone number"
               placeholderTextColor={Colors.light.textSecondary}
               keyboardType="phone-pad"

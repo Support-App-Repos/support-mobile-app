@@ -19,7 +19,7 @@ import { Input, BackIcon, LegalDocumentModal } from '../components/common';
 import { PasswordInput } from '../components/common/PasswordInput';
 import { Checkbox } from '../components/common/Checkbox';
 import { Colors, Spacing, BorderRadius, Typography } from '../config/theme';
-import { isValidEmail } from '../utils/validation';
+import { isValidEmail, filterLettersOnly } from '../utils/validation';
 import { authService } from '../services';
 import { TERMS_AND_CONDITIONS_CONTENT, PRIVACY_POLICY_CONTENT } from '../constants';
 
@@ -194,7 +194,8 @@ export const RegisterEmailScreen: React.FC<RegisterEmailScreenProps> = ({ naviga
             placeholder="Enter First Name"
             value={firstName}
             onChangeText={(text) => {
-              setFirstName(text);
+              const filteredText = filterLettersOnly(text);
+              setFirstName(filteredText);
               if (errors.firstName) {
                 setErrors({ ...errors, firstName: undefined });
               }
@@ -208,7 +209,8 @@ export const RegisterEmailScreen: React.FC<RegisterEmailScreenProps> = ({ naviga
             placeholder="Enter Last Name"
             value={lastName}
             onChangeText={(text) => {
-              setLastName(text);
+              const filteredText = filterLettersOnly(text);
+              setLastName(filteredText);
               if (errors.lastName) {
                 setErrors({ ...errors, lastName: undefined });
               }

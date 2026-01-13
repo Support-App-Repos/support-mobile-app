@@ -30,7 +30,7 @@ interface LoginScreenProps {
 }
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
-  const [loginMethod, setLoginMethod] = useState<'OTP' | 'Password'>('OTP');
+  const [loginMethod, setLoginMethod] = useState<'OTP' | 'Password'>('Password');
   const [email, setEmail] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [countryCode, setCountryCode] = useState('+92'); // Default to Pakistan
@@ -270,9 +270,9 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
           {/* Login Method Selector */}
           <View style={styles.segmentedContainer}>
             <SegmentedControl
-              options={['OTP', 'Password']}
-              selectedIndex={loginMethod === 'OTP' ? 0 : 1}
-              onSelect={(index) => setLoginMethod(index === 0 ? 'OTP' : 'Password')}
+              options={['Password', 'OTP']}
+              selectedIndex={loginMethod === 'Password' ? 0 : 1}
+              onSelect={(index) => setLoginMethod(index === 0 ? 'Password' : 'OTP')}
             />
           </View>
 

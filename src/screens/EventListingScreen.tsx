@@ -23,6 +23,7 @@ import { BottomNavigation, type BottomNavItem } from '../components/navigation';
 import { Colors, Spacing, Typography, BorderRadius } from '../config/theme';
 import { listingService, paymentService, pickImages, uploadImages } from '../services';
 import { useProfile } from '../hooks';
+import { filterNumbersOnly, filterLettersOnly } from '../utils/validation';
 
 const { width } = Dimensions.get('window');
 
@@ -349,7 +350,7 @@ export const EventListingScreen: React.FC<EventListingScreenProps> = ({
               placeholder="0.00"
               placeholderTextColor={Colors.light.textSecondary}
               value={price}
-              onChangeText={setPrice}
+              onChangeText={(text) => setPrice(filterNumbersOnly(text, true))}
               keyboardType="decimal-pad"
               editable={priceType !== 'Free' && priceType !== null}
             />
@@ -417,7 +418,7 @@ export const EventListingScreen: React.FC<EventListingScreenProps> = ({
               placeholder="e.g 2"
               placeholderTextColor={Colors.light.textSecondary}
               value={duration}
-              onChangeText={setDuration}
+              onChangeText={(text) => setDuration(filterNumbersOnly(text, true))}
               keyboardType="numeric"
             />
           </View>
@@ -428,7 +429,7 @@ export const EventListingScreen: React.FC<EventListingScreenProps> = ({
               placeholder="e.g 50"
               placeholderTextColor={Colors.light.textSecondary}
               value={maxCapacity}
-              onChangeText={setMaxCapacity}
+              onChangeText={(text) => setMaxCapacity(filterNumbersOnly(text, false))}
               keyboardType="numeric"
             />
           </View>
@@ -442,14 +443,14 @@ export const EventListingScreen: React.FC<EventListingScreenProps> = ({
             placeholder="Name *"
             placeholderTextColor={Colors.light.textSecondary}
             value={organizerName}
-            onChangeText={setOrganizerName}
+            onChangeText={(text) => setOrganizerName(filterLettersOnly(text))}
           />
           <TextInput
             style={[styles.input, styles.marginBottom]}
             placeholder="Contact *"
             placeholderTextColor={Colors.light.textSecondary}
             value={organizerContact}
-            onChangeText={setOrganizerContact}
+            onChangeText={(text) => setOrganizerContact(filterNumbersOnly(text, false))}
             keyboardType="phone-pad"
           />
           <TextInput

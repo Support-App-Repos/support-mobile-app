@@ -371,7 +371,7 @@ export const EventListingDetailScreen: React.FC<EventListingDetailScreenProps> =
           
           {/* Event Type */}
           {listing.eventType && (
-            <View style={styles.detailRow}>
+            <View style={styles.detailRowColumn}>
               <Text style={styles.detailLabel}>Event Type</Text>
               <Text style={styles.detailValue}>
                 {listing.eventType.name || listing.eventType}
@@ -381,11 +381,13 @@ export const EventListingDetailScreen: React.FC<EventListingDetailScreenProps> =
 
           {/* Date & Time */}
           {(listing.eventDate || listing.date) && (
-            <View style={styles.detailRow}>
-              <View style={styles.detailIconContainer}>
-                <CalendarIcon size={20} color="#00CAD4" />
+            <View style={styles.detailRowColumn}>
+              <View style={styles.detailRowInsideColumn}>
+                <View style={styles.detailIconContainer}>
+                  <CalendarIcon size={20} color="#00CAD4" />
+                </View>
+                <Text style={styles.detailLabel}>Date & Time</Text>
               </View>
-              <Text style={styles.detailLabel}>Date & Time</Text>
               <Text style={styles.detailValue}>
                 {formatDate(listing.eventDate || listing.date)}
                 {listing.eventTime && ` ${listing.eventTime}`}
@@ -395,11 +397,13 @@ export const EventListingDetailScreen: React.FC<EventListingDetailScreenProps> =
 
           {/* Duration */}
           {listing.duration && (
-            <View style={styles.detailRow}>
-              <View style={styles.detailIconContainer}>
-                <DurationIcon size={20} color="#00CAD4" />
+            <View style={styles.detailRowColumn}>
+              <View style={styles.detailRowInsideColumn}>
+                <View style={styles.detailIconContainer}>
+                  <DurationIcon size={20} color="#00CAD4" />
+                </View>
+                <Text style={styles.detailLabel}>Duration</Text>
               </View>
-              <Text style={styles.detailLabel}>Duration</Text>
               <Text style={styles.detailValue}>
                 {listing.eventTime || '14:00'} ({listing.duration})
               </Text>
@@ -408,22 +412,26 @@ export const EventListingDetailScreen: React.FC<EventListingDetailScreenProps> =
 
           {/* Location */}
           {listing.location && (
-            <View style={styles.detailRow}>
-              <View style={styles.detailIconContainer}>
-                <LocationColorIcon size={20} color="#00CAD4" />
+            <View style={styles.detailRowColumn}>
+              <View style={styles.detailRowInsideColumn}>
+                <View style={styles.detailIconContainer}>
+                  <LocationColorIcon size={20} color="#00CAD4" />
+                </View>
+                <Text style={styles.detailLabel}>Location</Text>
               </View>
-              <Text style={styles.detailLabel}>Location</Text>
               <Text style={styles.detailValue}>{listing.location}</Text>
             </View>
           )}
 
           {/* Capacity */}
           {(listing.maxCapacity || listing.capacity) && (
-            <View style={styles.detailRow}>
-              <View style={styles.detailIconContainer}>
-                <MultiColoredUserIcon size={20} color="#00CAD4" />
+            <View style={styles.detailRowColumn}>
+              <View style={styles.detailRowInsideColumn}>
+                <View style={styles.detailIconContainer}>
+                  <MultiColoredUserIcon size={20} color="#00CAD4" />
+                </View>
+                <Text style={styles.detailLabel}>Capacity</Text>
               </View>
-              <Text style={styles.detailLabel}>Capacity</Text>
               <View style={styles.capacityContainer}>
                 <Text style={styles.detailValue}>
                   {listing.currentAttendees || listing.attendeesCount || 0} / {listing.maxCapacity || listing.capacity} attendees
@@ -687,6 +695,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: Spacing.md,
+    gap: Spacing.sm,
+  },
+  detailRowColumn: {
+    flexDirection: 'column',
+    marginBottom: Spacing.md,
+  },
+  detailRowInsideColumn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: Spacing.xs,
     gap: Spacing.sm,
   },
   detailIconContainer: {

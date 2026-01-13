@@ -223,7 +223,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
             </View>
             <TextInput
               style={styles.searchInput}
-              placeholder="Property"
+              placeholder="Search"
               placeholderTextColor={Colors.light.textSecondary}
               value={searchQuery}
               onChangeText={setSearchQuery}
@@ -339,7 +339,7 @@ const styles = StyleSheet.create({
     borderColor: '#E5E7EB', // Light border
     paddingLeft: Spacing.md,
     paddingRight: 0, // No padding on right, button will extend
-    height: 48,
+    height: 52,
     overflow: 'hidden',
   },
   scanIconContainer: {

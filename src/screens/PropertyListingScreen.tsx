@@ -23,6 +23,7 @@ import { BottomNavigation, type BottomNavItem } from '../components/navigation';
 import { Colors, Spacing, Typography, BorderRadius } from '../config/theme';
 import { listingService, paymentService, pickImages, uploadImages } from '../services';
 import { useProfile } from '../hooks';
+import { filterNumbersOnly } from '../utils/validation';
 
 const { width } = Dimensions.get('window');
 
@@ -313,7 +314,7 @@ export const PropertyListingScreen: React.FC<PropertyListingScreenProps> = ({
               placeholder="0.00"
               placeholderTextColor={Colors.light.textSecondary}
               value={price}
-              onChangeText={setPrice}
+              onChangeText={(text) => setPrice(filterNumbersOnly(text, true))}
               keyboardType="decimal-pad"
             />
           </View>

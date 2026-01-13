@@ -23,6 +23,7 @@ import { BottomNavigation, type BottomNavItem } from '../components/navigation';
 import { Colors, Spacing, Typography, BorderRadius } from '../config/theme';
 import { listingService, paymentService, pickImages, uploadImages } from '../services';
 import { useProfile } from '../hooks';
+import { filterNumbersOnly, filterLettersOnly } from '../utils/validation';
 
 const { width } = Dimensions.get('window');
 
@@ -354,7 +355,7 @@ export const ServiceListingScreen: React.FC<ServiceListingScreenProps> = ({
               placeholder="0.00"
               placeholderTextColor={Colors.light.textSecondary}
               value={price}
-              onChangeText={setPrice}
+              onChangeText={(text) => setPrice(filterNumbersOnly(text, true))}
               keyboardType="decimal-pad"
               editable={priceType !== 'Free' && priceType !== null}
             />
@@ -408,7 +409,7 @@ export const ServiceListingScreen: React.FC<ServiceListingScreenProps> = ({
               placeholder="e.g 03"
               placeholderTextColor={Colors.light.textSecondary}
               value={yearsOfExperience}
-              onChangeText={setYearsOfExperience}
+              onChangeText={(text) => setYearsOfExperience(filterNumbersOnly(text, false))}
               keyboardType="numeric"
             />
           </View>
@@ -422,14 +423,14 @@ export const ServiceListingScreen: React.FC<ServiceListingScreenProps> = ({
             placeholder="Name *"
             placeholderTextColor={Colors.light.textSecondary}
             value={serviceProviderName}
-            onChangeText={setServiceProviderName}
+            onChangeText={(text) => setServiceProviderName(filterLettersOnly(text))}
           />
           <TextInput
             style={[styles.input, styles.marginBottom]}
             placeholder="Contact *"
             placeholderTextColor={Colors.light.textSecondary}
             value={serviceProviderContact}
-            onChangeText={setServiceProviderContact}
+            onChangeText={(text) => setServiceProviderContact(filterNumbersOnly(text, false))}
             keyboardType="phone-pad"
           />
           <TextInput

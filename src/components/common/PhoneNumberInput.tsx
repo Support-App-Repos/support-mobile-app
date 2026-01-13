@@ -14,6 +14,7 @@ import {
   FlatList,
 } from 'react-native';
 import { Colors, Spacing, BorderRadius, Typography } from '../../config/theme';
+import { filterNumbersOnly } from '../../utils/validation';
 
 interface Country {
   code: string;
@@ -83,7 +84,7 @@ export const PhoneNumberInput: React.FC<PhoneNumberInputProps> = ({
           placeholder="Enter phone number"
           placeholderTextColor={Colors.light.textSecondary}
           value={value}
-          onChangeText={onChangeText}
+          onChangeText={(text) => onChangeText(filterNumbersOnly(text, false))}
           keyboardType="phone-pad"
           maxLength={15}
         />
