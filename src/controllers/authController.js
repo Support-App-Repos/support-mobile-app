@@ -15,6 +15,7 @@ const {
 } = require('../helpers/errors');
 const emailService = require('../helpers/email');
 const smsService = require('../helpers/sms');
+const { OAuth2Client } = require('google-auth-library');
 const { generateToken, verifyToken } = require('../helpers/token');
 const { getHashPasswordAndSalt, validatePassword } = require('../helpers/auth/user');
 
@@ -609,6 +610,120 @@ authController.resetPassword = async (req, res) => {
     return res.status(500).json({ 
       success: false, 
       message: 'Failed to reset password' 
+    });
+  }
+};
+
+/**
+ * Google Sign-In (mobile): verifies Google ID token, finds or creates user, returns app JWT.
+ * Set GOOGLE_WEB_CLIENT_ID (OAuth 2.0 Web client ID from Google Cloud Console).
+ * Optional: GOOGLE_ANDROID_CLIENT_ID if your idToken aud is the Android client ID.
+ */
+authController.googleSignIn = async (req, res) => {
+  try {
+    const { idToken } = req.body;
+    if (!idToken || typeof idToken !== 'string') {
+      return res.status(400).json({
+        success: false,
+        message: 'idToken is required',
+      });
+    }
+
+    const webClientId = (process.env.GOOGLE_WEB_CLIENT_ID || '').trim();
+    if (!webClientId) {
+      console.error('[Auth] GOOGLE_WEB_CLIENT_ID is not set');
+      return res.status(500).json({
+        success: false,
+        message: 'Google sign-in is not configured on the server',
+      });
+    }
+
+    const audiences = [webClientId];
+    if (process.env.GOOGLE_ANDROID_CLIENT_ID?.trim()) {
+      audiences.push(process.env.GOOGLE_ANDROID_CLIENT_ID.trim());
+    }
+    if (process.env.GOOGLE_IOS_CLIENT_ID?.trim()) {
+      audiences.push(process.env.GOOGLE_IOS_CLIENT_ID.trim());
+    }
+
+    const client = new OAuth2Client();
+    const ticket = await client.verifyIdToken({
+      idToken,
+      audience: audiences,
+    });
+    const payload = ticket.getPayload();
+    if (!payload || !payload.email) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid Google token',
+      });
+    }
+    if (!payload.email_verified) {
+      return res.status(401).json({
+        success: false,
+        message: 'Google email is not verified',
+      });
+    }
+
+    const email = payload.email.toLowerCase();
+    const googleId = payload.sub;
+    const fullName = (payload.name || '').trim() || null;
+    const profileImageUrl = payload.picture || null;
+
+    const userCollection = await getCollection('User');
+    let userDoc = await userCollection.findOne({ email });
+
+    if (!userDoc) {
+      const result = await userCollection.insertOne({
+        email,
+        full_name: fullName,
+        profile_image_url: profileImageUrl,
+        google_id: googleId,
+        is_verified: true,
+        is_active: true,
+        created_at: new Date(),
+        updated_at: new Date(),
+      });
+      userDoc = await userCollection.findOne({ _id: result.insertedId });
+    } else {
+      const updates = {
+        google_id: googleId,
+        updated_at: new Date(),
+      };
+      if (profileImageUrl && !userDoc.profile_image_url) {
+        updates.profile_image_url = profileImageUrl;
+      }
+      if (fullName && !userDoc.full_name) {
+        updates.full_name = fullName;
+      }
+      await userCollection.updateOne({ _id: userDoc._id }, { $set: updates });
+      userDoc = await userCollection.findOne({ _id: userDoc._id });
+    }
+
+    const user = {
+      id: userDoc._id.toString(),
+      email: userDoc.email,
+      phoneNumber: userDoc.phone_number ?? null,
+      fullName: userDoc.full_name ?? null,
+      profileImageUrl: userDoc.profile_image_url || null,
+      isVerified: userDoc.is_verified,
+      isActive: userDoc.is_active,
+      createdAt: userDoc.created_at,
+    };
+
+    const token = generateToken(user);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Login successful',
+      token,
+      user,
+    });
+  } catch (err) {
+    console.error('[Auth] Google sign-in error:', err.message || err);
+    return res.status(401).json({
+      success: false,
+      message: err.message || 'Google sign-in failed',
     });
   }
 };

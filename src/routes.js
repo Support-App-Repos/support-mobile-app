@@ -25,6 +25,7 @@ router.post('/auth/verify-otp', authController.verifyOTP);
 router.post('/auth/forgetPassword', authController.forgetPassword);
 router.post('/auth/reset-password', authController.resetPassword);
 router.post('/auth/register-with-otp', authController.registerWithOTP);
+router.post('/auth/google', authController.googleSignIn);
 
 // Public category and region routes (for SelectCategoryScreen, SelectRegionScreen)
 router.get('/categories', categoryController.getCategories);

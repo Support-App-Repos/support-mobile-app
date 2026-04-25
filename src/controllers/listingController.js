@@ -52,17 +52,28 @@ exports.createListing = async (req, res) => {
       bathrooms,
       squareFeet,
       yearBuilt,
+      propertyPurpose,
+      currency,
+      referenceNo,
+      furnishing,
+      amenities,
+      additionalTags,
+      propertyType,
+      ownership,
+      builtUpArea,
+      propertyUsage,
+      balconySize,
       // Photos
       photos,
       // Regions
       regionIds,
     } = req.body;
 
-    // Validate basic required fields
-    if (!title || !description || !categoryId) {
+    // Validate basic required fields (description rules depend on category; resolved after category load)
+    if (!title || !categoryId) {
       return res.status(400).json({
         success: false,
-        message: 'Title, description, and category are required',
+        message: 'Title and category are required',
       });
     }
 
@@ -93,7 +104,12 @@ exports.createListing = async (req, res) => {
     if (!title.trim()) {
       validationErrors.push('Title is required');
     }
-    if (!description.trim()) {
+    const descTrim = (description || '').trim();
+    if (categorySlug.includes('propert')) {
+      if (!descTrim && !(amenities || '').trim() && !(additionalTags || '').trim()) {
+        validationErrors.push('Add amenities, additional tags, or a description');
+      }
+    } else if (!descTrim) {
       validationErrors.push('Description is required');
     }
 
@@ -122,6 +138,20 @@ exports.createListing = async (req, res) => {
       // Properties: location is required
       if (!location?.trim()) {
         validationErrors.push('Location is required for property listings');
+      }
+      if (!city?.trim()) {
+        validationErrors.push('City is required for property listings');
+      }
+      if (!propertyPurpose?.trim()) {
+        validationErrors.push('Purpose is required for property listings');
+      }
+      if (!currency?.trim()) {
+        validationErrors.push('Currency is required for property listings');
+      }
+      const priceNum =
+        price !== undefined && price !== null && price !== '' ? Number(price) : NaN;
+      if (Number.isNaN(priceNum)) {
+        validationErrors.push('Price is required for property listings');
       }
     } else {
       // Default: location is required for unknown categories
@@ -173,10 +203,20 @@ exports.createListing = async (req, res) => {
       // For products and properties: location is required
       finalLocation = location?.trim() || 'Location TBD';
     }
-    
+
+    const resolvedDescription = (() => {
+      const d = (description || '').trim();
+      if (d) return d;
+      if (categorySlug.includes('propert')) {
+        const parts = [(amenities || '').trim(), (additionalTags || '').trim()].filter(Boolean);
+        return parts.join('\n\n') || 'Property listing';
+      }
+      return (description || '').trim();
+    })();
+
     const listingData = {
       title: title.trim(),
-      description: description.trim(),
+      description: resolvedDescription,
       price: price ? parseFloat(price) : null,
       price_type: priceType || null,
       location: finalLocation,
@@ -211,6 +251,17 @@ exports.createListing = async (req, res) => {
       bathrooms: bathrooms ? parseInt(bathrooms) : null,
       square_feet: squareFeet ? parseInt(squareFeet) : null,
       year_built: yearBuilt ? parseInt(yearBuilt) : null,
+      property_purpose: propertyPurpose?.trim() || null,
+      currency: currency?.trim() || null,
+      reference_no: referenceNo?.trim() || null,
+      furnishing: furnishing?.trim() || null,
+      amenities: amenities?.trim() || null,
+      additional_tags: additionalTags?.trim() || null,
+      property_type: propertyType?.trim() || null,
+      ownership: ownership?.trim() || null,
+      built_up_area: builtUpArea?.trim() || null,
+      property_usage: propertyUsage?.trim() || null,
+      balcony_size: balconySize?.trim() || null,
       status: 'Pending',
       views_count: 0,
       rating_average: 0,
@@ -317,6 +368,17 @@ exports.createListing = async (req, res) => {
       bathrooms: listingDoc.bathrooms,
       squareFeet: listingDoc.square_feet,
       yearBuilt: listingDoc.year_built,
+      propertyPurpose: listingDoc.property_purpose,
+      currency: listingDoc.currency,
+      referenceNo: listingDoc.reference_no,
+      furnishing: listingDoc.furnishing,
+      amenities: listingDoc.amenities,
+      additionalTags: listingDoc.additional_tags,
+      propertyType: listingDoc.property_type,
+      ownership: listingDoc.ownership,
+      builtUpArea: listingDoc.built_up_area,
+      propertyUsage: listingDoc.property_usage,
+      balconySize: listingDoc.balcony_size,
       photos: listingPhotos.map(p => ({
         id: p._id.toString(),
         photoUrl: p.photo_url,
@@ -346,6 +408,8 @@ exports.createListing = async (req, res) => {
         id: user._id.toString(),
         fullName: user.full_name,
         profileImageUrl: user.profile_image_url,
+        email: user.email || null,
+        phoneNumber: user.phone_number || null,
       } : null,
     };
 
@@ -530,6 +594,17 @@ exports.getListingById = async (req, res) => {
       bathrooms: listing.bathrooms,
       squareFeet: listing.square_feet,
       yearBuilt: listing.year_built,
+      propertyPurpose: listing.property_purpose,
+      currency: listing.currency,
+      referenceNo: listing.reference_no,
+      furnishing: listing.furnishing,
+      amenities: listing.amenities,
+      additionalTags: listing.additional_tags,
+      propertyType: listing.property_type,
+      ownership: listing.ownership,
+      builtUpArea: listing.built_up_area,
+      propertyUsage: listing.property_usage,
+      balconySize: listing.balcony_size,
       photos: photos.map(p => ({
         id: p._id.toString(),
         photoUrl: p.photo_url,
@@ -559,6 +634,8 @@ exports.getListingById = async (req, res) => {
         id: user._id.toString(),
         fullName: user.full_name,
         profileImageUrl: user.profile_image_url,
+        email: user.email || null,
+        phoneNumber: user.phone_number || null,
       } : null,
       reviews: reviewsWithUsers,
       _count: {
@@ -674,6 +751,7 @@ exports.getListings = async (req, res) => {
           description: listing.description,
           price: listing.price,
           priceType: listing.price_type,
+          currency: listing.currency,
           location: listing.location,
           city: listing.city,
           venue: listing.venue,
@@ -829,6 +907,17 @@ exports.updateListing = async (req, res) => {
     if (updateData.bathrooms !== undefined) mongoUpdateData.bathrooms = updateData.bathrooms ? parseInt(updateData.bathrooms) : null;
     if (updateData.squareFeet !== undefined) mongoUpdateData.square_feet = updateData.squareFeet ? parseInt(updateData.squareFeet) : null;
     if (updateData.yearBuilt !== undefined) mongoUpdateData.year_built = updateData.yearBuilt ? parseInt(updateData.yearBuilt) : null;
+    if (updateData.propertyPurpose !== undefined) mongoUpdateData.property_purpose = updateData.propertyPurpose?.trim() || null;
+    if (updateData.currency !== undefined) mongoUpdateData.currency = updateData.currency?.trim() || null;
+    if (updateData.referenceNo !== undefined) mongoUpdateData.reference_no = updateData.referenceNo?.trim() || null;
+    if (updateData.furnishing !== undefined) mongoUpdateData.furnishing = updateData.furnishing?.trim() || null;
+    if (updateData.amenities !== undefined) mongoUpdateData.amenities = updateData.amenities?.trim() || null;
+    if (updateData.additionalTags !== undefined) mongoUpdateData.additional_tags = updateData.additionalTags?.trim() || null;
+    if (updateData.propertyType !== undefined) mongoUpdateData.property_type = updateData.propertyType?.trim() || null;
+    if (updateData.ownership !== undefined) mongoUpdateData.ownership = updateData.ownership?.trim() || null;
+    if (updateData.builtUpArea !== undefined) mongoUpdateData.built_up_area = updateData.builtUpArea?.trim() || null;
+    if (updateData.propertyUsage !== undefined) mongoUpdateData.property_usage = updateData.propertyUsage?.trim() || null;
+    if (updateData.balconySize !== undefined) mongoUpdateData.balcony_size = updateData.balconySize?.trim() || null;
 
     // Update listing
     await listingCollection.updateOne(
@@ -893,6 +982,21 @@ exports.updateListing = async (req, res) => {
       businessName: updatedListing.business_name,
       specialization: updatedListing.specialization,
       yearsOfExperience: updatedListing.years_of_experience,
+      bedrooms: updatedListing.bedrooms,
+      bathrooms: updatedListing.bathrooms,
+      squareFeet: updatedListing.square_feet,
+      yearBuilt: updatedListing.year_built,
+      propertyPurpose: updatedListing.property_purpose,
+      currency: updatedListing.currency,
+      referenceNo: updatedListing.reference_no,
+      furnishing: updatedListing.furnishing,
+      amenities: updatedListing.amenities,
+      additionalTags: updatedListing.additional_tags,
+      propertyType: updatedListing.property_type,
+      ownership: updatedListing.ownership,
+      builtUpArea: updatedListing.built_up_area,
+      propertyUsage: updatedListing.property_usage,
+      balconySize: updatedListing.balcony_size,
       photos: listingPhotos.map(p => ({
         id: p._id.toString(),
         photoUrl: p.photo_url,

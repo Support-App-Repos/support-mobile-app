@@ -185,6 +185,7 @@ async function init() {
     '/api/auth/forgetPassword',
     '/api/auth/reset-password',
     '/api/auth/register-with-otp',
+    '/api/auth/google',
   ];
 
   // Middleware to extract user from token (only for routes that have tokens)
@@ -198,7 +199,8 @@ async function init() {
         req.path.startsWith('/api/auth/verify-otp') ||
         req.path.startsWith('/api/auth/forgetPassword') ||
         req.path.startsWith('/api/auth/reset-password') ||
-        req.path.startsWith('/api/auth/register-with-otp')) {
+        req.path.startsWith('/api/auth/register-with-otp') ||
+        req.path.startsWith('/api/auth/google')) {
       return next();
     }
 

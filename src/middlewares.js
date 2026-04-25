@@ -11,6 +11,7 @@ const ignoredRoutes = [
   '/auth/forgetPassword',
   '/auth/reset-password',
   '/auth/register-with-otp',
+  '/auth/google',
   '/profiles/resetPassword'
 ]
 
@@ -49,7 +50,8 @@ const jwtAuth = (req, res, next) => {
     routePath.startsWith('/auth/verify-otp') ||
     routePath.startsWith('/auth/forgetPassword') ||
     routePath.startsWith('/auth/reset-password') ||
-    routePath.startsWith('/auth/register-with-otp');
+    routePath.startsWith('/auth/register-with-otp') ||
+    routePath.startsWith('/auth/google');
   
   if (isPublicRoute) {
     return next();

@@ -427,6 +427,7 @@ exports.getMyListings = async (req, res) => {
           description: listing.description,
           price: listing.price,
           priceType: listing.price_type,
+          currency: listing.currency,
           location: listing.location,
           city: listing.city,
           venue: listing.venue,
