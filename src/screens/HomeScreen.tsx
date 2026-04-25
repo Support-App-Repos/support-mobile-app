@@ -9,7 +9,6 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  TextInput,
   TouchableOpacity,
   Dimensions,
   Image,
@@ -17,7 +16,11 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { HomeHeader, SearchIcon, ScanIcon, Snackbar } from '../components/common';
+import {
+  SearchIcon,
+  Snackbar,
+  FilterSlidersIcon,
+} from '../components/common';
 import { CategoryTabs, ListingCard, type Category, type ListingCardData } from '../components/listings';
 import { BottomNavigation, type BottomNavItem } from '../components/navigation';
 import { Colors, Spacing, Typography, BorderRadius } from '../config/theme';
@@ -44,31 +47,47 @@ const formatTimeAgo = (date: Date): string => {
   return `${Math.floor(diffInSeconds / 2592000)} months ago`;
 };
 
+const priceUnitLabel = (priceType?: string): string | undefined => {
+  if (!priceType) return undefined;
+  if (priceType === 'Per Hour') return 'hr';
+  if (priceType === 'Per Seat') return 'seat';
+  if (priceType === 'Per Month' || priceType === 'Monthly') return 'mo';
+  return undefined;
+};
+
 // Helper function to convert listing to ListingCardData
 const convertToListingCardData = (listing: any): ListingCardData => {
   const primaryPhoto = listing.photos?.find((p: any) => p.isPrimary) || listing.photos?.[0];
   const imageUrl = primaryPhoto?.photoUrl || 'https://via.placeholder.com/400';
-  
+  const regionName =
+    listing.regions?.[0]?.name ||
+    listing.region?.name ||
+    listing.city ||
+    listing.location;
+
   return {
     id: listing.id,
     title: listing.title,
     price: listing.price ? listing.price.toFixed(0) : '0',
-    priceUnit: listing.priceType === 'Per Hour' ? 'hr' : listing.priceType === 'Per Seat' ? 'seat' : undefined,
+    priceUnit: priceUnitLabel(listing.priceType),
     image: imageUrl,
+    ratingAverage:
+      typeof listing.averageRating === 'number' ? listing.averageRating : undefined,
+    reviewCount: listing._count?.reviews ?? listing.reviewsCount,
     rating: listing._count?.reviews || 0,
     views: listing.viewsCount || 0,
     timePosted: listing.publishedAt ? formatTimeAgo(new Date(listing.publishedAt)) : 'Recently',
     category: listing.category?.name || 'Unknown',
+    location: typeof regionName === 'string' ? regionName : undefined,
+    currency: listing.currency,
   };
 };
 
 export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const [selectedCategory, setSelectedCategory] = useState<Category>('All');
   const [activeTab, setActiveTab] = useState<BottomNavItem>('Home');
-  const [searchQuery, setSearchQuery] = useState('');
   const [listings, setListings] = useState<ListingCardData[]>([]);
   const [loading, setLoading] = useState(true);
-  const [categories, setCategories] = useState<any[]>([]);
   const [categoryMap, setCategoryMap] = useState<Record<string, string>>({});
   const [snackbarVisible, setSnackbarVisible] = useState(false);
   const { profileImageUrl } = useProfile();
@@ -126,7 +145,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       const categoriesData = (response.data as any)?.data || response.data || [];
       
       if (response.success && Array.isArray(categoriesData)) {
-        setCategories(categoriesData);
         // Create category map for filtering
         const map: Record<string, string> = {};
         categoriesData.forEach((cat: any) => {
@@ -166,7 +184,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     setSelectedCategory(category);
   };
 
-  const handleListingPress = (listing: ListingCardData) => {
+  const handleListingPress = (_listing: ListingCardData) => {
     // Navigation is now handled inside ListingCard based on category
     // This is kept for backward compatibility
   };
@@ -189,14 +207,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     }
   };
 
-  // Filter listings by search query
-  const filteredListings = searchQuery.trim()
-    ? listings.filter(listing => 
-        listing.title.toLowerCase().includes(searchQuery.toLowerCase())
-      )
-    : listings;
-
-
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <ScrollView
@@ -208,39 +218,53 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         <View style={styles.header}>
           <View style={styles.titleRow}>
             <Text style={styles.title}>Marketplace</Text>
-            <TouchableOpacity style={styles.profileButton} activeOpacity={0.7}>
+            <TouchableOpacity
+              style={styles.profileButton}
+              activeOpacity={0.7}
+              onPress={() => navigation?.navigate?.('Profile')}
+            >
               <Image
                 source={{ uri: profileImageUrl || 'https://i.pravatar.cc/150?img=12' }}
                 style={styles.profileImage}
               />
             </TouchableOpacity>
           </View>
-          
-          {/* Search Bar */}
-          <View style={styles.searchContainer}>
-            <View style={styles.scanIconContainer}>
-              <ScanIcon size={20} color="#797979" />
-            </View>
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Search"
-              placeholderTextColor={Colors.light.textSecondary}
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-            />
-            <TouchableOpacity style={styles.searchButton} activeOpacity={0.7}>
-              <SearchIcon size={20} color="white" />
+
+          <View style={styles.searchRow}>
+            <TouchableOpacity
+              style={styles.searchField}
+              activeOpacity={0.88}
+              onPress={() => navigation?.navigate?.('MarketplaceSearch', { initialQuery: '' })}
+            >
+              <SearchIcon size={18} color="#828282" />
+              <Text style={styles.searchPlaceholder}>Search listings...</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.filterButton}
+              activeOpacity={0.8}
+              onPress={() => navigation?.navigate?.('MarketplaceSearch', { initialQuery: '' })}
+            >
+              <FilterSlidersIcon size={20} color="#FFFFFF" />
             </TouchableOpacity>
           </View>
         </View>
 
-        {/* Promotional Banner */}
-        {/* <HomeHeader onCreatePress={handleCreatePress} /> */}
-        <Image 
-          source={require('../assets/images/home_header.png')} 
-          style={styles.homeHeaderImage}
-          resizeMode="cover"
-        />
+        <View style={styles.promoBanner}>
+          <View style={styles.promoTextBlock}>
+            <Text style={styles.promoEyebrow}>List, Manage & Connect</Text>
+            <Text style={styles.promoTitle}>
+              Your Listings.{' '}
+              <Text style={styles.promoHighlight}>Your Control</Text>
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={styles.promoCta}
+            activeOpacity={0.85}
+            onPress={handleCreatePress}
+          >
+            <Text style={styles.promoCtaText}>List New Item</Text>
+          </TouchableOpacity>
+        </View>
 
         {/* Category Tabs */}
         <CategoryTabs
@@ -255,9 +279,9 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
               <ActivityIndicator size="large" color={Colors.light.primary} />
               <Text style={styles.loadingText}>Loading listings...</Text>
             </View>
-          ) : filteredListings.length > 0 ? (
+          ) : listings.length > 0 ? (
             <View style={styles.listingsGrid}>
-              {filteredListings.map((listing) => (
+              {listings.map((listing) => (
                 <View key={listing.id} style={styles.cardWrapper}>
                   <ListingCard listing={listing} onPress={handleListingPress} navigation={navigation} />
                 </View>
@@ -299,7 +323,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    paddingBottom: Spacing.xl,
+    paddingBottom: Spacing.xxl + 24,
   },
   header: {
     paddingHorizontal: Spacing.md,
@@ -313,9 +337,10 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.md,
   },
   title: {
-    ...Typography.h1,
-    color: Colors.light.text,
+    fontSize: 26,
     fontWeight: '700',
+    color: Colors.light.text,
+    letterSpacing: -0.3,
   },
   profileButton: {
     width: 40,
@@ -330,42 +355,86 @@ const styles = StyleSheet.create({
     height: '100%',
     resizeMode: 'cover',
   },
-  searchContainer: {
+  searchRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.light.background,
-    borderRadius: 9999, // Pill shape
-    borderWidth: 1,
-    borderColor: '#E5E7EB', // Light border
-    paddingLeft: Spacing.md,
-    paddingRight: 0, // No padding on right, button will extend
-    height: 52,
-    overflow: 'hidden',
+    gap: Spacing.sm,
   },
-  scanIconContainer: {
-    marginRight: Spacing.sm,
-    justifyContent: 'center',
+  searchField: {
+    flex: 1,
+    flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: BorderRadius.xl,
+    borderWidth: 1,
+    borderColor: '#E8E8ED',
+    paddingHorizontal: Spacing.md,
+    minHeight: 52,
+    gap: Spacing.sm,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 3,
+    elevation: 1,
   },
-  searchInput: {
+  searchPlaceholder: {
     flex: 1,
     ...Typography.body,
-    color: Colors.light.text,
-    paddingVertical: 0,
-    paddingHorizontal: Spacing.xs,
+    color: Colors.light.textSecondary,
+    paddingVertical: Spacing.sm,
     fontSize: 14,
   },
-  searchButton: {
-    width: 55,
-    height: 48,
-    borderRadius: 24,
+  filterButton: {
+    width: 52,
+    height: 52,
+    borderRadius: BorderRadius.lg,
     backgroundColor: Colors.light.primary,
-    justifyContent: 'center',
     alignItems: 'center',
-    marginLeft: 0,
+    justifyContent: 'center',
   },
-  homeHeaderImage: {
-    width: '100%',
+  promoBanner: {
+    marginHorizontal: Spacing.md,
+    marginTop: Spacing.sm,
+    marginBottom: Spacing.md,
+    backgroundColor: Colors.light.primary,
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.md,
+  },
+  promoTextBlock: {
+    flex: 1,
+    minWidth: 0,
+  },
+  promoEyebrow: {
+    ...Typography.small,
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.85)',
+    marginBottom: 4,
+    fontWeight: '500',
+  },
+  promoTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    lineHeight: 22,
+  },
+  promoHighlight: {
+    color: Colors.light.bannerAccent,
+  },
+  promoCta: {
+    backgroundColor: Colors.light.bannerAccent,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 10,
+    borderRadius: BorderRadius.round,
+  },
+  promoCtaText: {
+    ...Typography.small,
+    fontSize: 13,
+    fontWeight: '700',
+    color: Colors.light.text,
   },
   listingsContainer: {
     paddingHorizontal: Spacing.md,

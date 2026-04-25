@@ -21,6 +21,7 @@ import { Checkbox } from '../components/common/Checkbox';
 import { Colors, Spacing, BorderRadius, Typography } from '../config/theme';
 import { isValidEmail, filterLettersOnly } from '../utils/validation';
 import { authService } from '../services';
+import { useProfile } from '../hooks';
 import { TERMS_AND_CONDITIONS_CONTENT, PRIVACY_POLICY_CONTENT } from '../constants';
 
 interface RegisterEmailScreenProps {
@@ -31,6 +32,7 @@ interface RegisterEmailScreenProps {
 }
 
 export const RegisterEmailScreen: React.FC<RegisterEmailScreenProps> = ({ navigation }) => {
+  const { refreshProfile } = useProfile();
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
@@ -105,6 +107,7 @@ export const RegisterEmailScreen: React.FC<RegisterEmailScreenProps> = ({ naviga
         const response = await authService.signup(signupData);
         
         if (response.success && response.token) {
+          await refreshProfile();
           navigation?.navigate?.('Home');
         } else {
           const errorMsg = response.message || 'Registration failed. Please check your information and try again.';

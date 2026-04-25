@@ -5,6 +5,9 @@
 // Navigation types
 export type RootStackParamList = {
   Home: undefined;
+  MarketplaceSearch: {
+    initialQuery?: string;
+  };
   Login: undefined;
   Register: undefined;
   RegisterEmail: undefined;

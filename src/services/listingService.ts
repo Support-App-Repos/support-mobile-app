@@ -51,7 +51,7 @@ class ListingService {
    */
   async createListing(data: {
     title: string;
-    description: string;
+    description?: string;
     price?: number;
     priceType?: string;
     location: string;
@@ -78,6 +78,17 @@ class ListingService {
     bathrooms?: number;
     squareFeet?: number;
     yearBuilt?: number;
+    propertyPurpose?: string;
+    currency?: string;
+    referenceNo?: string;
+    furnishing?: string;
+    amenities?: string;
+    additionalTags?: string;
+    propertyType?: string;
+    ownership?: string;
+    builtUpArea?: string;
+    propertyUsage?: string;
+    balconySize?: string;
     // Photos
     photos?: string[];
     // Regions

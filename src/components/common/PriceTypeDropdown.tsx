@@ -1,5 +1,8 @@
 /**
  * Price Type Dropdown Component
+ *
+ * Uses an inline expandable list (no Modal) so taps work reliably inside
+ * ScrollView + native stack screens on Android and iOS.
  */
 
 import React, { useState } from 'react';
@@ -8,8 +11,7 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  Modal,
-  FlatList,
+  Keyboard,
 } from 'react-native';
 import { Colors, Spacing, BorderRadius, Typography } from '../../config/theme';
 
@@ -21,77 +23,90 @@ interface PriceTypeDropdownProps {
   value: PriceType | null;
   onSelect: (priceType: PriceType) => void;
   style?: any;
+  /** Lets the parent raise this row above the next fields while the menu is open. */
+  onOpenChange?: (open: boolean) => void;
 }
 
 export const PriceTypeDropdown: React.FC<PriceTypeDropdownProps> = ({
   value,
   onSelect,
   style,
+  onOpenChange,
 }) => {
   const [showPicker, setShowPicker] = useState(false);
 
   return (
-    <View style={style}>
+    <View
+      style={[
+        styles.dropdownRoot,
+        showPicker && styles.dropdownRootOpen,
+        style,
+      ]}
+      collapsable={false}
+    >
       <TouchableOpacity
         style={styles.dropdown}
-        onPress={() => setShowPicker(true)}
+        onPress={() => {
+          Keyboard.dismiss();
+          setShowPicker((open) => {
+            const next = !open;
+            onOpenChange?.(next);
+            return next;
+          });
+        }}
         activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityState={{ expanded: showPicker }}
       >
         <Text style={[styles.dropdownText, !value && styles.placeholder]}>
           {value || 'Select price type'}
         </Text>
-        <Text style={styles.dropdownIcon}>▼</Text>
+        <Text style={styles.dropdownIcon}>{showPicker ? '▲' : '▼'}</Text>
       </TouchableOpacity>
 
-      <Modal
-        visible={showPicker}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowPicker(false)}
-      >
-        <TouchableOpacity
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={() => setShowPicker(false)}
-        >
-          <View
-            style={styles.modalContent}
-            onStartShouldSetResponder={() => true}
-          >
-            <Text style={styles.modalTitle}>Select Price Type</Text>
-            <FlatList
-              data={PRICE_TYPES}
-              keyExtractor={(item) => item}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={[
-                    styles.optionItem,
-                    value === item && styles.optionItemSelected,
-                  ]}
-                  onPress={() => {
-                    onSelect(item);
-                    setShowPicker(false);
-                  }}
-                >
-                  <Text
-                    style={[
-                      styles.optionText,
-                      value === item && styles.optionTextSelected,
-                    ]}
-                  >
-                    {item}
-                  </Text>
-                </TouchableOpacity>
-              )}
-            />
-          </View>
-        </TouchableOpacity>
-      </Modal>
+      {showPicker ? (
+        <View style={styles.optionsPanel} accessibilityViewIsModal>
+          {PRICE_TYPES.map((item, index) => (
+            <TouchableOpacity
+              key={item}
+              style={[
+                styles.optionItem,
+                index === PRICE_TYPES.length - 1 && styles.optionItemLast,
+                value === item && styles.optionItemSelected,
+              ]}
+              onPress={() => {
+                onSelect(item);
+                setShowPicker(false);
+                onOpenChange?.(false);
+              }}
+              activeOpacity={0.7}
+            >
+              <Text
+                style={[
+                  styles.optionText,
+                  value === item && styles.optionTextSelected,
+                ]}
+              >
+                {item}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      ) : null}
     </View>
   );
 };
 
 const styles = StyleSheet.create({
+  dropdownRoot: {
+    alignSelf: 'stretch',
+    position: 'relative',
+    zIndex: 0,
+  },
+  dropdownRootOpen: {
+    zIndex: 100,
+    elevation: 12,
+  },
   dropdown: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -118,31 +133,31 @@ const styles = StyleSheet.create({
     color: Colors.light.textSecondary,
     marginLeft: Spacing.sm,
   },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
+  optionsPanel: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: '100%',
+    marginTop: Spacing.xs,
     backgroundColor: Colors.light.background,
-    borderTopLeftRadius: BorderRadius.lg,
-    borderTopRightRadius: BorderRadius.lg,
-    maxHeight: '50%',
-    paddingTop: Spacing.lg,
-  },
-  modalTitle: {
-    ...Typography.h3,
-    color: Colors.light.text,
-    fontWeight: '600',
-    fontSize: 18,
-    paddingHorizontal: Spacing.md,
-    marginBottom: Spacing.md,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: BorderRadius.md,
+    overflow: 'hidden',
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
   },
   optionItem: {
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.md,
-    borderBottomWidth: 1,
+    borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: '#E5E7EB',
+  },
+  optionItemLast: {
+    borderBottomWidth: 0,
   },
   optionItemSelected: {
     backgroundColor: '#F0F9FF',
@@ -157,4 +172,3 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
-

@@ -14,6 +14,8 @@ export const Colors = {
     error: '#FF3B30',
     success: '#34C759',
     warning: '#FF9500',
+    /** Marketplace hero CTA / highlights (yellow, design mock) */
+    bannerAccent: '#FACC15',
   },
   dark: {
     primary: '#0D475C',
@@ -26,6 +28,7 @@ export const Colors = {
     error: '#FF453A',
     success: '#32D74B',
     warning: '#FF9F0A',
+    bannerAccent: '#FACC15',
   },
 } as const;
 

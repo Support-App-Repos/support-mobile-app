@@ -4,7 +4,7 @@
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
-import { profileService } from '../services';
+import { authService, profileService } from '../services';
 
 interface ProfileContextType {
   user: any;
@@ -23,11 +23,19 @@ export const ProfileProvider: React.FC<{ children: ReactNode }> = ({ children })
 
   const fetchProfile = useCallback(async () => {
     try {
+      const authed = await authService.isAuthenticated();
+      if (!authed) {
+        setUser(null);
+        setError(null);
+        setLoading(false);
+        return;
+      }
+
       setLoading(true);
       setError(null);
       const response = await profileService.getProfile();
       const profileData = (response.data as any)?.data || response.data;
-      
+
       if (response.success && profileData) {
         setUser(profileData);
       } else {

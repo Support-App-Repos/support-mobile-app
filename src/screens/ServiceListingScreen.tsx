@@ -48,6 +48,7 @@ export const ServiceListingScreen: React.FC<ServiceListingScreenProps> = ({
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [priceType, setPriceType] = useState<PriceType | null>(null);
+  const [priceTypePickerOpen, setPriceTypePickerOpen] = useState(false);
   const [price, setPrice] = useState('');
   const [location, setLocation] = useState('');
   const [city, setCity] = useState('');
@@ -296,6 +297,7 @@ export const ServiceListingScreen: React.FC<ServiceListingScreenProps> = ({
         style={styles.scrollView}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
         <Text style={styles.introText}>
           Add details about your {route?.params?.serviceType?.toLowerCase() || 'service'} service.
@@ -333,7 +335,12 @@ export const ServiceListingScreen: React.FC<ServiceListingScreenProps> = ({
         </View>
 
         {/* Price Type and Price Row */}
-        <View style={styles.rowContainer}>
+        <View
+          style={[
+            styles.rowContainer,
+            priceTypePickerOpen && styles.rowPickerOpen,
+          ]}
+        >
           <View style={[styles.fieldContainer, styles.halfWidth]}>
             <Text style={styles.label}>
               Price Type <Text style={styles.required}>*</Text>
@@ -341,6 +348,7 @@ export const ServiceListingScreen: React.FC<ServiceListingScreenProps> = ({
             <PriceTypeDropdown
               value={priceType}
               onSelect={setPriceType}
+              onOpenChange={setPriceTypePickerOpen}
             />
           </View>
           <View style={[styles.fieldContainer, styles.halfWidth]}>
@@ -724,6 +732,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     gap: Spacing.md,
+  },
+  rowPickerOpen: {
+    zIndex: 50,
+    elevation: 50,
   },
   halfWidth: {
     flex: 1,

@@ -90,6 +90,34 @@ class AuthService {
   }
 
   /**
+   * Sign in with Google ID token (verified on backend; app receives JWT via generateToken).
+   */
+  async signInWithGoogle(idToken: string): Promise<LoginResponse> {
+    try {
+      const response = await apiService.post<LoginResponse>(
+        '/auth/google',
+        { idToken },
+        true,
+      );
+      const responseData = response.data as any;
+
+      if (response.success && responseData?.token) {
+        await Storage.setItem(STORAGE_KEYS.USER_TOKEN, responseData.token);
+        if (responseData.user) {
+          await Storage.setObject(STORAGE_KEYS.USER_DATA, responseData.user);
+        }
+      }
+
+      return responseData || response.data;
+    } catch (error) {
+      if (__DEV__) {
+        console.error('[Auth] Google sign-in error:', error);
+      }
+      throw error;
+    }
+  }
+
+  /**
    * Send OTP to phone number
    */
   async sendOTP(phone: string): Promise<OTPResponse> {

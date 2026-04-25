@@ -1,9 +1,8 @@
 /**
- * Property Listing Detail Screen
- * Displays full property listing details with property-specific design
+ * Property Listing Detail Screen — property category viewer layout
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -24,13 +23,19 @@ import {
   ShareIcon,
   SaveIcon,
   ReportIcon,
-  PhoneIcon,
   LocationIcon,
+  EmailContactIcon,
+  CallContactIcon,
+  WhatsAppContactIcon,
+  PropertyAmenityIcon,
 } from '../components/common';
 import { Colors, Spacing, Typography, BorderRadius } from '../config/theme';
 import { listingService, profileService } from '../services';
+import { formatListingPrice } from '../utils/currency';
+import { parseStoredAmenities } from '../constants/propertyAmenities';
 
-const { width } = Dimensions.get('window');
+const { width: SCREEN_W } = Dimensions.get('window');
+const HERO_H = 280;
 
 type PropertyListingDetailScreenProps = {
   navigation?: any;
@@ -41,6 +46,34 @@ type PropertyListingDetailScreenProps = {
   };
 };
 
+function formatViews(views?: number) {
+  if (!views) return '0 views';
+  if (views === 1) return '1 view';
+  if (views >= 100000) return `${(views / 1000).toFixed(0)}K+ views`;
+  if (views >= 1000) return `${(views / 1000).toFixed(1)}K views`;
+  return `${views} views`;
+}
+
+function formatListingDate(iso?: string | Date | null): string {
+  if (!iso) return '—';
+  try {
+    const d = typeof iso === 'string' ? new Date(iso) : iso;
+    return d.toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' });
+  } catch {
+    return '—';
+  }
+}
+
+function InfoRow({ label, value }: { label: string; value?: string | null }) {
+  if (value == null || String(value).trim() === '') return null;
+  return (
+    <View style={styles.kvRow}>
+      <Text style={styles.kvLabel}>{label}</Text>
+      <Text style={styles.kvValue}>{value}</Text>
+    </View>
+  );
+}
+
 export const PropertyListingDetailScreen: React.FC<PropertyListingDetailScreenProps> = ({
   navigation,
   route,
@@ -49,148 +82,123 @@ export const PropertyListingDetailScreen: React.FC<PropertyListingDetailScreenPr
   const [loading, setLoading] = useState(true);
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [currentImageIndex, setCurrentImageIndex] = useState(0);
-  const [showAllPhotos, setShowAllPhotos] = useState(false);
-  const [showAllDetails, setShowAllDetails] = useState(false);
-  const flatListRef = useRef<FlatList>(null);
-
+  const [heroIndex, setHeroIndex] = useState(0);
   const listingId = route?.params?.listingId;
+
+  const onHeroViewable = useRef(({ viewableItems }: any) => {
+    const i = viewableItems?.[0]?.index;
+    if (typeof i === 'number') setHeroIndex(i);
+  }).current;
+
+  const viewConfig = useRef({ viewAreaCoveragePercentThreshold: 60 }).current;
 
   const checkWishlistStatus = async () => {
     if (!listingId) return;
-    
     try {
       const response = await profileService.getWishlist();
       if (response.success) {
         const wishlistData = (response.data as any)?.data || response.data || [];
-        const isInWishlist = Array.isArray(wishlistData) && wishlistData.some(
-          (item: any) => item.id === listingId || item._id === listingId || item.listingId === listingId
-        );
+        const isInWishlist =
+          Array.isArray(wishlistData) &&
+          wishlistData.some(
+            (item: any) =>
+              item.id === listingId || item._id === listingId || item.listingId === listingId,
+          );
         setSaved(isInWishlist);
       }
-    } catch (error) {
-      console.error('Error checking wishlist status:', error);
+    } catch (e) {
+      console.error('Wishlist check:', e);
     }
   };
 
   useEffect(() => {
-    if (listingId) {
-      fetchListingDetails();
-    }
+    if (listingId) fetchListing();
   }, [listingId]);
 
-  const fetchListingDetails = async () => {
+  const fetchListing = async () => {
     if (!listingId) return;
-
     try {
       setLoading(true);
       const response = await listingService.getListingById(listingId);
-      
       if (response.success) {
-        const listingData = (response.data as any)?.data || response.data;
-        setListing(listingData);
-        if (listingId) {
-          checkWishlistStatus();
-        }
+        const data = (response.data as any)?.data || response.data;
+        setListing(data);
+        checkWishlistStatus();
       } else {
-        Alert.alert('Error', 'Failed to load listing details');
+        Alert.alert('Error', 'Failed to load listing');
         navigation?.goBack();
       }
-    } catch (error: any) {
-      console.error('Error fetching listing details:', error);
-      Alert.alert('Error', 'Failed to load listing details');
+    } catch (e) {
+      Alert.alert('Error', 'Failed to load listing');
       navigation?.goBack();
     } finally {
       setLoading(false);
     }
   };
 
-  const handleBack = () => {
-    navigation?.goBack();
-  };
-
-  const handleSearch = () => {
-    console.log('Search pressed');
-  };
-
-  const handleShare = async () => {
-    console.log('Share pressed');
-  };
-
   const handleSave = async () => {
     if (!listingId || saving) return;
-
     try {
       setSaving(true);
-      
       if (saved) {
-        const response = await profileService.removeFromWishlist(listingId);
-        if (response.success) {
-          setSaved(false);
-        } else {
-          Alert.alert('Error', 'Failed to remove from wishlist');
-        }
+        const res = await profileService.removeFromWishlist(listingId);
+        if (res.success) setSaved(false);
+        else Alert.alert('Error', 'Could not update wishlist');
       } else {
-        const response = await profileService.addToWishlist(listingId);
-        if (response.success) {
-          setSaved(true);
-        } else {
-          const errorMessage = (response.data as any)?.message;
-          if (errorMessage?.includes('already in wishlist')) {
-            setSaved(true);
-          } else {
-            Alert.alert('Error', errorMessage || 'Failed to add to wishlist');
-          }
+        const res = await profileService.addToWishlist(listingId);
+        if (res.success) setSaved(true);
+        else {
+          const msg = (res.data as any)?.message;
+          if (msg?.includes('already')) setSaved(true);
+          else Alert.alert('Error', msg || 'Could not save');
         }
       }
-    } catch (error: any) {
-      console.error('Error saving to wishlist:', error);
-      Alert.alert('Error', error.message || 'Failed to update wishlist. Please try again.');
+    } catch (e: any) {
+      Alert.alert('Error', e.message || 'Failed to update wishlist');
     } finally {
       setSaving(false);
     }
   };
 
-  const handleReport = () => {
-    Alert.alert('Report Listing', 'Are you sure you want to report this listing?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Report', style: 'destructive', onPress: () => {
-        console.log('Report listing:', listingId);
-      }},
-    ]);
-  };
-
-  const handlePhoneCall = () => {
-    const phoneNumber = listing?.contactPhone;
-    if (phoneNumber) {
-      Linking.openURL(`tel:${phoneNumber}`);
-    } else {
-      Alert.alert('Error', 'Phone number not available');
+  const openMail = useCallback(() => {
+    const email = listing?.user?.email || listing?.organizerEmail;
+    if (!email) {
+      Alert.alert('Unavailable', 'Seller email is not available.');
+      return;
     }
-  };
+    Linking.openURL(`mailto:${email}`).catch(() => Alert.alert('Error', 'Could not open email.'));
+  }, [listing]);
 
-  const handleContactDealer = () => {
-    handlePhoneCall();
-  };
+  const openCall = useCallback(() => {
+    const phone = listing?.user?.phoneNumber || listing?.organizerContact || listing?.serviceProviderContact;
+    if (!phone) {
+      Alert.alert('Unavailable', 'Phone number is not available.');
+      return;
+    }
+    const cleaned = String(phone).replace(/[^\d+]/g, '');
+    Linking.openURL(`tel:${cleaned}`).catch(() => Alert.alert('Error', 'Could not start call.'));
+  }, [listing]);
 
-  const formatViews = (views?: number) => {
-    if (!views) return '0 views';
-    if (views >= 100000) return `${(views / 1000).toFixed(0)}K+ views`;
-    if (views >= 1000) return `${(views / 1000).toFixed(1)}K views`;
-    return `${views} views`;
-  };
-
-  const formatPrice = (price?: number) => {
-    if (!price) return '$0';
-    return `$. ${price.toLocaleString()}`;
-  };
+  const openWhatsApp = useCallback(() => {
+    const phone = listing?.user?.phoneNumber || listing?.organizerContact;
+    if (!phone) {
+      Alert.alert('Unavailable', 'Phone number is not available for WhatsApp.');
+      return;
+    }
+    const digits = String(phone).replace(/\D/g, '');
+    if (!digits) {
+      Alert.alert('Unavailable', 'Invalid phone for WhatsApp.');
+      return;
+    }
+    Linking.openURL(`https://wa.me/${digits}`).catch(() => Alert.alert('Error', 'Could not open WhatsApp.'));
+  }, [listing]);
 
   if (loading) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
-        <View style={styles.loadingContainer}>
+        <View style={styles.centered}>
           <ActivityIndicator size="large" color={Colors.light.primary} />
-          <Text style={styles.loadingText}>Loading property...</Text>
+          <Text style={styles.muted}>Loading property…</Text>
         </View>
       </SafeAreaView>
     );
@@ -199,241 +207,265 @@ export const PropertyListingDetailScreen: React.FC<PropertyListingDetailScreenPr
   if (!listing) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
-        <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>Property not found</Text>
-          <TouchableOpacity style={styles.backButton} onPress={handleBack}>
-            <Text style={styles.backButtonText}>Go Back</Text>
+        <View style={styles.centered}>
+          <Text style={styles.titleSm}>Property not found</Text>
+          <TouchableOpacity onPress={() => navigation?.goBack()} style={styles.textBtn}>
+            <Text style={styles.textBtnLabel}>Go back</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
     );
   }
 
-  // Get all photos for the slider
-  const allPhotos = listing.photos?.map((photo: any) => photo.photoUrl || photo.photo_url || photo) || 
-                    (listing.image ? [listing.image] : []);
+  const allPhotos: string[] =
+    listing.photos?.map((p: any) => p.photoUrl || p.photo_url || p).filter(Boolean) ||
+    (listing.image ? [listing.image] : []);
 
-  // Get interior photos (excluding the first one which is the main exterior image)
-  const interiorPhotos = allPhotos.length > 1 ? allPhotos.slice(1) : [];
-  const displayedPhotos = showAllPhotos ? interiorPhotos : interiorPhotos.slice(0, 4);
+  const amenityTokens = parseStoredAmenities(listing.amenities);
+  const detailTitle = listing.propertyType ? `${listing.propertyType} Details` : 'Property Details';
+
+  const hasValidated =
+    !!(listing.ownership || listing.builtUpArea || listing.propertyUsage || listing.balconySize);
+
+  const sellerAvatar =
+    listing.user?.profileImageUrl || 'https://i.pravatar.cc/150?img=12';
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Main Exterior Image */}
-        {allPhotos.length > 0 && (
-          <View style={styles.mainImageContainer}>
-            <Image
-              source={{ uri: allPhotos[0] }}
-              style={styles.mainImage}
-              resizeMode="cover"
-            />
-            {/* Header overlay */}
-            <View style={styles.headerOverlay}>
-              <TouchableOpacity
-                style={styles.headerButton}
-                onPress={handleBack}
-                activeOpacity={0.7}
-              >
-                <BackIcon size={24} color="#030303" />
-              </TouchableOpacity>
-              <View style={styles.headerRight}>
-                <TouchableOpacity
-                  style={styles.headerIconButton}
-                  onPress={handleSearch}
-                  activeOpacity={0.7}
-                >
-                  <SearchIcon size={14} color="#FFFFFF" />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.headerIconButton}
-                  onPress={handleShare}
-                  activeOpacity={0.7}
-                >
-                  <ShareIcon size={14} color="#FFFFFF" />
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        )}
-
-        {/* Title and Views */}
-        <View style={styles.titleSection}>
-          <Text style={styles.title}>{listing.title || 'Property Title'}</Text>
-          <Text style={styles.viewsText}>
-            {formatViews(listing.viewsCount || listing.views)}
-          </Text>
-        </View>
-
-        {/* Price */}
-        <View style={styles.priceSection}>
-          <Text style={styles.price}>
-            {formatPrice(listing.price)}
-          </Text>
-        </View>
-
-        {/* Apartment Details and Actions */}
-        <View style={styles.apartmentDetailsHeader}>
-          <Text style={styles.propertyDetailsTitle}>Apartment Details</Text>
-          <View style={styles.actionButtons}>
-            <TouchableOpacity
-              style={styles.actionButton}
-              onPress={handleSave}
-              activeOpacity={0.7}
-              disabled={saving}
-            >
-              {saving ? (
-                <ActivityIndicator size="small" color={saved ? '#EF4444' : '#1B1B1B'} />
-              ) : (
-                <SaveIcon 
-                  size={14} 
-                  color={saved ? '#EF4444' : '#1B1B1B'} 
-                  filled={saved}
-                />
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+        <View style={styles.heroWrap}>
+          {allPhotos.length > 0 ? (
+            <FlatList
+              data={allPhotos}
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              keyExtractor={(uri, i) => `${uri}-${i}`}
+              onViewableItemsChanged={onHeroViewable}
+              viewabilityConfig={viewConfig}
+              renderItem={({ item }) => (
+                <Image source={{ uri: item }} style={styles.heroImage} resizeMode="cover" />
               )}
-              <Text style={[styles.actionButtonText, saved && styles.actionButtonTextSaved]}>
-                Save
-              </Text>
-            </TouchableOpacity>
-            <Text style={styles.actionSeparator}>|</Text>
-            <TouchableOpacity
-              style={styles.actionButton}
-              onPress={handleReport}
-              activeOpacity={0.7}
-            >
-              <ReportIcon size={12} color="#1B1B1B" />
-              <Text style={styles.actionButtonText}>Report</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+            />
+          ) : (
+            <View style={[styles.heroImage, styles.heroPlaceholder]}>
+              <Text style={styles.muted}>No photo</Text>
+            </View>
+          )}
 
-        {/* Property Details */}
-        <View style={styles.propertyDetailsSection}>
-          <View style={styles.propertyDetailsColumn}>
-            {listing.bedrooms && (
-              <View style={styles.propertyDetailItem}>
-                <View style={styles.bulletPoint} />
-                <Text style={styles.propertyDetailText}>
-                  {listing.bedrooms} bedrooms
-                </Text>
-              </View>
-            )}
-            {listing.bathrooms && (
-              <View style={styles.propertyDetailItem}>
-                <View style={styles.bulletPoint} />
-                <Text style={styles.propertyDetailText}>
-                  {listing.bathrooms} bathroom
-                </Text>
-              </View>
-            )}
-            {listing.squareFeet && (
-              <View style={styles.propertyDetailItem}>
-                <View style={styles.bulletPoint} />
-                <Text style={styles.propertyDetailText}>
-                  {listing.squareFeet.toLocaleString()} sqr feet
-                </Text>
-              </View>
-            )}
-          </View>
-          {interiorPhotos.length > 4 && (
-            <TouchableOpacity
-              style={styles.seeAllButton}
-              onPress={() => setShowAllPhotos(!showAllPhotos)}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.seeAllText}>
-                {showAllPhotos ? 'Show less' : 'See all >'}
-              </Text>
+          <View style={styles.heroTopBar}>
+            <TouchableOpacity style={styles.circleBtnLight} onPress={() => navigation?.goBack()}>
+              <BackIcon size={22} color="#111" />
             </TouchableOpacity>
+            <TouchableOpacity onPress={() => navigation?.navigate('Profile')} activeOpacity={0.8}>
+              <Image source={{ uri: sellerAvatar }} style={styles.headerAvatar} />
+            </TouchableOpacity>
+          </View>
+
+          {allPhotos.length > 0 && (
+            <View style={styles.heroActions}>
+              <TouchableOpacity style={styles.circleBtnPrimary}>
+                <SearchIcon size={14} color="#FFF" />
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.circleBtnPrimary}>
+                <ShareIcon size={14} color="#FFF" />
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {allPhotos.length > 1 && (
+            <View style={styles.dotsRow}>
+              {allPhotos.map((_, i) => (
+                <View key={i} style={[styles.dot, i === heroIndex && styles.dotActive]} />
+              ))}
+            </View>
           )}
         </View>
 
-        {/* Interior Photos */}
-        {displayedPhotos.length > 0 && (
-          <View style={styles.photosSection}>
-            {displayedPhotos.map((photo: string, index: number) => (
-              <Image
-                key={index}
-                source={{ uri: photo }}
-                style={styles.interiorPhoto}
-                resizeMode="cover"
-              />
-            ))}
-          </View>
-        )}
+        <View style={styles.padH}>
+          <Text style={styles.listingTitle}>{listing.title || 'Property'}</Text>
+          <Text style={styles.views}>{formatViews(listing.viewsCount ?? listing.views)}</Text>
+          <Text style={styles.price}>
+            {formatListingPrice(listing.price, listing.currency ?? 'AED')}
+          </Text>
 
-        {/* See All Button for Description and Property Details */}
-        <View style={styles.propertyDetailsSection}>
-          <TouchableOpacity
-            style={styles.seeAllButton}
-            onPress={() => setShowAllDetails(!showAllDetails)}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.seeAllText}>
-              {showAllDetails ? 'Show less' : 'See all >'}
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.sectionTitle}>{detailTitle}</Text>
+            <View style={styles.sectionActions}>
+              <TouchableOpacity style={styles.inlineAction} onPress={handleSave} disabled={saving}>
+                {saving ? (
+                  <ActivityIndicator size="small" color={Colors.light.primary} />
+                ) : (
+                  <SaveIcon size={14} color={saved ? '#EF4444' : '#1B1B1B'} filled={saved} />
+                )}
+                <Text style={[styles.inlineActionText, saved && { color: '#EF4444' }]}>Save</Text>
+              </TouchableOpacity>
+              <Text style={styles.sep}>|</Text>
+              <TouchableOpacity style={styles.inlineAction} onPress={() => Alert.alert('Report', 'Thank you for your feedback.')}>
+                <ReportIcon size={12} color="#1B1B1B" />
+                <Text style={styles.inlineActionText}>Report</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <View style={styles.card}>
+            {!!listing.bedrooms && (
+              <View style={styles.bulletRow}>
+                <View style={styles.bullet} />
+                <Text style={styles.bulletText}>{listing.bedrooms} bedrooms</Text>
+              </View>
+            )}
+            {!!listing.bathrooms && (
+              <View style={styles.bulletRow}>
+                <View style={styles.bullet} />
+                <Text style={styles.bulletText}>
+                  {listing.bathrooms} bathroom{listing.bathrooms === 1 ? '' : 's'}
+                </Text>
+              </View>
+            )}
+            {!!listing.squareFeet && (
+              <View style={styles.bulletRow}>
+                <View style={styles.bullet} />
+                <Text style={styles.bulletText}>{Number(listing.squareFeet).toLocaleString()} sqft</Text>
+              </View>
+            )}
+            {!listing.bedrooms && !listing.bathrooms && !listing.squareFeet && (
+              <Text style={styles.muted}>No room measurements provided.</Text>
+            )}
+          </View>
+
+          <Text style={[styles.sectionTitle, styles.sectionTitleSpaced]}>Property Information</Text>
+          <View style={styles.card}>
+            <InfoRow label="Type" value={listing.propertyType} />
+            <InfoRow label="Purpose" value={listing.propertyPurpose} />
+            <InfoRow label="Reference no." value={listing.referenceNo} />
+            <InfoRow label="Furnishing" value={listing.furnishing} />
+            <InfoRow label="Added on" value={formatListingDate(listing.createdAt)} />
+            {!!listing.city && <InfoRow label="City" value={listing.city} />}
+            {!!listing.location && (
+              <View style={styles.locRow}>
+                <LocationIcon size={15} color="#6B7280" />
+                <Text style={styles.locText}>{listing.location}</Text>
+              </View>
+            )}
+          </View>
+
+          {hasValidated && (
+            <>
+              <View style={styles.validatedHeader}>
+                <Text style={styles.sectionTitle}>Validated Information</Text>
+                <View style={styles.checkBadge}>
+                  <Text style={styles.checkMark}>✓</Text>
+                </View>
+              </View>
+              <View style={styles.card}>
+                <InfoRow label="Ownership" value={listing.ownership} />
+                <InfoRow label="Built-up Area" value={listing.builtUpArea} />
+                <InfoRow label="Usage" value={listing.propertyUsage} />
+                <InfoRow label="Balcony Size" value={listing.balconySize} />
+              </View>
+            </>
+          )}
+
+          {amenityTokens.length > 0 && (
+            <>
+              <Text style={[styles.sectionTitle, styles.sectionTitleSpaced]}>Amenities</Text>
+              <View style={styles.amenityRow}>
+                {amenityTokens.slice(0, 3).map((t, i) => (
+                  <View
+                    key={`${t.kind}-${t.kind === 'known' ? t.id : t.label}-${i}`}
+                    style={styles.amenityCard}
+                  >
+                    <View style={styles.amenityIcon}>
+                      <PropertyAmenityIcon
+                        amenityId={t.kind === 'known' ? t.id : undefined}
+                        size={28}
+                        color={Colors.light.primary}
+                      />
+                    </View>
+                    <Text style={styles.amenityLabel} numberOfLines={2}>
+                      {t.label}
+                    </Text>
+                  </View>
+                ))}
+                {amenityTokens.length > 3 && (
+                  <TouchableOpacity style={styles.amenityMore} activeOpacity={0.7}>
+                    <Text style={styles.amenityMoreText}>+{amenityTokens.length - 3} More</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            </>
+          )}
+
+          {!!listing.additionalTags && (
+            <>
+              <Text style={[styles.sectionTitle, styles.sectionTitleSpaced]}>Tags</Text>
+              <View style={styles.card}>
+                <Text style={styles.tagsBody}>{listing.additionalTags}</Text>
+              </View>
+            </>
+          )}
+
+          {!!listing.description?.trim() && (
+            <>
+              <Text style={[styles.sectionTitle, styles.sectionTitleSpaced]}>Description</Text>
+              <View style={styles.card}>
+                <Text style={styles.descBody}>{listing.description}</Text>
+              </View>
+            </>
+          )}
+
+          <Text style={[styles.sectionTitle, styles.sectionTitleSpaced]}>Map View</Text>
+          <View style={styles.mapCard}>
+            <Text style={styles.mapAddress} numberOfLines={2}>
+              {[listing.location, listing.city].filter(Boolean).join(', ') || 'Address on request'}
             </Text>
-          </TouchableOpacity>
+            <View style={styles.mapPlaceholder}>
+              <TouchableOpacity style={styles.showMapBtn} activeOpacity={0.85}>
+                <LocationIcon size={18} color={Colors.light.primary} />
+                <Text style={styles.showMapText}>Show Map</Text>
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.postedOn}>Posted on: {formatListingDate(listing.createdAt)}</Text>
+          </View>
+
+          <View style={{ height: 100 }} />
         </View>
-
-        {/* Description - Shown when See All is clicked */}
-        {showAllDetails && listing.description && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Description</Text>
-            <Text style={styles.descriptionText}>{listing.description}</Text>
-          </View>
-        )}
-
-        {/* Additional Property Details - Shown when See All is clicked */}
-        {showAllDetails && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Property Details</Text>
-            
-            {listing.location && (
-              <View style={styles.detailRow}>
-                <LocationIcon size={15} color="#6B7280" />
-                <Text style={styles.detailValue}>{listing.location}</Text>
-              </View>
-            )}
-
-            {listing.city && (
-              <View style={styles.detailRow}>
-                <LocationIcon size={15} color="#6B7280" />
-                <Text style={styles.detailValue}>{listing.city}</Text>
-              </View>
-            )}
-
-            {listing.yearBuilt && (
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Year Built:</Text>
-                <Text style={styles.detailValue}>{listing.yearBuilt}</Text>
-              </View>
-            )}
-          </View>
-        )}
-
-        {/* Spacer for bottom action bar */}
-        <View style={styles.bottomSpacer} />
       </ScrollView>
 
-      {/* Bottom Action Bar */}
-      <View style={styles.bottomActionBar}>
+      <View style={styles.bottomBar}>
         <TouchableOpacity
-          style={styles.phoneButton}
-          onPress={handlePhoneCall}
-          activeOpacity={0.8}
+          style={styles.btnEmail}
+          onPress={openMail}
+          activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel="Email seller"
         >
-          <PhoneIcon size={24} color="#FFFFFF" />
+          <View style={styles.btnContentRow}>
+            <EmailContactIcon size={17} color="#1D4ED8" />
+            <Text style={styles.btnEmailText}>Email</Text>
+          </View>
         </TouchableOpacity>
         <TouchableOpacity
-          style={styles.contactButton}
-          onPress={handleContactDealer}
-          activeOpacity={0.8}
+          style={styles.btnCall}
+          onPress={openCall}
+          activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel="Call seller"
         >
-          <Text style={styles.contactButtonText}>Contact Dealer</Text>
+          <View style={styles.btnContentRow}>
+            <CallContactIcon size={17} color="#BE185D" />
+            <Text style={styles.btnCallText}>Call</Text>
+          </View>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.btnWa}
+          onPress={openWhatsApp}
+          activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel="WhatsApp seller"
+        >
+          <WhatsAppContactIcon size={24} color="#15803D" />
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -441,278 +473,209 @@ export const PropertyListingDetailScreen: React.FC<PropertyListingDetailScreenPr
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.light.background,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
+  container: { flex: 1, backgroundColor: Colors.light.background },
+  scrollContent: { paddingBottom: Spacing.lg },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: Spacing.lg },
+  muted: { marginTop: Spacing.sm, color: Colors.light.textSecondary, fontSize: 14 },
+  titleSm: { ...Typography.h3, color: Colors.light.text, marginBottom: Spacing.md },
+  textBtn: { padding: Spacing.md },
+  textBtnLabel: { color: Colors.light.primary, fontSize: 16 },
+  heroWrap: { width: SCREEN_W, height: HERO_H, backgroundColor: '#E5E7EB' },
+  heroImage: { width: SCREEN_W, height: HERO_H },
+  heroPlaceholder: { alignItems: 'center', justifyContent: 'center' },
+  heroTopBar: {
+    position: 'absolute',
+    top: Spacing.sm,
+    left: Spacing.md,
+    right: Spacing.md,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
   },
-  loadingText: {
-    ...Typography.body,
-    color: Colors.light.textSecondary,
+  circleBtnLight: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerAvatar: { width: 40, height: 40, borderRadius: 20, borderWidth: 2, borderColor: '#FFF' },
+  heroActions: {
+    position: 'absolute',
+    top: Spacing.sm + 52,
+    right: Spacing.md,
+    gap: Spacing.sm,
+  },
+  circleBtnPrimary: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: Colors.light.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing.sm,
+  },
+  dotsRow: {
+    position: 'absolute',
+    bottom: Spacing.md,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.5)' },
+  dotActive: { backgroundColor: '#FFF', width: 8, height: 8, borderRadius: 4 },
+  padH: { paddingHorizontal: Spacing.md },
+  listingTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: Colors.light.text,
     marginTop: Spacing.md,
   },
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: Spacing.lg,
-  },
-  errorText: {
-    ...Typography.h3,
-    color: Colors.light.text,
-    marginBottom: Spacing.md,
-  },
-  backButton: {
-    padding: Spacing.md,
-  },
-  backButtonText: {
-    ...Typography.body,
-    color: Colors.light.primary,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    backgroundColor: 'transparent',
-    zIndex: 10,
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-  },
-  headerButton: {
-    padding: Spacing.xs,
-  },
-  headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-  },
-  headerIconButton: {
-    width: 24,
-    height: 24,
-    borderRadius: BorderRadius.round,
-    backgroundColor: Colors.light.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  scrollView: {
-    flex: 1,
-  },
-  content: {
-    paddingBottom: Spacing.xl,
-  },
-  mainImageContainer: {
-    width: '100%',
-    height: 300,
-    backgroundColor: Colors.light.surface,
-    position: 'relative',
-  },
-  mainImage: {
-    width: '100%',
-    height: '100%',
-  },
-  headerOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    backgroundColor: 'transparent',
-    zIndex: 10,
-  },
-  titleSection: {
-    paddingHorizontal: Spacing.md,
-    paddingTop: Spacing.md,
-    paddingBottom: Spacing.xs,
-  },
-  title: {
-    ...Typography.h1,
-    color: Colors.light.text,
-    fontWeight: '700',
-    fontSize: 24,
-    marginBottom: Spacing.xs,
-  },
-  viewsText: {
-    ...Typography.body,
-    color: Colors.light.textSecondary,
-    fontSize: 14,
-  },
-  priceSection: {
-    paddingHorizontal: Spacing.md,
-    paddingBottom: Spacing.sm,
-  },
+  views: { fontSize: 14, color: Colors.light.textSecondary, marginTop: 4 },
   price: {
-    ...Typography.h2,
-    color: Colors.light.primary,
-    fontWeight: '700',
     fontSize: 28,
-  },
-  apartmentDetailsHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing.md,
-    paddingBottom: Spacing.md,
-  },
-  actionButtons: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-    marginTop: 2, // Slight adjustment to align with heading
-  },
-  actionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.xs,
-  },
-  actionButtonText: {
-    ...Typography.body,
-    color: Colors.light.text,
-    fontSize: 14,
-  },
-  actionButtonTextSaved: {
-    color: '#EF4444',
-  },
-  actionSeparator: {
-    color: Colors.light.textSecondary,
-    fontSize: 14,
-  },
-  propertyDetailsSection: {
-    paddingHorizontal: Spacing.md,
-    paddingBottom: Spacing.md,
-  },
-  propertyDetailsTitle: {
-    ...Typography.h3,
-    color: Colors.light.text,
-    fontWeight: '600',
-    fontSize: 18,
-    marginTop: 2, // Slight adjustment to align with buttons
-  },
-  propertyDetailsColumn: {
-    flexDirection: 'column',
-    alignItems: 'flex-start',
-    gap: Spacing.sm,
-    marginBottom: Spacing.sm,
-  },
-  propertyDetailItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-  },
-  bulletPoint: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: Colors.light.text,
-    marginTop: 2,
-  },
-  propertyDetailText: {
-    ...Typography.body,
-    color: Colors.light.text,
-    fontSize: 14,
-  },
-  seeAllButton: {
-    alignSelf: 'flex-start',
-    marginTop: Spacing.xs,
-  },
-  seeAllText: {
-    ...Typography.body,
+    fontWeight: '700',
     color: Colors.light.primary,
-    fontSize: 14,
-    fontWeight: '500',
+    marginTop: Spacing.sm,
   },
-  photosSection: {
-    paddingHorizontal: Spacing.md,
-    paddingBottom: Spacing.md,
-    gap: Spacing.sm,
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginTop: Spacing.lg,
   },
-  interiorPhoto: {
-    width: '100%',
-    height: 200,
+  sectionTitle: { fontSize: 18, fontWeight: '600', color: Colors.light.text, flex: 1 },
+  sectionTitleSpaced: { marginTop: Spacing.lg },
+  sectionActions: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  inlineAction: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  inlineActionText: { fontSize: 14, color: Colors.light.text },
+  sep: { color: Colors.light.textSecondary },
+  card: {
+    backgroundColor: '#F3F4F6',
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
+    marginTop: Spacing.sm,
+  },
+  bulletRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.sm },
+  bullet: { width: 6, height: 6, borderRadius: 3, backgroundColor: Colors.light.text },
+  bulletText: { fontSize: 14, color: Colors.light.text },
+  kvRow: { flexDirection: 'row', marginBottom: Spacing.sm, flexWrap: 'wrap' },
+  kvLabel: { width: 120, fontSize: 14, color: Colors.light.textSecondary },
+  kvValue: { flex: 1, fontSize: 14, color: Colors.light.text, fontWeight: '500' },
+  locRow: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.sm, marginTop: Spacing.xs },
+  locText: { flex: 1, fontSize: 14, color: Colors.light.text },
+  validatedHeader: { flexDirection: 'row', alignItems: 'center', marginTop: Spacing.lg, gap: Spacing.sm },
+  checkBadge: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: '#22C55E',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkMark: { color: '#FFF', fontSize: 12, fontWeight: '700' },
+  amenityRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm, marginTop: Spacing.sm },
+  amenityCard: {
+    width: (SCREEN_W - Spacing.md * 2 - Spacing.sm * 2) / 3,
+    backgroundColor: '#F3F4F6',
     borderRadius: BorderRadius.md,
-    backgroundColor: Colors.light.surface,
-    marginBottom: Spacing.sm,
+    padding: Spacing.sm,
+    alignItems: 'center',
+    minHeight: 88,
   },
-  section: {
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.md,
+  amenityIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: '#FFF',
+    marginBottom: Spacing.xs,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  sectionTitle: {
-    ...Typography.h3,
-    color: Colors.light.text,
-    fontWeight: '600',
-    fontSize: 18,
-    marginBottom: Spacing.md,
+  amenityLabel: { fontSize: 11, color: Colors.light.text, textAlign: 'center' },
+  amenityMore: {
+    width: (SCREEN_W - Spacing.md * 2 - Spacing.sm * 2) / 3,
+    backgroundColor: '#F3F4F6',
+    borderRadius: BorderRadius.md,
+    justifyContent: 'center',
+    alignItems: 'center',
+    minHeight: 88,
   },
-  descriptionText: {
-    ...Typography.body,
-    color: Colors.light.textSecondary,
-    fontSize: 14,
-    lineHeight: 20,
+  amenityMoreText: { color: Colors.light.primary, fontWeight: '600', fontSize: 14 },
+  tagsBody: { fontSize: 14, color: Colors.light.text, lineHeight: 20 },
+  descBody: { fontSize: 14, color: Colors.light.textSecondary, lineHeight: 22 },
+  mapCard: {
+    marginTop: Spacing.sm,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    padding: Spacing.md,
+    backgroundColor: '#FAFAFA',
   },
-  detailRow: {
+  mapAddress: { fontSize: 14, color: Colors.light.text, marginBottom: Spacing.md },
+  mapPlaceholder: {
+    height: 140,
+    borderRadius: BorderRadius.md,
+    backgroundColor: '#E5E7EB',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  showMapBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: Spacing.sm,
     gap: Spacing.sm,
+    backgroundColor: '#FFF',
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
   },
-  detailLabel: {
-    ...Typography.body,
-    color: Colors.light.textSecondary,
-    fontSize: 14,
-    marginRight: Spacing.xs,
-  },
-  detailValue: {
-    ...Typography.body,
-    color: Colors.light.text,
-    fontSize: 14,
-    flex: 1,
-  },
-  bottomSpacer: {
-    height: 100,
-  },
-  bottomActionBar: {
+  showMapText: { fontSize: 14, fontWeight: '600', color: Colors.light.primary },
+  postedOn: { marginTop: Spacing.md, fontSize: 13, color: Colors.light.textSecondary },
+  bottomBar: {
     flexDirection: 'row',
-    alignItems: 'center',
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.md,
-    gap: Spacing.md,
-    backgroundColor: Colors.light.background,
+    gap: Spacing.sm,
     borderTopWidth: 1,
     borderTopColor: '#E5E7EB',
+    backgroundColor: '#FFF',
   },
-  phoneButton: {
-    width: 50,
-    height: 50,
-    borderRadius: BorderRadius.md,
-    backgroundColor: Colors.light.primary,
-    justifyContent: 'center',
+  btnContentRow: {
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.sm,
   },
-  contactButton: {
+  btnEmail: {
     flex: 1,
-    height: 50,
+    backgroundColor: '#DBEAFE',
     borderRadius: BorderRadius.md,
-    backgroundColor: Colors.light.primary,
-    justifyContent: 'center',
+    paddingVertical: Spacing.md,
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  contactButtonText: {
-    ...Typography.body,
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
+  btnEmailText: { fontWeight: '600', color: '#1D4ED8', fontSize: 14 },
+  btnCall: {
+    flex: 1,
+    backgroundColor: '#FCE7F3',
+    borderRadius: BorderRadius.md,
+    paddingVertical: Spacing.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  btnCallText: { fontWeight: '600', color: '#BE185D', fontSize: 14 },
+  btnWa: {
+    flex: 1,
+    backgroundColor: '#DCFCE7',
+    borderRadius: BorderRadius.md,
+    paddingVertical: Spacing.md,
+    minHeight: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
-

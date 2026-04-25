@@ -18,9 +18,9 @@ const getBaseURL = () => {
   // Always use environment variables, regardless of __DEV__ mode
   let baseURL: string;
   if (Platform.OS === 'android') {
-    baseURL = API_BASE_URL_ANDROID || API_BASE_URL || 'http://13.62.185.179:3000/api';
+    baseURL = API_BASE_URL_ANDROID || API_BASE_URL || 'http://10.60.191.75:3000/api';
   } else {
-    baseURL = API_BASE_URL_IOS || API_BASE_URL || 'http://13.62.185.179:3000/api';
+    baseURL = API_BASE_URL_IOS || API_BASE_URL || 'http://10.60.191.75:3000/api';
   }
   
   // Log the API URL being used (helpful for debugging)
@@ -63,11 +63,11 @@ export {
   PRIVACY_POLICY_CONTENT,
 } from './legalDocuments';
 
-// Legal Documents
 export {
-  TERMS_AND_CONDITIONS_CONTENT,
-  PRIVACY_POLICY_CONTENT,
-} from './legalDocuments';
-
-// Add more constants as needed
+  PROPERTY_AMENITIES,
+  parseStoredAmenities,
+  serializeAmenityIds,
+  type PropertyAmenityId,
+  type ParsedAmenityToken,
+} from './propertyAmenities';
 

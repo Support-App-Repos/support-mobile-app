@@ -57,16 +57,34 @@ const convertToListingCardData = (listing: any): ExtendedListingCardData => {
   const primaryPhoto = listing.photos?.find((p: any) => p.isPrimary || p.is_primary) || listing.photos?.[0];
   const imageUrl = primaryPhoto?.photoUrl || primaryPhoto?.photo_url || 'https://via.placeholder.com/400';
   
+  const regionName =
+    listing.regions?.[0]?.name ||
+    listing.region?.name ||
+    listing.city ||
+    listing.location;
+
   return {
     id: listing.id,
     title: listing.title || 'Untitled',
     price: listing.price ? listing.price.toFixed(0) : '0',
-    priceUnit: listing.priceType === 'Per Hour' ? 'hr' : listing.priceType === 'Per Seat' ? 'seat' : undefined,
+    priceUnit:
+      listing.priceType === 'Per Hour'
+        ? 'hr'
+        : listing.priceType === 'Per Seat'
+          ? 'seat'
+          : listing.priceType === 'Per Month' || listing.priceType === 'Monthly'
+            ? 'mo'
+            : undefined,
     image: imageUrl,
+    ratingAverage:
+      typeof listing.averageRating === 'number' ? listing.averageRating : undefined,
+    reviewCount: listing._count?.reviews ?? listing.reviewsCount,
     rating: listing._count?.reviews || listing.reviewsCount || 0,
     views: listing.viewsCount || listing.views_count || 0,
     timePosted: listing.publishedAt ? 'Recently' : 'Recently',
     category: listing.category?.name || 'Unknown',
+    location: typeof regionName === 'string' ? regionName : undefined,
+    currency: listing.currency,
   };
 };
 

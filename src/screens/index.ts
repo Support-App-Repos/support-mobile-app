@@ -3,6 +3,7 @@
  */
 
 export { HomeScreen } from './HomeScreen';
+export { MarketplaceSearchScreen } from './MarketplaceSearchScreen';
 export { LoginScreen } from './LoginScreen';
 export { RegisterEmailScreen } from './RegisterEmailScreen';
 export { ForgotPasswordScreen } from './ForgotPasswordScreen';

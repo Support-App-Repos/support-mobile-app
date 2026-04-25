@@ -129,6 +129,15 @@ export class ApiService {
         config.skipAuth = true;
       }
 
+      if (__DEV__) {
+        const path = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+        console.log('[API] POST request', {
+          API_BASE_URL: this.baseURL,
+          fullURL: `${this.baseURL.replace(/\/$/, '')}${path}`,
+          endpoint: path,
+        });
+      }
+
       const response = await this.axiosInstance.post<T>(endpoint, body, config);
 
       return {
@@ -138,9 +147,12 @@ export class ApiService {
       };
     } catch (error: any) {
       if (__DEV__) {
+        const path = typeof endpoint === 'string' && endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
         console.error('[API] POST Error:', {
           message: error.message,
-          endpoint,
+          API_BASE_URL: this.baseURL,
+          fullURL: `${this.baseURL.replace(/\/$/, '')}${path}`,
+          endpoint: path,
           status: error.response?.status,
         });
       }

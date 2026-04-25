@@ -4,7 +4,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
-import { Snackbar } from '../components/common';
 import {
   View,
   Text,
@@ -16,11 +15,25 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Input, SegmentedControl, PhoneNumberInput, OTPInput, LegalDocumentModal } from '../components/common';
+import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
+import { GOOGLE_WEB_CLIENT_ID } from '@env';
+import {
+  Input,
+  SegmentedControl,
+  PhoneNumberInput,
+  OTPInput,
+  LegalDocumentModal,
+  Snackbar,
+  BackIcon,
+  GoogleSignInMark,
+} from '../components/common';
 import { PasswordInput } from '../components/common/PasswordInput';
 import { Colors, Spacing, BorderRadius, Typography } from '../config/theme';
 import { authService } from '../services';
+import { useProfile } from '../hooks';
 import { TERMS_AND_CONDITIONS_CONTENT, PRIVACY_POLICY_CONTENT } from '../constants';
+
+const googleWebClientId = (GOOGLE_WEB_CLIENT_ID || '').trim();
 
 interface LoginScreenProps {
   navigation?: {
@@ -30,7 +43,8 @@ interface LoginScreenProps {
 }
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
-  const [loginMethod, setLoginMethod] = useState<'OTP' | 'Password'>('Password');
+  const { refreshProfile } = useProfile();
+  const [loginMethod, setLoginMethod] = useState<'OTP' | 'Password'>('OTP');
   const [email, setEmail] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [countryCode, setCountryCode] = useState('+92'); // Default to Pakistan
@@ -50,6 +64,16 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
   const [loadingLogin, setLoadingLogin] = useState(false);
   const [loadingOTP, setLoadingOTP] = useState(false);
   const [loadingResend, setLoadingResend] = useState(false);
+  const [loadingGoogle, setLoadingGoogle] = useState(false);
+
+  useEffect(() => {
+    if (googleWebClientId) {
+      GoogleSignin.configure({
+        webClientId: googleWebClientId,
+        offlineAccess: false,
+      });
+    }
+  }, []);
 
   // Check if user is already authenticated when screen loads or comes into focus
   useFocusEffect(
@@ -125,7 +149,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
       
       if (response.success && response.token) {
         setOtpError(false);
-        // Navigate to Home after successful login
+        await refreshProfile();
         navigation?.navigate?.('Home');
       } else {
         setOtpError(true);
@@ -216,7 +240,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
       const response = await authService.signin(email.trim(), password);
       
       if (response.success && response.token) {
-        // Navigate to Home after successful login
+        await refreshProfile();
         navigation?.navigate?.('Home');
       } else {
         // Show server error in snackbar
@@ -250,6 +274,42 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
     setShowPrivacyModal(true);
   };
 
+  const handleGoogleSignIn = async () => {
+    if (!googleWebClientId) {
+
+      setSnackbarMessage('Google Sign-In is not configured. Add GOOGLE_WEB_CLIENT_ID to .env');
+      setSnackbarVisible(true);
+      return;
+    }
+    try {
+      setLoadingGoogle(true);
+      await GoogleSignin.signOut().catch(() => {});
+      await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+      await GoogleSignin.signIn();
+      const tokens = await GoogleSignin.getTokens();
+      const idToken = tokens.idToken;
+      if (!idToken) {
+        throw new Error('No ID token from Google');
+      }
+      const result = await authService.signInWithGoogle(idToken);
+      if (result?.success && result?.token) {
+        await refreshProfile();
+        navigation?.navigate?.('Home');
+      } else {
+        setSnackbarMessage(result?.message || 'Google sign-in failed');
+        setSnackbarVisible(true);
+      }
+    } catch (error: any) {
+      if (error?.code === statusCodes.SIGN_IN_CANCELLED) {
+        return;
+      }
+      setSnackbarMessage(error || 'Google sign-in failed');
+      setSnackbarVisible(true);
+    } finally {
+      setLoadingGoogle(false);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <KeyboardAvoidingView
@@ -263,16 +323,24 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
         >
           {/* Header */}
           <View style={styles.header}>
+            <TouchableOpacity
+              style={styles.headerSide}
+              onPress={() => navigation?.goBack?.()}
+              activeOpacity={0.7}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            >
+              <BackIcon size={22} color={Colors.light.text} />
+            </TouchableOpacity>
             <Text style={styles.headerTitle}>Login</Text>
-            <View style={styles.headerSpacer} />
+            <View style={styles.headerSide} />
           </View>
 
           {/* Login Method Selector */}
           <View style={styles.segmentedContainer}>
             <SegmentedControl
-              options={['Password', 'OTP']}
-              selectedIndex={loginMethod === 'Password' ? 0 : 1}
-              onSelect={(index) => setLoginMethod(index === 0 ? 'Password' : 'OTP')}
+              options={['OTP', 'Password']}
+              selectedIndex={loginMethod === 'OTP' ? 0 : 1}
+              onSelect={(index) => setLoginMethod(index === 0 ? 'OTP' : 'Password')}
             />
           </View>
 
@@ -412,17 +480,35 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
             </TouchableOpacity>
           </View>
 
-          {/* Register Link */}
-          {loginMethod === 'Password' &&
           <View style={styles.registerContainer}>
             <Text style={styles.registerText}>
-              Don't have an account?{' '}
+              Don&apos;t have an account?{' '}
               <Text style={styles.registerLink} onPress={handleRegister}>
                 Register
               </Text>
             </Text>
           </View>
-          }
+
+          <View style={styles.dividerRow}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>or continue with</Text>
+            <View style={styles.dividerLine} />
+          </View>
+
+          <View style={styles.socialRow}>
+            <TouchableOpacity
+              style={styles.googleButton}
+              onPress={handleGoogleSignIn}
+              activeOpacity={0.85}
+              disabled={loadingGoogle}
+            >
+              {loadingGoogle ? (
+                <ActivityIndicator size="small" color={Colors.light.primary} />
+              ) : (
+                <GoogleSignInMark size={26} />
+              )}
+            </TouchableOpacity>
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
 
@@ -468,17 +554,19 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'space-between',
     marginBottom: Spacing.lg,
     paddingHorizontal: Spacing.xs,
+  },
+  headerSide: {
+    width: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   headerTitle: {
     ...Typography.h2,
     color: Colors.light.text,
     fontWeight: '600',
-  },
-  headerSpacer: {
-    width: 40,
   },
   segmentedContainer: {
     marginBottom: Spacing.lg,
@@ -525,7 +613,7 @@ const styles = StyleSheet.create({
   },
   forgotPasswordText: {
     ...Typography.caption,
-    color: Colors.light.primary,
+    color: Colors.light.textSecondary,
     fontWeight: '500',
   },
   termsContainer: {
@@ -542,6 +630,7 @@ const styles = StyleSheet.create({
   linkText: {
     color: Colors.light.primary,
     fontWeight: '500',
+    textDecorationLine: 'underline',
   },
   loginButtonContainer: {
     marginTop: Spacing.md,
@@ -591,7 +680,55 @@ const styles = StyleSheet.create({
   },
   registerLink: {
     color: Colors.light.primary,
-    fontWeight: '600',
+    fontWeight: '700',
+  },
+  dividerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: Spacing.md,
+    paddingHorizontal: Spacing.xs,
+  },
+  dividerLine: {
+    flex: 1,
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: Colors.light.border,
+  },
+  dividerText: {
+    ...Typography.caption,
+    color: Colors.light.textSecondary,
+    marginHorizontal: Spacing.md,
+  },
+  socialRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: Spacing.xl,
+    gap: Spacing.md,
+  },
+  googleButton: {
+    width: 56,
+    height: 56,
+    borderRadius: BorderRadius.md,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  footerRegister: {
+    marginTop: Spacing.md,
+    marginBottom: Spacing.lg,
+  },
+  footerRegisterText: {
+    ...Typography.body,
+    color: Colors.light.textSecondary,
+    opacity: 0.55,
+    textAlign: 'center',
   },
 });
 

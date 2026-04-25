@@ -31,6 +31,7 @@ import {
   EventListingDetailScreen,
   PropertyListingDetailScreen,
   ServiceListingDetailScreen,
+  MarketplaceSearchScreen,
 } from '../screens';
 import { RootStackParamList } from '../types';
 import { authService } from '../services/authService';
@@ -123,6 +124,11 @@ export const AppNavigator: React.FC = () => {
           options={{
             headerShown: false,
           }}
+        />
+        <Stack.Screen
+          name="MarketplaceSearch"
+          component={MarketplaceSearchScreen}
+          options={{ headerShown: false }}
         />
         <Stack.Screen
           name="SelectCategory"

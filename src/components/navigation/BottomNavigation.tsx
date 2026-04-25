@@ -45,7 +45,7 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
         >
           <HomeIcon
             size={24}
-            color={activeTab === 'Home' ? Colors.light.primary : '#6B7280'}
+            color={activeTab === 'Home' ? Colors.light.primary : '#828282'}
           />
           <Text
             style={[
@@ -64,7 +64,7 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
         >
           <MyListingsIcon
             size={24}
-            color={activeTab === 'MyListings' ? Colors.light.primary : '#6B7280'}
+            color={activeTab === 'MyListings' ? Colors.light.primary : '#828282'}
           />
           <Text
             style={[
@@ -96,7 +96,7 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
         >
           <MessageIcon
             size={24}
-            color={activeTab === 'Messages' ? Colors.light.primary : '#6B7280'}
+            color={activeTab === 'Messages' ? Colors.light.primary : '#828282'}
           />
           <Text
             style={[
@@ -115,7 +115,7 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
         >
           <ProfileIcon
             size={24}
-            color={activeTab === 'Profile' ? Colors.light.primary : '#6B7280'}
+            color={activeTab === 'Profile' ? Colors.light.primary : '#828282'}
           />
           <Text
             style={[
@@ -153,7 +153,7 @@ const styles = StyleSheet.create({
   },
   navLabel: {
     ...Typography.caption,
-    color: '#6B7280',
+    color: '#828282',
     marginTop: Spacing.xs,
     fontSize: 12,
   },
