@@ -232,7 +232,7 @@ export const ServiceListingDetailScreen: React.FC<ServiceListingDetailScreenProp
         >
           <BackIcon size={24} color="#030303" />
         </TouchableOpacity>
-        <View style={styles.headerRight}>
+        {/* <View style={styles.headerRight}>
           <TouchableOpacity
             style={styles.headerIconButton}
             onPress={handleSearch}
@@ -247,7 +247,7 @@ export const ServiceListingDetailScreen: React.FC<ServiceListingDetailScreenProp
           >
             <ShareIcon size={14} color="#FFFFFF" />
           </TouchableOpacity>
-        </View>
+        </View> */}
       </View>
 
       <ScrollView

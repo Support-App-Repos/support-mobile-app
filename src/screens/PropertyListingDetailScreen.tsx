@@ -26,12 +26,6 @@ import {
   SaveIcon,
   ReportIcon,
   LocationIcon,
-  LocationColorIcon,
-  CalendarIcon,
-  CardIcon,
-  HomeIcon,
-  HomeServiceIcon,
-  PropertiesIcon,
   EmailContactIcon,
   CallContactIcon,
   WhatsAppContactIcon,
@@ -285,21 +279,17 @@ export const PropertyListingDetailScreen: React.FC<PropertyListingDetailScreenPr
             <TouchableOpacity style={styles.circleBtnLight} onPress={() => navigation?.goBack()}>
               <BackIcon size={22} color="#111" />
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => navigation?.navigate('Profile')} activeOpacity={0.8}>
-              <Image source={{ uri: sellerAvatar }} style={styles.headerAvatar} />
-            </TouchableOpacity>
+            {/* {allPhotos.length > 0 && (
+              <View style={styles.heroTopActions}>
+                <TouchableOpacity style={styles.circleBtnPrimary} activeOpacity={0.85}>
+                  <SearchIcon size={14} color="#FFF" />
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.circleBtnPrimary} activeOpacity={0.85}>
+                  <ShareIcon size={14} color="#FFF" />
+                </TouchableOpacity>
+              </View>
+            )} */}
           </View>
-
-          {allPhotos.length > 0 && (
-            <View style={styles.heroActions}>
-              <TouchableOpacity style={styles.circleBtnPrimary}>
-                <SearchIcon size={14} color="#FFF" />
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.circleBtnPrimary}>
-                <ShareIcon size={14} color="#FFF" />
-              </TouchableOpacity>
-            </View>
-          )}
 
           {allPhotos.length > 1 && (
             <View style={styles.dotsRow}>
@@ -363,82 +353,16 @@ export const PropertyListingDetailScreen: React.FC<PropertyListingDetailScreenPr
           </View>
 
           <Text style={[styles.sectionTitle, styles.sectionTitleSpaced]}>Property Information</Text>
-          <View style={styles.infoCard}>
-            <View style={styles.infoItem}>
-              <View style={styles.infoHeaderRow}>
-                <View style={styles.infoIconCircle}>
-                  <HomeIcon size={18} color={Colors.light.primary} />
-                </View>
-                <Text style={styles.infoHeaderText}>Type</Text>
-              </View>
-              <Text style={styles.infoValueText}>{listing.propertyType || '—'}</Text>
-            </View>
-
-            <View style={styles.infoItem}>
-              <View style={styles.infoHeaderRow}>
-                <View style={styles.infoIconCircle}>
-                  <PropertiesIcon size={18} color={Colors.light.primary} />
-                </View>
-                <Text style={styles.infoHeaderText}>Purpose</Text>
-              </View>
-              <Text style={styles.infoValueText}>{listing.propertyPurpose || '—'}</Text>
-            </View>
-
-            {!!listing.referenceNo && (
-              <View style={styles.infoItem}>
-                <View style={styles.infoHeaderRow}>
-                  <View style={styles.infoIconCircle}>
-                    <CardIcon size={18} color={Colors.light.primary} />
-                  </View>
-                  <Text style={styles.infoHeaderText}>Reference No.</Text>
-                </View>
-                <Text style={styles.infoValueText}>{listing.referenceNo}</Text>
-              </View>
-            )}
-
-            {!!listing.furnishing && (
-              <View style={styles.infoItem}>
-                <View style={styles.infoHeaderRow}>
-                  <View style={styles.infoIconCircle}>
-                    <HomeServiceIcon size={18} color={Colors.light.primary} />
-                  </View>
-                  <Text style={styles.infoHeaderText}>Furnishing</Text>
-                </View>
-                <Text style={styles.infoValueText}>{listing.furnishing}</Text>
-              </View>
-            )}
-
-            <View style={[styles.infoItem, styles.infoItemLast]}>
-              <View style={styles.infoHeaderRow}>
-                <View style={styles.infoIconCircle}>
-                  <CalendarIcon size={18} color={Colors.light.primary} />
-                </View>
-                <Text style={styles.infoHeaderText}>Added on</Text>
-              </View>
-              <Text style={styles.infoValueText}>{formatListingDate(listing.createdAt)}</Text>
-            </View>
-
-            {!!listing.city && (
-              <View style={styles.infoItem}>
-                <View style={styles.infoHeaderRow}>
-                  <View style={styles.infoIconCircle}>
-                    <LocationColorIcon size={18} color={Colors.light.primary} />
-                  </View>
-                  <Text style={styles.infoHeaderText}>City</Text>
-                </View>
-                <Text style={styles.infoValueText}>{listing.city}</Text>
-              </View>
-            )}
-
+          <View style={styles.card}>
+            <InfoRow label="Type" value={listing.propertyType} />
+            <InfoRow label="Purpose" value={listing.propertyPurpose} />
+            <InfoRow label="Reference no." value={listing.referenceNo} />
+            <InfoRow label="Furnishing" value={listing.furnishing} />
+            <InfoRow label="Added on" value={formatListingDate(listing.createdAt)} />
+            {!!listing.city && <InfoRow label="City" value={listing.city} />}
             {!!listing.location && (
-              <View style={[styles.infoItem, styles.infoItemLast]}>
-                <View style={styles.infoHeaderRow}>
-                  <View style={styles.infoIconCircle}>
-                    <LocationIcon size={18} color={Colors.light.primary} />
-                  </View>
-                  <Text style={styles.infoHeaderText}>Location</Text>
-                </View>
-                <Text style={styles.infoValueText}>{listing.location}</Text>
+              <View style={styles.locRow}>
+                <InfoRow label="Location" value={listing.location} />
               </View>
             )}
           </View>
@@ -603,6 +527,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
+  heroTopActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
   circleBtnLight: {
     width: 40,
     height: 40,
@@ -611,13 +540,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  headerAvatar: { width: 40, height: 40, borderRadius: 20, borderWidth: 2, borderColor: '#FFF' },
-  heroActions: {
-    position: 'absolute',
-    top: Spacing.sm + 52,
-    right: Spacing.md,
-    gap: Spacing.sm,
-  },
   circleBtnPrimary: {
     width: 36,
     height: 36,
@@ -625,7 +547,6 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.light.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: Spacing.sm,
   },
   dotsRow: {
     position: 'absolute',
@@ -669,47 +590,6 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.lg,
     padding: Spacing.md,
     marginTop: Spacing.sm,
-  },
-  infoCard: {
-    marginTop: Spacing.sm,
-    backgroundColor: '#FFFFFF',
-    borderRadius: BorderRadius.lg,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    overflow: 'hidden',
-  },
-  infoItem: {
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-  },
-  infoItemLast: {
-    borderBottomWidth: 0,
-  },
-  infoHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-    marginBottom: Spacing.xs,
-  },
-  infoIconCircle: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: 'rgba(13, 71, 92, 0.10)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  infoHeaderText: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: Colors.light.text,
-  },
-  infoValueText: {
-    fontSize: 16,
-    color: Colors.light.textSecondary,
-    marginLeft: 40,
   },
   bulletRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.sm },
   bullet: { width: 6, height: 6, borderRadius: 3, backgroundColor: Colors.light.text },

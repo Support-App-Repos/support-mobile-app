@@ -227,7 +227,7 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
         >
           <BackIcon size={24} color="#030303" />
         </TouchableOpacity>
-        <View style={styles.headerRight}>
+        {/* <View style={styles.headerRight}>
           <TouchableOpacity
             style={styles.headerIconButton}
             onPress={handleSearch}
@@ -242,7 +242,7 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
           >
             <ShareIcon size={14} color="#FFFFFF" />
           </TouchableOpacity>
-        </View>
+        </View> */}
       </View>
 
       <ScrollView

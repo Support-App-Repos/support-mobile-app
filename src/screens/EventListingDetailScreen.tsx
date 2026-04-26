@@ -254,7 +254,7 @@ export const EventListingDetailScreen: React.FC<EventListingDetailScreenProps> =
         >
           <BackIcon size={24} color="#030303" />
         </TouchableOpacity>
-        <View style={styles.headerRight}>
+        {/* <View style={styles.headerRight}>
           <TouchableOpacity
             style={styles.headerIconButton}
             onPress={handleSearch}
@@ -269,7 +269,7 @@ export const EventListingDetailScreen: React.FC<EventListingDetailScreenProps> =
           >
             <ShareIcon size={14} color="#FFFFFF" />
           </TouchableOpacity>
-        </View>
+        </View> */}
       </View>
 
       <ScrollView
@@ -505,18 +505,21 @@ export const EventListingDetailScreen: React.FC<EventListingDetailScreenProps> =
       {/* Bottom Action Bar */}
       <View style={styles.bottomActionBar}>
         <TouchableOpacity
-          style={styles.phoneButton}
+          style={styles.bottomBtn}
           onPress={handlePhoneCall}
           activeOpacity={0.8}
         >
-          <PhoneIcon size={24} color="#FFFFFF" />
+          <View style={styles.bottomBtnRow}>
+            <PhoneIcon size={20} color="#FFFFFF" />
+            <Text style={styles.bottomBtnText}>Call</Text>
+          </View>
         </TouchableOpacity>
         <TouchableOpacity
-          style={styles.bookButton}
+          style={styles.bottomBtn}
           onPress={handleBookNow}
           activeOpacity={0.8}
         >
-          <Text style={styles.bookButtonText}>Book now</Text>
+          <Text style={styles.bottomBtnText}>Book now</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -831,23 +834,20 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#E5E7EB',
   },
-  phoneButton: {
-    width: 50,
-    height: 50,
-    borderRadius: BorderRadius.md,
-    backgroundColor: Colors.light.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  bookButton: {
+  bottomBtn: {
     flex: 1,
-    height: 50,
+    height: 52,
     borderRadius: BorderRadius.md,
     backgroundColor: Colors.light.primary,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  bookButtonText: {
+  bottomBtnRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  bottomBtnText: {
     ...Typography.body,
     color: '#FFFFFF',
     fontSize: 16,
