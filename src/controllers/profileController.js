@@ -149,6 +149,7 @@ exports.getBrowsingHistory = async (req, res) => {
           description: listing.description,
           price: listing.price || null,
           priceType: listing.price_type || null,
+          currency: listing.currency || null,
           location: listing.location,
           city: listing.city || null,
           status: listing.status,
