@@ -82,4 +82,5 @@ export { MultiColoredUserIcon } from './MultiColoredUserIcon';
 export { MultiUserIcon } from './MultiUserIcon';
 export { AmenityGlyphPlaceholder } from './AmenityGlyphPlaceholder';
 export { PropertyAmenityIcon } from './PropertyAmenityIcon';
+export { GoogleLocationField } from './GoogleLocationField';
 

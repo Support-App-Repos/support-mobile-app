@@ -61,6 +61,15 @@ export const MyListingsScreen: React.FC<{
   const [snackbarVisible, setSnackbarVisible] = useState(false);
   const { profileImageUrl } = useProfile();
 
+  const emptyTitle =
+    selectedStatus === 'All'
+      ? 'No Listings'
+      : `No ${selectedStatus} Listings`;
+  const emptyBody =
+    selectedStatus === 'All'
+      ? 'Your listings will appear here.'
+      : `Your ${selectedStatus.toLowerCase()} listings will appear here.`;
+
   // Update active tab when screen comes into focus
   useFocusEffect(
     React.useCallback(() => {
@@ -199,10 +208,8 @@ export const MyListingsScreen: React.FC<{
         ) : listings.length === 0 ? (
           <View style={styles.emptyState}>
             <NoListingIcon size={117} color="#BBBBBB" />
-            <Text style={styles.emptyStateTitle}>No Active Listings</Text>
-            <Text style={styles.emptyStateText}>
-              Your active listings will appear here.
-            </Text>
+            <Text style={styles.emptyStateTitle}>{emptyTitle}</Text>
+            <Text style={styles.emptyStateText}>{emptyBody}</Text>
             <TouchableOpacity
               style={styles.postListingButton}
               onPress={handlePostListing}
@@ -218,6 +225,7 @@ export const MyListingsScreen: React.FC<{
                 id: listing.id,
                 title: listing.title,
                 price: listing.price,
+                currency: listing.currency,
                 viewsCount: listing.viewsCount,
                 status: listing.status as 'Active' | 'Pending' | 'Rejected' | 'Expired',
                 createdAt: listing.createdAt,

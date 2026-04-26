@@ -18,7 +18,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { BackIcon, BellIcon, AddPhotoIcon, Checkbox } from '../components/common';
+import { BackIcon, BellIcon, AddPhotoIcon, Checkbox, GoogleLocationField } from '../components/common';
 import { BottomNavigation, type BottomNavItem } from '../components/navigation';
 import { Colors, Spacing, Typography, BorderRadius } from '../config/theme';
 import { listingService, paymentService, pickImages, uploadImages } from '../services';
@@ -142,6 +142,51 @@ export const PropertyListingScreen: React.FC<PropertyListingScreenProps> = ({ na
   const currentStep = 0;
   const categoryId = route?.params?.categoryId;
   const isForSale = purpose === 'For Sale';
+
+  // Prefill form when editing from Review/Region flow
+  useEffect(() => {
+    const incoming = (route?.params as any)?.listingData || route?.params;
+    if (!incoming) return;
+
+    if (incoming.title != null) setTitle(String(incoming.title));
+    if (incoming.propertyPurpose != null) setPurpose(String(incoming.propertyPurpose));
+    if (incoming.price != null) setPrice(String(incoming.price));
+    if (incoming.currency != null) setCurrency(String(incoming.currency));
+    if (incoming.location != null) setLocation(String(incoming.location));
+    if (incoming.city != null) setCity(String(incoming.city));
+    if (incoming.bedrooms != null) setBedrooms(String(incoming.bedrooms));
+    if (incoming.bathrooms != null) setBathrooms(String(incoming.bathrooms));
+    if (incoming.squareFeet != null) setSquareFeet(String(incoming.squareFeet));
+    if (incoming.referenceNo != null) setReferenceNo(String(incoming.referenceNo));
+    if (incoming.furnishing != null) setFurnishing(String(incoming.furnishing));
+    if (incoming.additionalTags != null) setAdditionalTags(String(incoming.additionalTags));
+    if (incoming.propertyType != null) setPropertyType(String(incoming.propertyType));
+    if (incoming.ownership != null) setOwnership(String(incoming.ownership));
+    if (incoming.builtUpArea != null) setBuiltUpArea(String(incoming.builtUpArea));
+    if (incoming.propertyUsage != null) setUsage(String(incoming.propertyUsage));
+    if (incoming.balconySize != null) setBalconySize(String(incoming.balconySize));
+
+    if (incoming.amenities != null && selectedAmenityIds.length === 0) {
+      // amenities is stored as comma-separated or array of ids
+      const raw = incoming.amenities;
+      const ids = Array.isArray(raw)
+        ? raw.map(String)
+        : String(raw)
+            .split(',')
+            .map((s: string) => s.trim())
+            .filter(Boolean);
+      setSelectedAmenityIds(ids);
+    }
+
+    if (Array.isArray(incoming.photos) && incoming.photos.length > 0 && photoUris.length === 0) {
+      // For editing we keep existing URLs in preview
+      const urls = incoming.photos
+        .map((p: any) => (typeof p === 'string' ? p : p?.photoUrl || p?.url))
+        .filter(Boolean);
+      setPhotos(urls);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (purpose === 'For Rent') {
@@ -383,12 +428,15 @@ export const PropertyListingScreen: React.FC<PropertyListingScreenProps> = ({ na
             <Text style={styles.label}>
               Location <Text style={styles.required}>*</Text>
             </Text>
-            <TextInput
-              style={styles.input}
-              placeholder="e.g Al nahda"
-              placeholderTextColor={Colors.light.textSecondary}
+            <GoogleLocationField
+              label=""
+              required
               value={location}
-              onChangeText={setLocation}
+              placeholder="Search location"
+              onSelect={({ location: loc, city: c }) => {
+                setLocation(loc);
+                if (c) setCity(c);
+              }}
             />
           </View>
           <View style={styles.fieldFlex}>

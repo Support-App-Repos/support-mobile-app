@@ -9,12 +9,14 @@ import {
   StyleSheet,
   ScrollView,
   Image,
+  ImageBackground,
   TouchableOpacity,
   Dimensions,
   ActivityIndicator,
   Alert,
   Linking,
   FlatList,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -24,6 +26,12 @@ import {
   SaveIcon,
   ReportIcon,
   LocationIcon,
+  LocationColorIcon,
+  CalendarIcon,
+  CardIcon,
+  HomeIcon,
+  HomeServiceIcon,
+  PropertiesIcon,
   EmailContactIcon,
   CallContactIcon,
   WhatsAppContactIcon,
@@ -83,6 +91,7 @@ export const PropertyListingDetailScreen: React.FC<PropertyListingDetailScreenPr
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [heroIndex, setHeroIndex] = useState(0);
+  const [showAllAmenities, setShowAllAmenities] = useState(false);
   const listingId = route?.params?.listingId;
 
   const onHeroViewable = useRef(({ viewableItems }: any) => {
@@ -192,6 +201,25 @@ export const PropertyListingDetailScreen: React.FC<PropertyListingDetailScreenPr
     }
     Linking.openURL(`https://wa.me/${digits}`).catch(() => Alert.alert('Error', 'Could not open WhatsApp.'));
   }, [listing]);
+
+  const openInGoogleMaps = useCallback(() => {
+    const address = listing?.location;
+    if (!address) {
+      Alert.alert('Unavailable', 'Location is not available.');
+      return;
+    }
+
+    const google = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
+    const apple = `http://maps.apple.com/?q=${encodeURIComponent(address)}`;
+
+    Linking.openURL(google).catch(() => {
+      if (Platform.OS === 'ios') {
+        Linking.openURL(apple).catch(() => Alert.alert('Error', 'Could not open Maps.'));
+      } else {
+        Alert.alert('Error', 'Could not open Google Maps.');
+      }
+    });
+  }, [listing?.location]);
 
   if (loading) {
     return (
@@ -335,17 +363,82 @@ export const PropertyListingDetailScreen: React.FC<PropertyListingDetailScreenPr
           </View>
 
           <Text style={[styles.sectionTitle, styles.sectionTitleSpaced]}>Property Information</Text>
-          <View style={styles.card}>
-            <InfoRow label="Type" value={listing.propertyType} />
-            <InfoRow label="Purpose" value={listing.propertyPurpose} />
-            <InfoRow label="Reference no." value={listing.referenceNo} />
-            <InfoRow label="Furnishing" value={listing.furnishing} />
-            <InfoRow label="Added on" value={formatListingDate(listing.createdAt)} />
-            {!!listing.city && <InfoRow label="City" value={listing.city} />}
+          <View style={styles.infoCard}>
+            <View style={styles.infoItem}>
+              <View style={styles.infoHeaderRow}>
+                <View style={styles.infoIconCircle}>
+                  <HomeIcon size={18} color={Colors.light.primary} />
+                </View>
+                <Text style={styles.infoHeaderText}>Type</Text>
+              </View>
+              <Text style={styles.infoValueText}>{listing.propertyType || '—'}</Text>
+            </View>
+
+            <View style={styles.infoItem}>
+              <View style={styles.infoHeaderRow}>
+                <View style={styles.infoIconCircle}>
+                  <PropertiesIcon size={18} color={Colors.light.primary} />
+                </View>
+                <Text style={styles.infoHeaderText}>Purpose</Text>
+              </View>
+              <Text style={styles.infoValueText}>{listing.propertyPurpose || '—'}</Text>
+            </View>
+
+            {!!listing.referenceNo && (
+              <View style={styles.infoItem}>
+                <View style={styles.infoHeaderRow}>
+                  <View style={styles.infoIconCircle}>
+                    <CardIcon size={18} color={Colors.light.primary} />
+                  </View>
+                  <Text style={styles.infoHeaderText}>Reference No.</Text>
+                </View>
+                <Text style={styles.infoValueText}>{listing.referenceNo}</Text>
+              </View>
+            )}
+
+            {!!listing.furnishing && (
+              <View style={styles.infoItem}>
+                <View style={styles.infoHeaderRow}>
+                  <View style={styles.infoIconCircle}>
+                    <HomeServiceIcon size={18} color={Colors.light.primary} />
+                  </View>
+                  <Text style={styles.infoHeaderText}>Furnishing</Text>
+                </View>
+                <Text style={styles.infoValueText}>{listing.furnishing}</Text>
+              </View>
+            )}
+
+            <View style={[styles.infoItem, styles.infoItemLast]}>
+              <View style={styles.infoHeaderRow}>
+                <View style={styles.infoIconCircle}>
+                  <CalendarIcon size={18} color={Colors.light.primary} />
+                </View>
+                <Text style={styles.infoHeaderText}>Added on</Text>
+              </View>
+              <Text style={styles.infoValueText}>{formatListingDate(listing.createdAt)}</Text>
+            </View>
+
+            {!!listing.city && (
+              <View style={styles.infoItem}>
+                <View style={styles.infoHeaderRow}>
+                  <View style={styles.infoIconCircle}>
+                    <LocationColorIcon size={18} color={Colors.light.primary} />
+                  </View>
+                  <Text style={styles.infoHeaderText}>City</Text>
+                </View>
+                <Text style={styles.infoValueText}>{listing.city}</Text>
+              </View>
+            )}
+
             {!!listing.location && (
-              <View style={styles.locRow}>
-                <LocationIcon size={15} color="#6B7280" />
-                <Text style={styles.locText}>{listing.location}</Text>
+              <View style={[styles.infoItem, styles.infoItemLast]}>
+                <View style={styles.infoHeaderRow}>
+                  <View style={styles.infoIconCircle}>
+                    <LocationIcon size={18} color={Colors.light.primary} />
+                  </View>
+                  <Text style={styles.infoHeaderText}>Location</Text>
+                </View>
+                <Text style={styles.infoValueText}>{listing.location}</Text>
               </View>
             )}
           </View>
@@ -353,9 +446,11 @@ export const PropertyListingDetailScreen: React.FC<PropertyListingDetailScreenPr
           {hasValidated && (
             <>
               <View style={styles.validatedHeader}>
-                <Text style={styles.sectionTitle}>Validated Information</Text>
-                <View style={styles.checkBadge}>
-                  <Text style={styles.checkMark}>✓</Text>
+                <View style={styles.validatedHeaderTitleRow}>
+                  <Text style={[styles.sectionTitle, { flex: 0 }]}>Validated Information</Text>
+                  <View style={styles.checkBadge}>
+                    <Text style={styles.checkMark}>✓</Text>
+                  </View>
                 </View>
               </View>
               <View style={styles.card}>
@@ -371,7 +466,7 @@ export const PropertyListingDetailScreen: React.FC<PropertyListingDetailScreenPr
             <>
               <Text style={[styles.sectionTitle, styles.sectionTitleSpaced]}>Amenities</Text>
               <View style={styles.amenityRow}>
-                {amenityTokens.slice(0, 3).map((t, i) => (
+                {(showAllAmenities ? amenityTokens : amenityTokens.slice(0, 2)).map((t, i) => (
                   <View
                     key={`${t.kind}-${t.kind === 'known' ? t.id : t.label}-${i}`}
                     style={styles.amenityCard}
@@ -389,8 +484,14 @@ export const PropertyListingDetailScreen: React.FC<PropertyListingDetailScreenPr
                   </View>
                 ))}
                 {amenityTokens.length > 3 && (
-                  <TouchableOpacity style={styles.amenityMore} activeOpacity={0.7}>
-                    <Text style={styles.amenityMoreText}>+{amenityTokens.length - 3} More</Text>
+                  <TouchableOpacity
+                    style={styles.amenityMore}
+                    activeOpacity={0.7}
+                    onPress={() => setShowAllAmenities((v) => !v)}
+                  >
+                    <Text style={styles.amenityMoreText}>
+                      {showAllAmenities ? 'Show less' : `+${amenityTokens.length - 3} More`}
+                    </Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -406,14 +507,14 @@ export const PropertyListingDetailScreen: React.FC<PropertyListingDetailScreenPr
             </>
           )}
 
-          {!!listing.description?.trim() && (
+          {/* {!!listing.description?.trim() && (
             <>
               <Text style={[styles.sectionTitle, styles.sectionTitleSpaced]}>Description</Text>
               <View style={styles.card}>
                 <Text style={styles.descBody}>{listing.description}</Text>
               </View>
             </>
-          )}
+          )} */}
 
           <Text style={[styles.sectionTitle, styles.sectionTitleSpaced]}>Map View</Text>
           <View style={styles.mapCard}>
@@ -421,12 +522,22 @@ export const PropertyListingDetailScreen: React.FC<PropertyListingDetailScreenPr
               {[listing.location, listing.city].filter(Boolean).join(', ') || 'Address on request'}
             </Text>
             <View style={styles.mapPlaceholder}>
-              <TouchableOpacity style={styles.showMapBtn} activeOpacity={0.85}>
+              <ImageBackground
+                source={require('../assets/images/world-map.png')}
+                style={styles.mapBg}
+                imageStyle={styles.mapBgImage}
+                resizeMode="cover"
+              />
+              <TouchableOpacity
+                style={styles.showMapBtn}
+                activeOpacity={0.85}
+                onPress={openInGoogleMaps}
+              >
                 <LocationIcon size={18} color={Colors.light.primary} />
                 <Text style={styles.showMapText}>Show Map</Text>
               </TouchableOpacity>
             </View>
-            <Text style={styles.postedOn}>Posted on: {formatListingDate(listing.createdAt)}</Text>
+            <Text style={styles.postedOn}>Posted On: {formatListingDate(listing.createdAt)}</Text>
           </View>
 
           <View style={{ height: 100 }} />
@@ -559,6 +670,47 @@ const styles = StyleSheet.create({
     padding: Spacing.md,
     marginTop: Spacing.sm,
   },
+  infoCard: {
+    marginTop: Spacing.sm,
+    backgroundColor: '#FFFFFF',
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    overflow: 'hidden',
+  },
+  infoItem: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  infoItemLast: {
+    borderBottomWidth: 0,
+  },
+  infoHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    marginBottom: Spacing.xs,
+  },
+  infoIconCircle: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: 'rgba(13, 71, 92, 0.10)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  infoHeaderText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: Colors.light.text,
+  },
+  infoValueText: {
+    fontSize: 16,
+    color: Colors.light.textSecondary,
+    marginLeft: 40,
+  },
   bulletRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.sm },
   bullet: { width: 6, height: 6, borderRadius: 3, backgroundColor: Colors.light.text },
   bulletText: { fontSize: 14, color: Colors.light.text },
@@ -567,7 +719,12 @@ const styles = StyleSheet.create({
   kvValue: { flex: 1, fontSize: 14, color: Colors.light.text, fontWeight: '500' },
   locRow: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.sm, marginTop: Spacing.xs },
   locText: { flex: 1, fontSize: 14, color: Colors.light.text },
-  validatedHeader: { flexDirection: 'row', alignItems: 'center', marginTop: Spacing.lg, gap: Spacing.sm },
+  validatedHeader: { marginTop: Spacing.lg },
+  validatedHeaderTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
   checkBadge: {
     width: 22,
     height: 22,
@@ -622,6 +779,14 @@ const styles = StyleSheet.create({
     backgroundColor: '#E5E7EB',
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  mapBg: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  mapBgImage: {
+    opacity: 0.9,
+    transform: [{ scale: 1.4 }],
   },
   showMapBtn: {
     flexDirection: 'row',
@@ -635,7 +800,12 @@ const styles = StyleSheet.create({
     borderColor: '#E5E7EB',
   },
   showMapText: { fontSize: 14, fontWeight: '600', color: Colors.light.primary },
-  postedOn: { marginTop: Spacing.md, fontSize: 13, color: Colors.light.textSecondary },
+  postedOn: {
+    marginTop: Spacing.md,
+    fontSize: 13,
+    color: Colors.light.textSecondary,
+    textAlign: 'left',
+  },
   bottomBar: {
     flexDirection: 'row',
     paddingHorizontal: Spacing.md,

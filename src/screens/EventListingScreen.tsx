@@ -3,7 +3,7 @@
  * First step of the multi-step listing creation form for Events
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Snackbar } from '../components/common';
 import {
   View,
@@ -72,6 +72,35 @@ export const EventListingScreen: React.FC<EventListingScreenProps> = ({
   const currentStep = 0; // First step
   const categoryId = route?.params?.categoryId;
   const eventTypeId = route?.params?.eventTypeId;
+
+  // Prefill when editing from Review/Region flow
+  useEffect(() => {
+    const incoming = (route?.params as any)?.listingData || route?.params;
+    if (!incoming) return;
+
+    if (incoming.title != null) setTitle(String(incoming.title));
+    if (incoming.description != null) setDescription(String(incoming.description));
+    if (incoming.priceType != null) setPriceType(incoming.priceType);
+    if (incoming.price != null) setPrice(String(incoming.price));
+    if (incoming.venue != null) setVenue(String(incoming.venue));
+    if (incoming.city != null) setCity(String(incoming.city));
+    if (incoming.eventDate != null) setEventDate(String(incoming.eventDate));
+    if (incoming.eventTime != null) setEventTime(String(incoming.eventTime));
+    if (incoming.duration != null) setDuration(String(incoming.duration));
+    if (incoming.maxCapacity != null) setMaxCapacity(String(incoming.maxCapacity));
+    if (incoming.organizerName != null) setOrganizerName(String(incoming.organizerName));
+    if (incoming.organizerContact != null) setOrganizerContact(String(incoming.organizerContact));
+    if (incoming.organizerEmail != null) setOrganizerEmail(String(incoming.organizerEmail));
+    if (incoming.tags != null) setTags(String(incoming.tags));
+
+    if (Array.isArray(incoming.photos) && incoming.photos.length > 0 && photoUris.length === 0) {
+      const urls = incoming.photos
+        .map((p: any) => (typeof p === 'string' ? p : p?.photoUrl || p?.url))
+        .filter(Boolean);
+      setPhotos(urls);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Check if all required fields are filled
   const isFormValid = title.trim() !== '' && 

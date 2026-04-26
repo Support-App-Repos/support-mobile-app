@@ -14,11 +14,13 @@ import {
   ImageSourcePropType,
 } from 'react-native';
 import { Colors, Spacing, Typography, BorderRadius } from '../../config/theme';
+import { formatListingPrice } from '../../utils/currency';
 
 export interface MyListingCardData {
   id: string;
   title: string;
   price?: number;
+  currency?: string | null;
   viewsCount?: number;
   status: 'Active' | 'Pending' | 'Rejected' | 'Expired';
   createdAt: string;
@@ -136,10 +138,10 @@ export const MyListingCard: React.FC<MyListingCardProps> = ({
         {listing.price !== undefined && listing.price !== null && (
           <>
             <Text style={styles.price}>
-              ${listing.price.toFixed(0)}
+              {formatListingPrice(listing.price, listing.currency)}
             </Text>
             <Text style={styles.totalPrice}>
-              Total: ${listing.price.toFixed(0)}
+              Total: {formatListingPrice(listing.price, listing.currency)}
             </Text>
           </>
         )}

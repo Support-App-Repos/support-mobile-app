@@ -27,6 +27,7 @@ import { BottomNavigation, type BottomNavItem } from '../components/navigation';
 import { Colors, Spacing, Typography, BorderRadius } from '../config/theme';
 import { listingService } from '../services';
 import { useProfile } from '../hooks';
+import { formatListingPrice } from '../utils/currency';
 
 type ReviewScreenProps = {
   navigation?: any;
@@ -61,14 +62,31 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
   };
 
   const handleEditDetails = () => {
-    // Navigate back to ProductListingScreen with current data
-    const categoryName = listingData?.category?.name || 
-                         (typeof listingData?.category === 'string' ? listingData.category : 'Products');
-    navigation?.navigate('ProductListing', {
+    const categoryName =
+      listingData?.category?.name ||
+      (typeof listingData?.category === 'string' ? listingData.category : '');
+    const categorySlug =
+      listingData?.category?.slug ||
+      (typeof listingData?.category === 'string' ? listingData.category : '');
+    const normalized = `${categoryName} ${categorySlug}`.toLowerCase();
+
+    const params = {
       category: categoryName,
       categoryId: listingData?.category?.id || listingData?.categoryId,
-      ...listingData,
-    });
+      listingData,
+      paymentData,
+      regionData,
+    };
+
+    if (normalized.includes('propert')) {
+      navigation?.navigate('PropertyListing', params);
+    } else if (normalized.includes('service')) {
+      navigation?.navigate('ServiceListing', params);
+    } else if (normalized.includes('event')) {
+      navigation?.navigate('EventListing', params);
+    } else {
+      navigation?.navigate('ProductListing', params);
+    }
   };
 
   const handleEditPayment = () => {
@@ -241,7 +259,9 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
             </View>
             <Text style={styles.previewValue}>{listingData?.title || 'Title'}</Text>
             <Text style={styles.previewPrice}>
-              {listingData?.price ? `$${listingData.price}` : 'Price'}
+              {listingData?.price != null
+                ? formatListingPrice(Number(listingData.price), listingData?.currency)
+                : 'Price'}
             </Text>
             <View style={styles.previewLocationRow}>
               <LocationIcon size={15} color="#6B7280" />

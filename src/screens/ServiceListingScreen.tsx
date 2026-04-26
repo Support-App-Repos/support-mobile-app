@@ -3,7 +3,7 @@
  * First step of the multi-step listing creation form for Services
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Snackbar } from '../components/common';
 import {
   View,
@@ -70,6 +70,33 @@ export const ServiceListingScreen: React.FC<ServiceListingScreenProps> = ({
   const currentStep = 0; // First step
   const categoryId = route?.params?.categoryId;
   const serviceTypeId = route?.params?.serviceTypeId;
+
+  // Prefill when editing from Review/Region flow
+  useEffect(() => {
+    const incoming = (route?.params as any)?.listingData || route?.params;
+    if (!incoming) return;
+
+    if (incoming.title != null) setTitle(String(incoming.title));
+    if (incoming.description != null) setDescription(String(incoming.description));
+    if (incoming.priceType != null) setPriceType(incoming.priceType);
+    if (incoming.price != null) setPrice(String(incoming.price));
+    if (incoming.location != null) setLocation(String(incoming.location));
+    if (incoming.city != null) setCity(String(incoming.city));
+    if (incoming.specialization != null) setSpecialization(String(incoming.specialization));
+    if (incoming.yearsOfExperience != null) setYearsOfExperience(String(incoming.yearsOfExperience));
+    if (incoming.serviceProviderName != null) setServiceProviderName(String(incoming.serviceProviderName));
+    if (incoming.serviceProviderContact != null) setServiceProviderContact(String(incoming.serviceProviderContact));
+    if (incoming.serviceProviderEmail != null) setServiceProviderEmail(String(incoming.serviceProviderEmail));
+    if (incoming.tags != null) setTags(String(incoming.tags));
+
+    if (Array.isArray(incoming.photos) && incoming.photos.length > 0 && photoUris.length === 0) {
+      const urls = incoming.photos
+        .map((p: any) => (typeof p === 'string' ? p : p?.photoUrl || p?.url))
+        .filter(Boolean);
+      setPhotos(urls);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Check if all required fields are filled
   const isFormValid = title.trim() !== '' && 

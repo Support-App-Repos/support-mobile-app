@@ -29,6 +29,7 @@ import {
 } from '../components/common';
 import { Colors, Spacing, Typography, BorderRadius } from '../config/theme';
 import { listingService, profileService } from '../services';
+import { formatListingPrice } from '../utils/currency';
 
 const { width } = Dimensions.get('window');
 
@@ -159,12 +160,21 @@ export const ServiceListingDetailScreen: React.FC<ServiceListingDetailScreenProp
   };
 
   const handlePhoneCall = () => {
-    const phoneNumber = listing?.contactPhone;
-    if (phoneNumber) {
-      Linking.openURL(`tel:${phoneNumber}`);
-    } else {
+    const raw =
+      listing?.serviceProviderContact ||
+      listing?.organizerContact ||
+      listing?.user?.phoneNumber;
+
+    const cleaned = typeof raw === 'string' ? raw.replace(/[^\d+]/g, '') : '';
+
+    if (!cleaned) {
       Alert.alert('Error', 'Phone number not available');
+      return;
     }
+
+    Linking.openURL(`tel:${cleaned}`).catch(() =>
+      Alert.alert('Error', 'Could not start call.'),
+    );
   };
 
   const handleContactService = () => {
@@ -178,10 +188,7 @@ export const ServiceListingDetailScreen: React.FC<ServiceListingDetailScreenProp
     return `${views} views`;
   };
 
-  const formatPrice = (price?: number) => {
-    if (!price) return '$0';
-    return `$ ${price.toLocaleString()}`;
-  };
+  const formatPrice = (price?: number) => formatListingPrice(price, listing?.currency);
 
   if (loading) {
     return (

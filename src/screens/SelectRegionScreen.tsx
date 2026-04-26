@@ -59,6 +59,18 @@ export const SelectRegionScreen: React.FC<SelectRegionScreenProps> = ({
     fetchRecentRegions();
   }, []);
 
+  // Prefill selected region when editing from Review screen
+  useEffect(() => {
+    const incoming =
+      (route?.params as any)?.regionData ||
+      ((route?.params as any)?.id && (route?.params as any)?.name
+        ? { id: (route?.params as any)?.id, name: (route?.params as any)?.name }
+        : null);
+    if (incoming?.id && incoming?.name) {
+      setSelectedRegion({ id: incoming.id, name: incoming.name, country: incoming.country || '' });
+    }
+  }, [route?.params]);
+
   // Fetch regions when search query changes (debounced)
   useEffect(() => {
     const timer = setTimeout(() => {

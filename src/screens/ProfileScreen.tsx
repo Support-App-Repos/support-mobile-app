@@ -36,6 +36,7 @@ import { profileService } from '../services';
 import { authService } from '../services/authService';
 import { Colors, Spacing, Typography, BorderRadius } from '../config/theme';
 import { useProfileContext } from '../contexts/ProfileContext';
+import { formatListingPrice } from '../utils/currency';
 
 // Extended ListingCardData for ProfileScreen
 interface ExtendedListingCardData extends ListingCardData {
@@ -471,7 +472,9 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                     <Text style={styles.listingTitle} numberOfLines={1}>
                       {listing.title}
                     </Text>
-                    <Text style={styles.listingPrice}>$ {listing.price}</Text>
+                    <Text style={styles.listingPrice}>
+                      {formatListingPrice(Number(listing.price), listing.currency)}
+                    </Text>
                     <View style={styles.listingMeta}>
                       <View style={styles.listingRating}>
                         <RatingIcon size={12} color="#FFB904" />

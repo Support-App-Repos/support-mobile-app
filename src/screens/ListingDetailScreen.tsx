@@ -28,6 +28,7 @@ import {
 } from '../components/common';
 import { Colors, Spacing, Typography, BorderRadius } from '../config/theme';
 import { listingService, profileService } from '../services';
+import { formatListingPrice } from '../utils/currency';
 
 const { width } = Dimensions.get('window');
 
@@ -185,10 +186,7 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
     return `${views} views`;
   };
 
-  const formatPrice = (price?: number) => {
-    if (!price) return '$0';
-    return `$ ${price.toLocaleString()}`;
-  };
+  const formatPrice = (price?: number) => formatListingPrice(price, listing?.currency);
 
   if (loading) {
     return (

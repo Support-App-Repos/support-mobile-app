@@ -33,6 +33,7 @@ import {
 } from '../components/common';
 import { Colors, Spacing, Typography, BorderRadius } from '../config/theme';
 import { listingService, profileService } from '../services';
+import { formatListingPrice } from '../utils/currency';
 
 const { width } = Dimensions.get('window');
 
@@ -183,10 +184,7 @@ export const EventListingDetailScreen: React.FC<EventListingDetailScreenProps> =
     return `${views} views`;
   };
 
-  const formatPrice = (price?: number) => {
-    if (!price) return '$0';
-    return `$ ${price.toLocaleString()}`;
-  };
+  const formatPrice = (price?: number) => formatListingPrice(price, listing?.currency);
 
   const formatDate = (dateString?: string) => {
     if (!dateString) return '';
@@ -365,80 +363,76 @@ export const EventListingDetailScreen: React.FC<EventListingDetailScreenProps> =
           </View>
         </View>
 
-        {/* Event Details Section */}
-        <View style={styles.eventDetailsSection}>
-          <Text style={styles.sectionTitle}>Event Details</Text>
-          
-          {/* Event Type */}
-          {listing.eventType && (
-            <View style={styles.detailRowColumn}>
-              <Text style={styles.detailLabel}>Event Type</Text>
-              <Text style={styles.detailValue}>
-                {listing.eventType.name || listing.eventType}
-              </Text>
-            </View>
-          )}
+        {/* Event Details Section (redesigned) */}
+        <Text style={[styles.sectionTitle, styles.eventDetailsHeading]}>Event Details</Text>
+        <View style={styles.eventDetailsCard}>
+          <Text style={styles.eventDetailsTitle}>Event Type</Text>
+          <Text style={styles.eventTypeValue}>
+            {listing.eventType?.name || listing.eventType || '—'}
+          </Text>
+
+          {/* Divider removed to match property info style */}
 
           {/* Date & Time */}
           {(listing.eventDate || listing.date) && (
-            <View style={styles.detailRowColumn}>
-              <View style={styles.detailRowInsideColumn}>
-                <View style={styles.detailIconContainer}>
-                  <CalendarIcon size={20} color="#00CAD4" />
+            <View style={styles.detailBlock}>
+              <View style={styles.detailHeaderRow}>
+                <View style={styles.detailIconCircle}>
+                  <CalendarIcon size={18} color="#00CAD4" />
                 </View>
-                <Text style={styles.detailLabel}>Date & Time</Text>
+                <Text style={styles.detailHeaderText}>Date & Time</Text>
               </View>
-              <Text style={styles.detailValue}>
+              <Text style={styles.detailSubText}>
                 {formatDate(listing.eventDate || listing.date)}
-                {listing.eventTime && ` ${listing.eventTime}`}
+                {listing.eventTime ? ` ${listing.eventTime}` : ''}
               </Text>
             </View>
           )}
 
           {/* Duration */}
-          {listing.duration && (
-            <View style={styles.detailRowColumn}>
-              <View style={styles.detailRowInsideColumn}>
-                <View style={styles.detailIconContainer}>
-                  <DurationIcon size={20} color="#00CAD4" />
+          {!!listing.duration && (
+            <View style={styles.detailBlock}>
+              <View style={styles.detailHeaderRow}>
+                <View style={styles.detailIconCircle}>
+                  <DurationIcon size={18} color="#00CAD4" />
                 </View>
-                <Text style={styles.detailLabel}>Duration</Text>
+                <Text style={styles.detailHeaderText}>Duration</Text>
               </View>
-              <Text style={styles.detailValue}>
-                {listing.eventTime || '14:00'} ({listing.duration})
+              <Text style={styles.detailSubText}>
+                {listing.eventTime ? `${listing.eventTime} ` : ''}
+                ({listing.duration})
               </Text>
             </View>
           )}
 
           {/* Location */}
-          {listing.location && (
-            <View style={styles.detailRowColumn}>
-              <View style={styles.detailRowInsideColumn}>
-                <View style={styles.detailIconContainer}>
-                  <LocationColorIcon size={20} color="#00CAD4" />
+          {!!listing.location && (
+            <View style={styles.detailBlock}>
+              <View style={styles.detailHeaderRow}>
+                <View style={styles.detailIconCircle}>
+                  <LocationColorIcon size={18} color="#00CAD4" />
                 </View>
-                <Text style={styles.detailLabel}>Location</Text>
+                <Text style={styles.detailHeaderText}>Location</Text>
               </View>
-              <Text style={styles.detailValue}>{listing.location}</Text>
+              <Text style={styles.detailSubText}>{listing.location}</Text>
             </View>
           )}
 
           {/* Capacity */}
           {(listing.maxCapacity || listing.capacity) && (
-            <View style={styles.detailRowColumn}>
-              <View style={styles.detailRowInsideColumn}>
-                <View style={styles.detailIconContainer}>
-                  <MultiColoredUserIcon size={20} color="#00CAD4" />
+            <View style={styles.detailBlock}>
+              <View style={styles.detailHeaderRow}>
+                <View style={styles.detailIconCircle}>
+                  <MultiColoredUserIcon size={18} color="#00CAD4" />
                 </View>
-                <Text style={styles.detailLabel}>Capacity</Text>
+                <Text style={styles.detailHeaderText}>Capacity</Text>
               </View>
-              <View style={styles.capacityContainer}>
-                <Text style={styles.detailValue}>
-                  {listing.currentAttendees || listing.attendeesCount || 0} / {listing.maxCapacity || listing.capacity} attendees
-                </Text>
-                <View style={styles.progressBarContainer}>
-                  <View style={[styles.progressBar, { width: `${getCapacityProgress()}%` }]} />
-                </View>
+              <Text style={styles.detailSubText}>
+                {listing.currentAttendees || listing.attendeesCount || 0} /{' '}
+                {listing.maxCapacity || listing.capacity} attendees
+              </Text>
+              <View style={styles.progressBarContainerLg}>
+                <View style={[styles.progressBarLg, { width: `${getCapacityProgress()}%` }]} />
               </View>
             </View>
           )}
@@ -487,7 +481,7 @@ export const EventListingDetailScreen: React.FC<EventListingDetailScreenProps> =
            <View style={styles.section}>
              <Text style={styles.sectionTitle}>Hosted By</Text>
              <View style={styles.hostRow}>
-               <View style={styles.detailIconContainer}>
+              <View style={styles.hostIconContainer}>
                  <MultiUserIcon size={20} color="#040404" />
                </View>
                <View style={styles.hostInfoContainer}>
@@ -675,10 +669,81 @@ const styles = StyleSheet.create({
     color: Colors.light.textSecondary,
     fontSize: 14,
   },
-  eventDetailsSection: {
+  eventDetailsCard: {
+    marginHorizontal: Spacing.md,
+    marginTop: Spacing.sm,
+    backgroundColor: '#FFFFFF',
+    borderRadius: BorderRadius.lg,
+    // No border lines (match property info style)
+    overflow: 'hidden',
+  },
+  eventDetailsTitle: {
+    ...Typography.h3,
+    fontSize: 18,
+    fontWeight: '700',
+    color: Colors.light.text,
+    paddingHorizontal: Spacing.md,
+    paddingTop: Spacing.md,
+    paddingBottom: Spacing.xs,
+  },
+  eventTypeValue: {
+    ...Typography.body,
+    color: Colors.light.text,
+    fontSize: 14,
+    paddingHorizontal: Spacing.md,
+    paddingBottom: Spacing.md,
+  },
+  detailBlock: {
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.md,
-    backgroundColor: Colors.light.background,
+  },
+  detailHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    marginBottom: Spacing.xs,
+  },
+  detailIconCircle: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(0, 202, 212, 0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  detailHeaderText: {
+    ...Typography.body,
+    color: Colors.light.text,
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  detailSubText: {
+    ...Typography.body,
+    color: Colors.light.textSecondary,
+    fontSize: 14,
+    marginLeft: 38,
+  },
+  progressBarContainerLg: {
+    height: 8,
+    backgroundColor: '#E5E7EB',
+    borderRadius: 4,
+    marginTop: Spacing.sm,
+    overflow: 'hidden',
+    marginLeft: 38,
+  },
+  progressBarLg: {
+    height: '100%',
+    backgroundColor: '#00CAD4',
+    borderRadius: 4,
+  },
+  hostIconContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 2,
   },
   section: {
     paddingHorizontal: Spacing.md,
@@ -691,53 +756,12 @@ const styles = StyleSheet.create({
     fontSize: 18,
     marginBottom: Spacing.md,
   },
-  detailRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: Spacing.md,
-    gap: Spacing.sm,
+  eventDetailsHeading: {
+    paddingHorizontal: Spacing.md,
+    marginTop: Spacing.sm,
+    marginBottom: Spacing.sm,
   },
-  detailRowColumn: {
-    flexDirection: 'column',
-    marginBottom: Spacing.md,
-  },
-  detailRowInsideColumn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: Spacing.xs,
-    gap: Spacing.sm,
-  },
-  detailIconContainer: {
-    width: 24,
-    alignItems: 'center',
-  },
-  detailLabel: {
-    ...Typography.body,
-    color: Colors.light.textSecondary,
-    fontSize: 14,
-    minWidth: 100,
-  },
-  detailValue: {
-    ...Typography.body,
-    color: Colors.light.text,
-    fontSize: 14,
-    flex: 1,
-  },
-  capacityContainer: {
-    flex: 1,
-  },
-  progressBarContainer: {
-    height: 4,
-    backgroundColor: '#E5E7EB',
-    borderRadius: 2,
-    marginTop: Spacing.xs,
-    overflow: 'hidden',
-  },
-  progressBar: {
-    height: '100%',
-    backgroundColor: Colors.light.primary,
-    borderRadius: 2,
-  },
+  // (old event details styles removed)
   descriptionText: {
     ...Typography.body,
     color: Colors.light.textSecondary,
