@@ -18,7 +18,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { BackIcon, BellIcon, AddPhotoIcon, PriceTypeDropdown, type PriceType } from '../components/common';
+import { BackIcon, BellIcon, AddPhotoIcon, PriceTypeDropdown, type PriceType, GoogleLocationField } from '../components/common';
 import { BottomNavigation, type BottomNavItem } from '../components/navigation';
 import { Colors, Spacing, Typography, BorderRadius } from '../config/theme';
 import { listingService, paymentService, pickImages, uploadImages } from '../services';
@@ -403,12 +403,15 @@ export const ServiceListingScreen: React.FC<ServiceListingScreenProps> = ({
             <Text style={styles.label}>
               Location <Text style={styles.required}>*</Text>
             </Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Service location"
-              placeholderTextColor={Colors.light.textSecondary}
+            <GoogleLocationField
+              label=""
+              required
               value={location}
-              onChangeText={setLocation}
+              placeholder="Search location"
+              onSelect={({ location: loc, city: c }) => {
+                setLocation(loc);
+                if (c) setCity(c);
+              }}
             />
           </View>
           <View style={[styles.fieldContainer, styles.halfWidth]}>

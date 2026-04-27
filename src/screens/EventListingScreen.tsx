@@ -18,7 +18,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { BackIcon, BellIcon, AddPhotoIcon, PriceTypeDropdown, type PriceType } from '../components/common';
+import { BackIcon, BellIcon, AddPhotoIcon, PriceTypeDropdown, type PriceType, GoogleLocationField } from '../components/common';
 import { BottomNavigation, type BottomNavItem } from '../components/navigation';
 import { Colors, Spacing, Typography, BorderRadius } from '../config/theme';
 import { listingService, paymentService, pickImages, uploadImages } from '../services';
@@ -400,12 +400,15 @@ export const EventListingScreen: React.FC<EventListingScreenProps> = ({
             <Text style={styles.label}>
               Venue/Location <Text style={styles.required}>*</Text>
             </Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Venue name"
-              placeholderTextColor={Colors.light.textSecondary}
+            <GoogleLocationField
+              label=""
+              required
               value={venue}
-              onChangeText={setVenue}
+              placeholder="Search venue/location"
+              onSelect={({ location: loc, city: c }) => {
+                setVenue(loc);
+                if (c) setCity(c);
+              }}
             />
           </View>
           <View style={[styles.fieldContainer, styles.halfWidth]}>

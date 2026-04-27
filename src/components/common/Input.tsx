@@ -10,6 +10,7 @@ import {
   StyleSheet,
   TextInputProps,
   ViewStyle,
+  Platform,
 } from 'react-native';
 import { Colors, Spacing, BorderRadius, Typography } from '../../config/theme';
 
@@ -36,6 +37,11 @@ export const Input: React.FC<InputProps> = ({
           style,
         ]}
         placeholderTextColor={Colors.light.textSecondary}
+        // Android tends to vertically center text with extra font padding.
+        // This makes single-line inputs look "low" compared to designs.
+        {...(Platform.OS === 'android'
+          ? { includeFontPadding: false, textAlignVertical: 'center' as const }
+          : null)}
         {...textInputProps}
       />
       {error && <Text style={styles.errorText}>{error}</Text>}
@@ -59,7 +65,8 @@ const styles = StyleSheet.create({
     borderColor: Colors.light.border,
     borderRadius: BorderRadius.md,
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
+    paddingTop: Spacing.sm,
+    paddingBottom: Spacing.sm - 2,
     backgroundColor: Colors.light.surface,
     color: Colors.light.text,
     minHeight: 48,
