@@ -2,34 +2,22 @@
  * Phone Number Input Component with Country Code Selector
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
-  TextInput,
-  TouchableOpacity,
   StyleSheet,
   ViewStyle,
+  TouchableOpacity,
+  TextInput,
   Modal,
   FlatList,
+  Keyboard,
 } from 'react-native';
+import type { CountryItem } from 'react-native-country-codes-picker/types/Types';
+import { countryCodes } from 'react-native-country-codes-picker/constants/countryCodes';
 import { Colors, Spacing, BorderRadius, Typography } from '../../config/theme';
 import { filterNumbersOnly } from '../../utils/validation';
-
-interface Country {
-  code: string;
-  dialCode: string;
-  flag: string;
-  name: string;
-}
-
-const COUNTRIES: Country[] = [
-  { code: 'PK', dialCode: '+92', flag: '🇵🇰', name: 'Pakistan' },
-  { code: 'US', dialCode: '+1', flag: '🇺🇸', name: 'United States' },
-  { code: 'GB', dialCode: '+44', flag: '🇬🇧', name: 'United Kingdom' },
-  { code: 'IN', dialCode: '+91', flag: '🇮🇳', name: 'India' },
-  // Add more countries as needed
-];
 
 interface PhoneNumberInputProps {
   label?: string;
@@ -41,6 +29,7 @@ interface PhoneNumberInputProps {
   showGetCodeButton?: boolean;
   onCountryChange?: (countryCode: string, dialCode: string) => void;
   loading?: boolean;
+  defaultCountryCode?: string; // e.g. "PK", "AE"
 }
 
 export const PhoneNumberInput: React.FC<PhoneNumberInputProps> = ({
@@ -53,9 +42,36 @@ export const PhoneNumberInput: React.FC<PhoneNumberInputProps> = ({
   showGetCodeButton = true,
   onCountryChange,
   loading = false,
+  defaultCountryCode = 'PK',
 }) => {
-  const [selectedCountry, setSelectedCountry] = useState<Country>(COUNTRIES[0]);
-  const [showCountryPicker, setShowCountryPicker] = useState(false);
+  const didUserSelectCountryRef = useRef(false);
+  const [showPicker, setShowPicker] = useState(false);
+
+  const initialCountry: CountryItem | undefined = useMemo(() => {
+    const cca2 = String(defaultCountryCode || '').toUpperCase();
+    return countryCodes.find((c) => String(c.code).toUpperCase() === cca2);
+  }, [defaultCountryCode]);
+
+  const [selected, setSelected] = useState<CountryItem | undefined>(initialCountry);
+  const [search, setSearch] = useState('');
+
+  useEffect(() => {
+    if (didUserSelectCountryRef.current) return;
+    if (!initialCountry) return;
+    setSelected(initialCountry);
+    onCountryChange?.(initialCountry.code, initialCountry.dial_code);
+  }, [initialCountry, onCountryChange]);
+
+  const filteredCountries = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return countryCodes;
+    return countryCodes.filter((c) => {
+      const name = (c?.name?.en || '').toLowerCase();
+      const dial = String(c?.dial_code || '').toLowerCase();
+      const code = String(c?.code || '').toLowerCase();
+      return name.includes(q) || dial.includes(q) || code.includes(q);
+    });
+  }, [search]);
 
   const handleGetCode = () => {
     if (onGetCode && value.trim()) {
@@ -67,20 +83,22 @@ export const PhoneNumberInput: React.FC<PhoneNumberInputProps> = ({
     <View style={[styles.container, containerStyle]}>
       {label && <Text style={styles.label}>{label}</Text>}
       <View style={[styles.inputContainer, error && styles.inputError]}>
-        {/* Country Code Selector */}
         <TouchableOpacity
-          style={styles.countrySelector}
-          onPress={() => setShowCountryPicker(true)}
+          style={styles.countryButton}
+          onPress={() => {
+            setSearch('');
+            setShowPicker(true);
+          }}
           activeOpacity={0.7}
+          accessibilityRole="button"
         >
-          <Text style={styles.flag}>{selectedCountry.flag}</Text>
-          <Text style={styles.dialCode}>{selectedCountry.dialCode}</Text>
+          <Text style={styles.flag}>{selected?.flag || '🏳️'}</Text>
+          <Text style={styles.dialCode}>{selected?.dial_code || ''}</Text>
           <Text style={styles.dropdownIcon}>▼</Text>
         </TouchableOpacity>
 
-        {/* Phone Number Input */}
         <TextInput
-          style={styles.phoneInput}
+          style={styles.phoneTextInput}
           placeholder="Enter phone number"
           placeholderTextColor={Colors.light.textSecondary}
           value={value}
@@ -88,45 +106,62 @@ export const PhoneNumberInput: React.FC<PhoneNumberInputProps> = ({
           keyboardType="phone-pad"
           maxLength={15}
         />
-
       </View>
       {error && <Text style={styles.errorText}>{error}</Text>}
 
-      {/* Country Picker Modal */}
       <Modal
-        visible={showCountryPicker}
+        visible={showPicker}
         transparent
         animationType="slide"
-        onRequestClose={() => setShowCountryPicker(false)}
+        onRequestClose={() => setShowPicker(false)}
       >
         <TouchableOpacity
-          style={styles.modalOverlay}
+          style={styles.pickerOverlay}
           activeOpacity={1}
-          onPress={() => setShowCountryPicker(false)}
+          onPress={() => setShowPicker(false)}
         >
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Select Country</Text>
+          <TouchableOpacity
+            style={styles.pickerSheet}
+            activeOpacity={1}
+            onPress={() => {}}
+          >
+            <Text style={styles.pickerTitle}>Select country</Text>
+            <TextInput
+              style={styles.searchInput}
+              value={search}
+              onChangeText={setSearch}
+              placeholder="Search country"
+              placeholderTextColor={Colors.light.textSecondary}
+              autoCorrect={false}
+              autoCapitalize="none"
+              onSubmitEditing={Keyboard.dismiss}
+              returnKeyType="search"
+            />
+
             <FlatList
-              data={COUNTRIES}
-              keyExtractor={(item) => item.code}
+              data={filteredCountries}
+              keyExtractor={(item) => String(item.code)}
+              keyboardShouldPersistTaps="handled"
               renderItem={({ item }) => (
                 <TouchableOpacity
-                  style={styles.countryItem}
+                  style={styles.countryRow}
+                  activeOpacity={0.7}
                   onPress={() => {
-                    setSelectedCountry(item);
-                    setShowCountryPicker(false);
-                    if (onCountryChange) {
-                      onCountryChange(item.code, item.dialCode);
-                    }
+                    didUserSelectCountryRef.current = true;
+                    setSelected(item);
+                    setShowPicker(false);
+                    onCountryChange?.(item.code, item.dial_code);
                   }}
                 >
                   <Text style={styles.countryFlag}>{item.flag}</Text>
-                  <Text style={styles.countryName}>{item.name}</Text>
-                  <Text style={styles.countryDialCode}>{item.dialCode}</Text>
+                  <Text style={styles.countryName} numberOfLines={1}>
+                    {item?.name?.en || item.code}
+                  </Text>
+                  <Text style={styles.countryDial}>{item.dial_code}</Text>
                 </TouchableOpacity>
               )}
             />
-          </View>
+          </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
     </View>
@@ -150,96 +185,98 @@ const styles = StyleSheet.create({
     borderColor: Colors.light.border,
     borderRadius: BorderRadius.md,
     backgroundColor: Colors.light.surface,
-    paddingHorizontal: Spacing.sm,
     minHeight: 48,
+    overflow: 'hidden',
   },
   inputError: {
     borderColor: Colors.light.error,
   },
-  countrySelector: {
+  countryButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingRight: Spacing.sm,
+    paddingHorizontal: Spacing.sm,
+    height: 48,
     borderRightWidth: 1,
     borderRightColor: Colors.light.border,
-    marginRight: Spacing.sm,
+    gap: Spacing.xs,
   },
   flag: {
-    fontSize: 20,
-    marginRight: Spacing.xs,
+    fontSize: 18,
   },
   dialCode: {
     ...Typography.body,
     color: Colors.light.text,
-    fontWeight: '500',
-    marginRight: Spacing.xs,
+    fontWeight: '600',
   },
   dropdownIcon: {
     fontSize: 10,
     color: Colors.light.textSecondary,
+    marginLeft: 2,
   },
-  phoneInput: {
+  phoneTextInput: {
     flex: 1,
     ...Typography.body,
     color: Colors.light.text,
-    paddingVertical: Spacing.sm,
-  },
-  getCodeButton: {
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs,
-  },
-  getCodeText: {
-    ...Typography.caption,
-    color: Colors.light.primary,
-    fontWeight: '600',
-  },
-  getCodeTextDisabled: {
-    color: Colors.light.textSecondary,
-    opacity: 0.5,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 0,
+    height: 48,
   },
   errorText: {
     ...Typography.small,
     color: Colors.light.error,
     marginTop: Spacing.xs,
   },
-  modalOverlay: {
+  pickerOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0,0,0,0.45)',
   },
-  modalContent: {
+  pickerSheet: {
     backgroundColor: Colors.light.background,
     borderTopLeftRadius: BorderRadius.lg,
     borderTopRightRadius: BorderRadius.lg,
-    maxHeight: '70%',
+    paddingHorizontal: Spacing.md,
     paddingTop: Spacing.md,
+    paddingBottom: Spacing.md,
+    maxHeight: '75%',
   },
-  modalTitle: {
+  pickerTitle: {
     ...Typography.h3,
     color: Colors.light.text,
-    paddingHorizontal: Spacing.md,
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.sm,
   },
-  countryItem: {
+  searchInput: {
+    height: 44,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    color: Colors.light.text,
+    backgroundColor: Colors.light.surface,
+    marginBottom: Spacing.sm,
+  },
+  countryRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.md,
+    paddingVertical: Spacing.sm,
     borderBottomWidth: 1,
     borderBottomColor: Colors.light.border,
+    gap: Spacing.sm,
   },
   countryFlag: {
-    fontSize: 24,
-    marginRight: Spacing.md,
+    fontSize: 18,
+    width: 24,
+    textAlign: 'center',
   },
   countryName: {
     flex: 1,
     ...Typography.body,
     color: Colors.light.text,
   },
-  countryDialCode: {
+  countryDial: {
     ...Typography.body,
     color: Colors.light.textSecondary,
+    fontWeight: '600',
   },
 });
 

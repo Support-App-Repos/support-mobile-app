@@ -23,6 +23,7 @@
     "axios": "^1.13.2",
     "react": "19.1.1",
     "react-native": "0.82.1",
+    "react-native-country-codes-picker": "^2.3.5",
     "react-native-gesture-handler": "^2.16.1",
     "react-native-image-picker": "^7.1.0",
     "react-native-safe-area-context": "^5.5.2",

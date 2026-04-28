@@ -355,6 +355,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
               }}
               onGetCode={handleGetCode}
               onCountryChange={(code, dialCode) => setCountryCode(dialCode)}
+              defaultCountryCode="PK"
               error={phoneError}
               loading={loadingGetCode}
             />
