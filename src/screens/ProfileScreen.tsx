@@ -37,6 +37,7 @@ import { authService } from '../services/authService';
 import { Colors, Spacing, Typography, BorderRadius } from '../config/theme';
 import { useProfileContext } from '../contexts/ProfileContext';
 import { formatListingPrice } from '../utils/currency';
+import { useWishlist } from '../hooks';
 
 // Extended ListingCardData for ProfileScreen
 interface ExtendedListingCardData extends ListingCardData {
@@ -93,6 +94,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   navigation,
 }) => {
   const { user, loading, refreshProfile } = useProfileContext();
+  const { toggleWishlist } = useWishlist();
   const [activeTab, setActiveTab] = useState<TabType>('Browsing History');
   const [bottomNavTab, setBottomNavTab] = useState<BottomNavItem>('Profile');
   const [browsingHistory, setBrowsingHistory] = useState<ExtendedListingCardData[]>([]);
@@ -508,6 +510,13 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                   <ListingCard 
                     listing={listing} 
                     navigation={navigation}
+                    wishlisted={true}
+                    onToggleWishlist={async (id, next) => {
+                      await toggleWishlist(id);
+                      if (next === false) {
+                        setWishlist((prev) => prev.filter((x) => String(x.id) !== String(id)));
+                      }
+                    }}
                     onPress={(listing) => {
                       // Navigation is now handled inside ListingCard based on category
                     }}

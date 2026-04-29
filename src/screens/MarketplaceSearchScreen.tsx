@@ -19,7 +19,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   BackIcon,
   SearchIcon,
-  MarketplaceFilterIcon,
   ArrowDownIcon,
   VerifiedBadgeIcon,
 } from '../components/common';
@@ -30,6 +29,7 @@ import {
 } from '../components/listings';
 import { Colors, Spacing, Typography, BorderRadius } from '../config/theme';
 import { listingService } from '../services';
+import { useWishlist } from '../hooks';
 
 type MarketplaceSearchScreenProps = {
   navigation?: any;
@@ -154,6 +154,7 @@ export const MarketplaceSearchScreen: React.FC<MarketplaceSearchScreenProps> = (
   const [minPriceText, setMinPriceText] = useState('');
   const [maxPriceText, setMaxPriceText] = useState('');
   const [onlyVerified, setOnlyVerified] = useState(false);
+  const { isWishlisted, toggleWishlist, refresh: refreshWishlist } = useWishlist();
 
   const load = useCallback(async () => {
     try {
@@ -174,6 +175,10 @@ export const MarketplaceSearchScreen: React.FC<MarketplaceSearchScreenProps> = (
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    refreshWishlist();
+  }, [refreshWishlist]);
 
   const minPrice = minPriceText.trim() === '' ? undefined : parseFloat(minPriceText.replace(/[^0-9.]/g, ''));
   const maxPrice = maxPriceText.trim() === '' ? undefined : parseFloat(maxPriceText.replace(/[^0-9.]/g, ''));
@@ -240,6 +245,8 @@ export const MarketplaceSearchScreen: React.FC<MarketplaceSearchScreenProps> = (
         listing={vm}
         isPropertyLayout={property}
         onPress={() => navigateToListingDetail(navigation, item, vm.id)}
+        wishlisted={isWishlisted(vm.id)}
+        onToggleWishlist={(id) => toggleWishlist(id)}
       />
     );
   };
@@ -263,9 +270,6 @@ export const MarketplaceSearchScreen: React.FC<MarketplaceSearchScreenProps> = (
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.filterChipsRow}
       >
-        <TouchableOpacity style={styles.filterIconBtn} activeOpacity={0.85} onPress={openAdvancedFilters}>
-          <MarketplaceFilterIcon size={22} color="#FFFFFF" />
-        </TouchableOpacity>
         <TouchableOpacity style={styles.chip} activeOpacity={0.85} onPress={() => setSortModalOpen(true)}>
           <Text style={styles.chipText}>Sort</Text>
           <ArrowDownIcon size={14} color={Colors.light.textSecondary} />
@@ -424,14 +428,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.sm,
     paddingRight: Spacing.md,
-  },
-  filterIconBtn: {
-    width: 48,
-    height: 48,
-    borderRadius: BorderRadius.lg,
-    backgroundColor: Colors.light.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   chip: {
     flexDirection: 'row',

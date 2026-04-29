@@ -19,13 +19,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   SearchIcon,
   Snackbar,
-  FilterSlidersIcon,
 } from '../components/common';
 import { CategoryTabs, ListingCard, type Category, type ListingCardData } from '../components/listings';
 import { BottomNavigation, type BottomNavItem } from '../components/navigation';
 import { Colors, Spacing, Typography, BorderRadius } from '../config/theme';
 import { listingService, categoryService } from '../services';
-import { useProfile } from '../hooks';
+import { useProfile, useWishlist } from '../hooks';
 
 type HomeScreenProps = {
   navigation?: any;
@@ -91,11 +90,13 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const [categoryMap, setCategoryMap] = useState<Record<string, string>>({});
   const [snackbarVisible, setSnackbarVisible] = useState(false);
   const { profileImageUrl } = useProfile();
+  const { isWishlisted, toggleWishlist, refresh: refreshWishlist } = useWishlist();
 
   // Update active tab when screen comes into focus
   useFocusEffect(
     React.useCallback(() => {
       setActiveTab('Home');
+      refreshWishlist();
     }, [])
   );
 
@@ -239,13 +240,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
               <SearchIcon size={18} color="#828282" />
               <Text style={styles.searchPlaceholder}>Search listings...</Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.filterButton}
-              activeOpacity={0.8}
-              onPress={() => navigation?.navigate?.('MarketplaceSearch', { initialQuery: '' })}
-            >
-              <FilterSlidersIcon size={20} color="#FFFFFF" />
-            </TouchableOpacity>
           </View>
         </View>
 
@@ -283,7 +277,13 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
             <View style={styles.listingsGrid}>
               {listings.map((listing) => (
                 <View key={listing.id} style={styles.cardWrapper}>
-                  <ListingCard listing={listing} onPress={handleListingPress} navigation={navigation} />
+                  <ListingCard
+                    listing={listing}
+                    onPress={handleListingPress}
+                    navigation={navigation}
+                    wishlisted={isWishlisted(listing.id)}
+                    onToggleWishlist={(id) => toggleWishlist(id)}
+                  />
                 </View>
               ))}
             </View>
@@ -383,14 +383,6 @@ const styles = StyleSheet.create({
     color: Colors.light.textSecondary,
     paddingVertical: Spacing.sm,
     fontSize: 14,
-  },
-  filterButton: {
-    width: 52,
-    height: 52,
-    borderRadius: BorderRadius.lg,
-    backgroundColor: Colors.light.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   promoBanner: {
     marginHorizontal: Spacing.md,

@@ -16,7 +16,7 @@ import {
   RatingIcon,
   LocationIcon,
   VisibilityIcon,
-  HeartOutlineIcon,
+  SaveIcon,
   DurationIcon,
 } from '../common';
 import { Colors, Spacing, Typography, BorderRadius } from '../../config/theme';
@@ -67,13 +67,18 @@ interface ListingCardProps {
   listing: ListingCardData;
   onPress?: (listing: ListingCardData) => void;
   navigation?: any;
+  wishlisted?: boolean;
+  onToggleWishlist?: (listingId: string, nextWishlisted: boolean) => void | Promise<void>;
 }
 
 export const ListingCard: React.FC<ListingCardProps> = ({
   listing,
   onPress,
   navigation,
+  wishlisted = false,
+  onToggleWishlist,
 }) => {
+  const heartColor = wishlisted ? '#EF4444' : '#6B7280';
   const handlePress = () => {
     if (navigation) {
       const categoryName = listing.category || '';
@@ -133,11 +138,14 @@ export const ListingCard: React.FC<ListingCardProps> = ({
         <TouchableOpacity
           style={styles.heartBtn}
           activeOpacity={0.85}
-          onPress={() => {}}
+          onPress={(e: any) => {
+            e?.stopPropagation?.();
+            onToggleWishlist?.(listing.id, !wishlisted);
+          }}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
           <View style={styles.heartCircle}>
-            <HeartOutlineIcon size={16} color="#6B7280" />
+            <SaveIcon size={18} color={heartColor} filled={wishlisted} />
           </View>
         </TouchableOpacity>
       </View>

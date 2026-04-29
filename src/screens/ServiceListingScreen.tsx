@@ -16,6 +16,9 @@ import {
   Dimensions,
   Alert,
   ActivityIndicator,
+  Modal,
+  FlatList,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BackIcon, BellIcon, AddPhotoIcon, PriceTypeDropdown, type PriceType, GoogleLocationField } from '../components/common';
@@ -41,10 +44,120 @@ type ServiceListingScreenProps = {
 
 const FORM_STEPS = ['Details', 'Payment', 'Select Region', 'Confirm'];
 
+const DESCRIPTION_WORD_LIMIT = 500;
+function countWords(text: string): number {
+  const t = text.trim();
+  if (!t) return 0;
+  return t.split(/\s+/).filter(Boolean).length;
+}
+function clampWords(text: string, limit: number): string {
+  const words = text.trim().split(/\s+/).filter(Boolean);
+  if (words.length <= limit) return text;
+  return words.slice(0, limit).join(' ') + ' ';
+}
+
+const BEAUTY_SPECIALIZATIONS = [
+  'Injection & fillers',
+  'Skin care/ rejuvenation',
+  'Laser',
+  'Body contouring',
+  'Wellness/medicine',
+  'Epidermis',
+  'Dermis',
+  'Hypodermis',
+  'Pedicure',
+  'Manicure',
+  'Hair',
+  'Frontal',
+  'Wigs',
+  'Skin boosters',
+  'Fat dissolving',
+  'Wrinkle injections',
+  'Tattoo removal',
+  'Dermapen micro-needling',
+  'Hydrafacial',
+  'Depigmentation peel',
+  'Massage',
+  'Hair treatment',
+  'Braiding',
+  'Cornrows',
+  'Body waxing',
+  'Eye Brows',
+  'Lashes',
+  'Brow threading',
+  'Brow lamination',
+  'Brie tinting',
+] as const;
+
+const HOME_SERVICES_SPECIALIZATIONS = [
+  'Plumber',
+  'Electrician',
+  'Painter',
+  'Bricklayer',
+  'Removals',
+  'Cleaner',
+  'Mechanic',
+  'Plaster',
+  'Gas technician',
+  'Studio engineer',
+] as const;
+
+const MEDICAL_SERVICES_SPECIALIZATIONS = [
+  'Teeth removal',
+  'Hair transplant',
+  'Dental cleaning',
+  'Dental implants',
+  'Teeth whitening',
+  'Root canal',
+  'Braces / Orthodontics',
+  'General checkup',
+  'Blood test',
+  'Vaccination',
+  'Physiotherapy',
+  'Dermatology consultation',
+  'ENT consultation',
+  'Eye checkup',
+  'Nutrition consultation',
+] as const;
+
+const PROFESSIONAL_SERVICES_SPECIALIZATIONS = [
+  'IT consultant',
+  'Accountant',
+  'Business consultant',
+  'Financial advisor',
+  'Tax consultant',
+  'Lawyer',
+  'Legal consultant',
+  'HR consultant',
+  'Recruiter',
+  'Marketing consultant',
+  'Digital marketing',
+  'Social media manager',
+  'Content writer',
+  'Graphic designer',
+  'UI/UX designer',
+  'Web developer',
+  'Mobile app developer',
+  'Software engineer',
+  'Data analyst',
+  'Project manager',
+  'Product manager',
+  'Architect',
+  'Interior designer',
+  'Translator',
+  'Tutor',
+] as const;
+
 export const ServiceListingScreen: React.FC<ServiceListingScreenProps> = ({
   navigation,
   route,
 }) => {
+  const androidInputProps =
+    Platform.OS === 'android'
+      ? ({ includeFontPadding: false, textAlignVertical: 'center' as const } as const)
+      : undefined;
+  const androidMultilineProps =
+    Platform.OS === 'android' ? ({ includeFontPadding: false } as const) : undefined;
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [priceType, setPriceType] = useState<PriceType | null>(null);
@@ -53,6 +166,7 @@ export const ServiceListingScreen: React.FC<ServiceListingScreenProps> = ({
   const [location, setLocation] = useState('');
   const [city, setCity] = useState('');
   const [specialization, setSpecialization] = useState('');
+  const [specializationPickerOpen, setSpecializationPickerOpen] = useState(false);
   const [yearsOfExperience, setYearsOfExperience] = useState('');
   const [serviceProviderName, setServiceProviderName] = useState('');
   const [serviceProviderContact, setServiceProviderContact] = useState('');
@@ -70,6 +184,30 @@ export const ServiceListingScreen: React.FC<ServiceListingScreenProps> = ({
   const currentStep = 0; // First step
   const categoryId = route?.params?.categoryId;
   const serviceTypeId = route?.params?.serviceTypeId;
+  const serviceTypeName = String(route?.params?.serviceType || '').trim();
+  const serviceTypeKey = serviceTypeName
+    .toLowerCase()
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  const isBeautyServiceType = serviceTypeKey.includes('beauty');
+  const isHomeServicesType =
+    serviceTypeKey.includes('home service') || serviceTypeKey.includes('home services');
+  const isMedicalServiceType = serviceTypeKey.includes('medical');
+  const isProfessionalServiceType = serviceTypeKey.includes('professional');
+
+  const specializationOptions: readonly string[] | null =
+    isBeautyServiceType
+      ? BEAUTY_SPECIALIZATIONS
+      : isHomeServicesType
+        ? HOME_SERVICES_SPECIALIZATIONS
+        : isMedicalServiceType
+          ? MEDICAL_SERVICES_SPECIALIZATIONS
+          : isProfessionalServiceType
+            ? PROFESSIONAL_SERVICES_SPECIALIZATIONS
+            : null;
+  const anyDropdownOpen = priceTypePickerOpen || specializationPickerOpen;
 
   // Prefill when editing from Review/Region flow
   useEffect(() => {
@@ -325,6 +463,7 @@ export const ServiceListingScreen: React.FC<ServiceListingScreenProps> = ({
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
+        scrollEnabled={!anyDropdownOpen}
       >
         <Text style={styles.introText}>
           Add details about your {route?.params?.serviceType?.toLowerCase() || 'service'} service.
@@ -337,10 +476,11 @@ export const ServiceListingScreen: React.FC<ServiceListingScreenProps> = ({
           </Text>
           <TextInput
             style={styles.input}
-            placeholder="Give your listing a great title."
+            placeholder="Listing title"
             placeholderTextColor={Colors.light.textSecondary}
             value={title}
             onChangeText={setTitle}
+            {...androidInputProps}
           />
         </View>
 
@@ -354,11 +494,15 @@ export const ServiceListingScreen: React.FC<ServiceListingScreenProps> = ({
             placeholder="Describe your service in detail..."
             placeholderTextColor={Colors.light.textSecondary}
             value={description}
-            onChangeText={setDescription}
+            onChangeText={(t) => setDescription(clampWords(t, DESCRIPTION_WORD_LIMIT))}
             multiline
             numberOfLines={4}
             textAlignVertical="top"
+            {...androidMultilineProps}
           />
+          <Text style={styles.wordCount}>
+            {countWords(description)}/{DESCRIPTION_WORD_LIMIT} words
+          </Text>
         </View>
 
         {/* Price Type and Price Row */}
@@ -393,6 +537,7 @@ export const ServiceListingScreen: React.FC<ServiceListingScreenProps> = ({
               onChangeText={(text) => setPrice(filterNumbersOnly(text, true))}
               keyboardType="decimal-pad"
               editable={priceType !== 'Free' && priceType !== null}
+              {...androidInputProps}
             />
           </View>
         </View>
@@ -424,21 +569,58 @@ export const ServiceListingScreen: React.FC<ServiceListingScreenProps> = ({
               placeholderTextColor={Colors.light.textSecondary}
               value={city}
               onChangeText={setCity}
+              {...androidInputProps}
             />
           </View>
         </View>
 
         {/* Specialization and Years of Experience Row */}
-        <View style={styles.rowContainer}>
+        <View
+          style={[
+            styles.rowContainer,
+            specializationPickerOpen && styles.rowPickerOpen,
+          ]}
+        >
           <View style={[styles.fieldContainer, styles.halfWidth]}>
             <Text style={styles.label}>Specialization</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="e.g manicure, nails"
-              placeholderTextColor={Colors.light.textSecondary}
-              value={specialization}
-              onChangeText={setSpecialization}
-            />
+            {specializationOptions ? (
+              <View
+                style={[
+                  styles.dropdownRoot,
+                  specializationPickerOpen && styles.dropdownRootOpen,
+                ]}
+                collapsable={false}
+              >
+                <TouchableOpacity
+                  style={styles.dropdownTrigger}
+                  activeOpacity={0.75}
+                  onPress={() => setSpecializationPickerOpen((v) => !v)}
+                  accessibilityRole="button"
+                >
+                  <Text
+                    style={[
+                      styles.dropdownTriggerText,
+                      !specialization && styles.dropdownPlaceholder,
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {specialization || 'Select specialization'}
+                  </Text>
+                  <Text style={styles.dropdownChevron}>
+                    {specializationPickerOpen ? '▲' : '▼'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <TextInput
+                style={styles.input}
+                placeholder="e.g manicure, nails"
+                placeholderTextColor={Colors.light.textSecondary}
+                value={specialization}
+                onChangeText={setSpecialization}
+                {...androidInputProps}
+              />
+            )}
           </View>
           <View style={[styles.fieldContainer, styles.halfWidth]}>
             <Text style={styles.label}>Years of Experience</Text>
@@ -449,6 +631,7 @@ export const ServiceListingScreen: React.FC<ServiceListingScreenProps> = ({
               value={yearsOfExperience}
               onChangeText={(text) => setYearsOfExperience(filterNumbersOnly(text, false))}
               keyboardType="numeric"
+              {...androidInputProps}
             />
           </View>
         </View>
@@ -462,6 +645,7 @@ export const ServiceListingScreen: React.FC<ServiceListingScreenProps> = ({
             placeholderTextColor={Colors.light.textSecondary}
             value={serviceProviderName}
             onChangeText={(text) => setServiceProviderName(filterLettersOnly(text))}
+            {...androidInputProps}
           />
           <TextInput
             style={[styles.input, styles.marginBottom]}
@@ -470,6 +654,7 @@ export const ServiceListingScreen: React.FC<ServiceListingScreenProps> = ({
             value={serviceProviderContact}
             onChangeText={(text) => setServiceProviderContact(filterNumbersOnly(text, false))}
             keyboardType="phone-pad"
+            {...androidInputProps}
           />
           <TextInput
             style={styles.input}
@@ -479,6 +664,7 @@ export const ServiceListingScreen: React.FC<ServiceListingScreenProps> = ({
             onChangeText={setServiceProviderEmail}
             keyboardType="email-address"
             autoCapitalize="none"
+            {...androidInputProps}
           />
         </View>
 
@@ -491,6 +677,7 @@ export const ServiceListingScreen: React.FC<ServiceListingScreenProps> = ({
             placeholderTextColor={Colors.light.textSecondary}
             value={tags}
             onChangeText={setTags}
+            {...androidInputProps}
           />
         </View>
 
@@ -585,6 +772,59 @@ export const ServiceListingScreen: React.FC<ServiceListingScreenProps> = ({
           )}
         </TouchableOpacity>
       </ScrollView>
+
+      {/* Beauty Specialization Picker (Modal) */}
+      <Modal
+        visible={specializationPickerOpen && !!specializationOptions}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setSpecializationPickerOpen(false)}
+      >
+        <TouchableOpacity
+          style={styles.pickerOverlay}
+          activeOpacity={1}
+          onPress={() => setSpecializationPickerOpen(false)}
+        >
+          <TouchableOpacity
+            style={styles.pickerSheet}
+            activeOpacity={1}
+            onPress={() => {}}
+          >
+            <Text style={styles.pickerTitle}>Select Specialization</Text>
+            <FlatList
+              data={(specializationOptions || []) as unknown as string[]}
+              keyExtractor={(item) => item}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator
+              renderItem={({ item }) => {
+                const selectedNow = specialization === item;
+                return (
+                  <TouchableOpacity
+                    style={[
+                      styles.pickerOption,
+                      selectedNow && styles.pickerOptionSelected,
+                    ]}
+                    activeOpacity={0.7}
+                    onPress={() => {
+                      setSpecialization(item);
+                      setSpecializationPickerOpen(false);
+                    }}
+                  >
+                    <Text
+                      style={[
+                        styles.pickerOptionText,
+                        selectedNow && styles.pickerOptionTextSelected,
+                      ]}
+                    >
+                      {item}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              }}
+            />
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
 
       {/* Bottom Navigation */}
       <BottomNavigation
@@ -787,9 +1027,81 @@ const styles = StyleSheet.create({
     borderColor: '#E5E7EB',
     borderRadius: BorderRadius.md,
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
+    paddingTop: Spacing.sm,
+    paddingBottom: Platform.OS === 'android' ? Spacing.sm - 2 : Spacing.sm,
     color: Colors.light.text,
     fontSize: 14,
+  },
+  dropdownRoot: {
+    position: 'relative',
+    zIndex: 0,
+  },
+  dropdownRootOpen: {
+    zIndex: 100,
+    elevation: 12,
+  },
+  dropdownTrigger: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    backgroundColor: Colors.light.background,
+    minHeight: 44,
+    gap: Spacing.sm,
+  },
+  dropdownTriggerText: {
+    ...Typography.body,
+    color: Colors.light.text,
+    fontSize: 14,
+    flex: 1,
+    minWidth: 0,
+  },
+  dropdownPlaceholder: {
+    color: Colors.light.textSecondary,
+  },
+  dropdownChevron: {
+    color: Colors.light.textSecondary,
+    fontSize: 12,
+    marginLeft: Spacing.sm,
+  },
+  pickerOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.md,
+  },
+  pickerSheet: {
+    backgroundColor: Colors.light.background,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
+    maxHeight: '75%',
+  },
+  pickerTitle: {
+    ...Typography.h3,
+    color: Colors.light.text,
+    marginBottom: Spacing.sm,
+  },
+  pickerOption: {
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  pickerOptionSelected: {
+    backgroundColor: 'rgba(17, 24, 39, 0.05)',
+  },
+  pickerOptionText: {
+    ...Typography.body,
+    fontSize: 14,
+    color: Colors.light.text,
+  },
+  pickerOptionTextSelected: {
+    fontWeight: '700',
+    color: Colors.light.text,
   },
   inputDisabled: {
     backgroundColor: '#F9FAFB',
@@ -798,6 +1110,12 @@ const styles = StyleSheet.create({
   textArea: {
     minHeight: 100,
     paddingTop: Spacing.sm,
+  },
+  wordCount: {
+    ...Typography.caption,
+    color: Colors.light.textSecondary,
+    marginTop: 6,
+    textAlign: 'right',
   },
   marginBottom: {
     marginBottom: Spacing.sm,

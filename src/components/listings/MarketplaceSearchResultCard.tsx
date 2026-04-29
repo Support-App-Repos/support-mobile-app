@@ -14,7 +14,7 @@ import {
   NativeScrollEvent,
   Dimensions,
 } from 'react-native';
-import { RatingIcon, HeartOutlineIcon } from '../common';
+import { RatingIcon, SaveIcon } from '../common';
 import { Colors, Spacing, Typography, BorderRadius } from '../../config/theme';
 
 const { width: SCREEN_W } = Dimensions.get('window');
@@ -47,6 +47,8 @@ type MarketplaceSearchResultCardProps = {
   /** When true, use tall carousel + service list layout */
   isPropertyLayout: boolean;
   onPress: () => void;
+  wishlisted?: boolean;
+  onToggleWishlist?: (listingId: string, nextWishlisted: boolean) => void | Promise<void>;
   onSeeAllServices?: () => void;
 };
 
@@ -56,8 +58,11 @@ export const MarketplaceSearchResultCard: React.FC<MarketplaceSearchResultCardPr
   totalServicesCount,
   isPropertyLayout,
   onPress,
+  wishlisted = false,
+  onToggleWishlist,
   onSeeAllServices,
 }) => {
+  const heartColor = wishlisted ? '#EF4444' : '#6B7280';
   const cardWidth = SCREEN_W - Spacing.md * 2;
   const [heroIndex, setHeroIndex] = useState(0);
   const photos = listing.photoUrls.length > 0 ? listing.photoUrls : ['https://via.placeholder.com/800x480'];
@@ -93,9 +98,16 @@ export const MarketplaceSearchResultCard: React.FC<MarketplaceSearchResultCardPr
         <View style={styles.badge}>
           <Text style={styles.badgeText}>{listing.categoryLabel}</Text>
         </View>
-        <TouchableOpacity style={styles.heartWrap} activeOpacity={0.85} onPress={(e) => e.stopPropagation()}>
+        <TouchableOpacity
+          style={styles.heartWrap}
+          activeOpacity={0.85}
+          onPress={(e: any) => {
+            e?.stopPropagation?.();
+            onToggleWishlist?.(listing.id, !wishlisted);
+          }}
+        >
           <View style={styles.heartCircle}>
-            <HeartOutlineIcon size={18} color="#6B7280" />
+            <SaveIcon size={20} color={heartColor} filled={wishlisted} />
           </View>
         </TouchableOpacity>
         {photos.length > 1 && (

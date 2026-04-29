@@ -16,6 +16,7 @@ import {
   Dimensions,
   Alert,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BackIcon, BellIcon, AddPhotoIcon, PriceTypeDropdown, type PriceType, GoogleLocationField } from '../components/common';
@@ -41,10 +42,28 @@ type EventListingScreenProps = {
 
 const FORM_STEPS = ['Details', 'Payment', 'Select Region', 'Confirm'];
 
+const DESCRIPTION_WORD_LIMIT = 500;
+function countWords(text: string): number {
+  const t = text.trim();
+  if (!t) return 0;
+  return t.split(/\s+/).filter(Boolean).length;
+}
+function clampWords(text: string, limit: number): string {
+  const words = text.trim().split(/\s+/).filter(Boolean);
+  if (words.length <= limit) return text;
+  return words.slice(0, limit).join(' ') + ' ';
+}
+
 export const EventListingScreen: React.FC<EventListingScreenProps> = ({
   navigation,
   route,
 }) => {
+  const androidInputProps =
+    Platform.OS === 'android'
+      ? ({ includeFontPadding: false, textAlignVertical: 'center' as const } as const)
+      : undefined;
+  const androidMultilineProps =
+    Platform.OS === 'android' ? ({ includeFontPadding: false } as const) : undefined;
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [priceType, setPriceType] = useState<PriceType | null>(null);
@@ -334,10 +353,11 @@ export const EventListingScreen: React.FC<EventListingScreenProps> = ({
           </Text>
           <TextInput
             style={styles.input}
-            placeholder="Give your listing a great title."
+            placeholder="Listing title"
             placeholderTextColor={Colors.light.textSecondary}
             value={title}
             onChangeText={setTitle}
+            {...androidInputProps}
           />
         </View>
 
@@ -351,11 +371,15 @@ export const EventListingScreen: React.FC<EventListingScreenProps> = ({
             placeholder="Describe your event in detail..."
             placeholderTextColor={Colors.light.textSecondary}
             value={description}
-            onChangeText={setDescription}
+            onChangeText={(t) => setDescription(clampWords(t, DESCRIPTION_WORD_LIMIT))}
             multiline
             numberOfLines={4}
             textAlignVertical="top"
+            {...androidMultilineProps}
           />
+          <Text style={styles.wordCount}>
+            {countWords(description)}/{DESCRIPTION_WORD_LIMIT} words
+          </Text>
         </View>
 
         {/* Price Type and Price Row */}
@@ -390,6 +414,7 @@ export const EventListingScreen: React.FC<EventListingScreenProps> = ({
               onChangeText={(text) => setPrice(filterNumbersOnly(text, true))}
               keyboardType="decimal-pad"
               editable={priceType !== 'Free' && priceType !== null}
+              {...androidInputProps}
             />
           </View>
         </View>
@@ -421,6 +446,7 @@ export const EventListingScreen: React.FC<EventListingScreenProps> = ({
               placeholderTextColor={Colors.light.textSecondary}
               value={city}
               onChangeText={setCity}
+              {...androidInputProps}
             />
           </View>
         </View>
@@ -435,6 +461,7 @@ export const EventListingScreen: React.FC<EventListingScreenProps> = ({
               placeholderTextColor={Colors.light.textSecondary}
               value={eventDate}
               onChangeText={setEventDate}
+              {...androidInputProps}
             />
           </View>
           <View style={[styles.fieldContainer, styles.halfWidth]}>
@@ -445,6 +472,7 @@ export const EventListingScreen: React.FC<EventListingScreenProps> = ({
               placeholderTextColor={Colors.light.textSecondary}
               value={eventTime}
               onChangeText={setEventTime}
+              {...androidInputProps}
             />
           </View>
         </View>
@@ -460,6 +488,7 @@ export const EventListingScreen: React.FC<EventListingScreenProps> = ({
               value={duration}
               onChangeText={(text) => setDuration(filterNumbersOnly(text, true))}
               keyboardType="numeric"
+              {...androidInputProps}
             />
           </View>
           <View style={[styles.fieldContainer, styles.halfWidth]}>
@@ -471,6 +500,7 @@ export const EventListingScreen: React.FC<EventListingScreenProps> = ({
               value={maxCapacity}
               onChangeText={(text) => setMaxCapacity(filterNumbersOnly(text, false))}
               keyboardType="numeric"
+              {...androidInputProps}
             />
           </View>
         </View>
@@ -484,6 +514,7 @@ export const EventListingScreen: React.FC<EventListingScreenProps> = ({
             placeholderTextColor={Colors.light.textSecondary}
             value={organizerName}
             onChangeText={(text) => setOrganizerName(filterLettersOnly(text))}
+            {...androidInputProps}
           />
           <TextInput
             style={[styles.input, styles.marginBottom]}
@@ -492,6 +523,7 @@ export const EventListingScreen: React.FC<EventListingScreenProps> = ({
             value={organizerContact}
             onChangeText={(text) => setOrganizerContact(filterNumbersOnly(text, false))}
             keyboardType="phone-pad"
+            {...androidInputProps}
           />
           <TextInput
             style={styles.input}
@@ -501,6 +533,7 @@ export const EventListingScreen: React.FC<EventListingScreenProps> = ({
             onChangeText={setOrganizerEmail}
             keyboardType="email-address"
             autoCapitalize="none"
+            {...androidInputProps}
           />
         </View>
 
@@ -513,6 +546,7 @@ export const EventListingScreen: React.FC<EventListingScreenProps> = ({
             placeholderTextColor={Colors.light.textSecondary}
             value={tags}
             onChangeText={setTags}
+            {...androidInputProps}
           />
         </View>
 
@@ -809,7 +843,8 @@ const styles = StyleSheet.create({
     borderColor: '#E5E7EB',
     borderRadius: BorderRadius.md,
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
+    paddingTop: Spacing.sm,
+    paddingBottom: Platform.OS === 'android' ? Spacing.sm - 2 : Spacing.sm,
     color: Colors.light.text,
     fontSize: 14,
   },
@@ -820,6 +855,12 @@ const styles = StyleSheet.create({
   textArea: {
     minHeight: 100,
     paddingTop: Spacing.sm,
+  },
+  wordCount: {
+    ...Typography.caption,
+    color: Colors.light.textSecondary,
+    marginTop: 6,
+    textAlign: 'right',
   },
   marginBottom: {
     marginBottom: Spacing.sm,

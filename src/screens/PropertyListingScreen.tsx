@@ -16,6 +16,7 @@ import {
   FlatList,
   Alert,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BackIcon, BellIcon, AddPhotoIcon, Checkbox, GoogleLocationField } from '../components/common';
@@ -111,6 +112,13 @@ const FormSelect: React.FC<FormSelectProps> = ({
 };
 
 export const PropertyListingScreen: React.FC<PropertyListingScreenProps> = ({ navigation, route }) => {
+  const androidInputProps =
+    Platform.OS === 'android'
+      ? ({ includeFontPadding: false, textAlignVertical: 'center' as const } as const)
+      : undefined;
+  const androidMultilineProps =
+    Platform.OS === 'android' ? ({ includeFontPadding: false } as const) : undefined;
+
   const [title, setTitle] = useState('');
   const [purpose, setPurpose] = useState('');
   const [price, setPrice] = useState('');
@@ -383,10 +391,11 @@ export const PropertyListingScreen: React.FC<PropertyListingScreenProps> = ({ na
             </Text>
             <TextInput
               style={styles.input}
-              placeholder="Give your listing a great title"
+              placeholder="Listing title"
               placeholderTextColor={Colors.light.textSecondary}
               value={title}
               onChangeText={setTitle}
+              {...androidInputProps}
             />
           </View>
           <FormSelect
@@ -411,6 +420,7 @@ export const PropertyListingScreen: React.FC<PropertyListingScreenProps> = ({ na
               value={price}
               onChangeText={(t) => setPrice(filterNumbersOnly(t, true))}
               keyboardType="decimal-pad"
+              {...androidInputProps}
             />
           </View>
           <FormSelect
@@ -449,6 +459,7 @@ export const PropertyListingScreen: React.FC<PropertyListingScreenProps> = ({ na
               placeholderTextColor={Colors.light.textSecondary}
               value={city}
               onChangeText={setCity}
+              {...androidInputProps}
             />
           </View>
         </View>
@@ -463,6 +474,7 @@ export const PropertyListingScreen: React.FC<PropertyListingScreenProps> = ({ na
               value={bedrooms}
               onChangeText={(t) => setBedrooms(t.replace(/\D/g, ''))}
               keyboardType="number-pad"
+              {...androidInputProps}
             />
           </View>
           <View style={styles.fieldFlex}>
@@ -474,6 +486,7 @@ export const PropertyListingScreen: React.FC<PropertyListingScreenProps> = ({ na
               value={bathrooms}
               onChangeText={(t) => setBathrooms(t.replace(/\D/g, ''))}
               keyboardType="number-pad"
+              {...androidInputProps}
             />
           </View>
           <View style={styles.fieldFlex}>
@@ -485,6 +498,7 @@ export const PropertyListingScreen: React.FC<PropertyListingScreenProps> = ({ na
               value={squareFeet}
               onChangeText={(t) => setSquareFeet(t.replace(/\D/g, ''))}
               keyboardType="number-pad"
+              {...androidInputProps}
             />
           </View>
         </View>
@@ -498,6 +512,7 @@ export const PropertyListingScreen: React.FC<PropertyListingScreenProps> = ({ na
               placeholderTextColor={Colors.light.textSecondary}
               value={referenceNo}
               onChangeText={setReferenceNo}
+              {...androidInputProps}
             />
           </View>
           <FormSelect
@@ -599,6 +614,7 @@ export const PropertyListingScreen: React.FC<PropertyListingScreenProps> = ({ na
             value={additionalTags}
             onChangeText={setAdditionalTags}
             multiline
+            {...androidMultilineProps}
           />
         </View>
 
@@ -627,6 +643,7 @@ export const PropertyListingScreen: React.FC<PropertyListingScreenProps> = ({ na
                 placeholderTextColor={Colors.light.textSecondary}
                 value={builtUpArea}
                 onChangeText={setBuiltUpArea}
+                {...androidInputProps}
               />
             </View>
           </View>
@@ -639,6 +656,7 @@ export const PropertyListingScreen: React.FC<PropertyListingScreenProps> = ({ na
               placeholderTextColor={Colors.light.textSecondary}
               value={builtUpArea}
               onChangeText={setBuiltUpArea}
+              {...androidInputProps}
             />
           </View>
         )}
@@ -652,6 +670,7 @@ export const PropertyListingScreen: React.FC<PropertyListingScreenProps> = ({ na
               placeholderTextColor={Colors.light.textSecondary}
               value={balconySize}
               onChangeText={setBalconySize}
+              {...androidInputProps}
             />
           </View>
         </View>
@@ -837,7 +856,8 @@ const styles = StyleSheet.create({
     borderColor: '#E5E7EB',
     borderRadius: BorderRadius.md,
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
+    paddingTop: Spacing.sm,
+    paddingBottom: Platform.OS === 'android' ? Spacing.sm - 2 : Spacing.sm,
     fontSize: 14,
     color: Colors.light.text,
   },

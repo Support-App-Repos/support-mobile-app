@@ -4,6 +4,7 @@
 
 export { useTheme } from './useTheme';
 export { useProfile } from './useProfile';
+export { useWishlist } from './useWishlist';
 
 
 
