@@ -5,8 +5,15 @@
 
 import { launchImageLibrary, ImagePickerResponse, MediaType } from 'react-native-image-picker';
 import axios from 'axios';
+import { Platform } from 'react-native';
 import { API_CONFIG, STORAGE_KEYS } from '../constants';
 import { Storage } from '../utils/storage';
+
+export interface PickedImage {
+  uri: string;
+  type?: string;
+  fileName?: string;
+}
 
 export interface UploadedImage {
   url: string;
@@ -22,15 +29,15 @@ export interface UploadImagesResponse {
 }
 
 /**
- * Open image picker and select images (returns local URIs, not uploaded)
+ * Open image picker and select images (returns local URIs with metadata)
  */
-export const pickImages = (): Promise<string[]> => {
+export const pickImages = (selectionLimit = 6): Promise<PickedImage[]> => {
   return new Promise((resolve, reject) => {
     launchImageLibrary(
       {
         mediaType: 'photo' as MediaType,
         quality: 0.8,
-        selectionLimit: 6, // Max 6 images
+        selectionLimit,
         includeBase64: false,
       },
       (response: ImagePickerResponse) => {
@@ -45,8 +52,14 @@ export const pickImages = (): Promise<string[]> => {
         }
 
         if (response.assets && response.assets.length > 0) {
-          const imageUris = response.assets.map((asset) => asset.uri || '').filter(Boolean);
-          resolve(imageUris);
+          const images = response.assets
+            .map((asset) => ({
+              uri: asset.uri || '',
+              type: asset.type,
+              fileName: asset.fileName,
+            }))
+            .filter((asset) => asset.uri);
+          resolve(images);
         } else {
           resolve([]);
         }
@@ -55,42 +68,89 @@ export const pickImages = (): Promise<string[]> => {
   });
 };
 
+/** Pick a single image (logo, cover, profile photo, etc.) */
+export const pickSingleImage = (): Promise<PickedImage | null> =>
+  pickImages(1).then((images) => images[0] || null);
+
+function normalizeMimeType(type?: string, fileName?: string): string {
+  if (type) {
+    const normalized = type.toLowerCase();
+    if (normalized === 'image/jpg') return 'image/jpeg';
+    if (normalized.startsWith('image/')) return normalized;
+  }
+
+  const ext = fileName?.split('.').pop()?.toLowerCase();
+  switch (ext) {
+    case 'png':
+      return 'image/png';
+    case 'gif':
+      return 'image/gif';
+    case 'webp':
+      return 'image/webp';
+    case 'jpeg':
+    case 'jpg':
+      return 'image/jpeg';
+    default:
+      return 'image/jpeg';
+  }
+}
+
+function buildUploadFileName(index: number, fileName?: string, uri?: string): string {
+  if (fileName && /\.\w+$/.test(fileName)) {
+    return fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
+  }
+
+  const fromUri = uri?.split('/').pop()?.split('?')[0];
+  if (fromUri && /\.\w+$/.test(fromUri)) {
+    return fromUri.replace(/[^a-zA-Z0-9._-]/g, '_');
+  }
+
+  return `image-${Date.now()}-${index}.jpg`;
+}
+
+function toPickedImage(item: string | PickedImage): PickedImage {
+  if (typeof item === 'string') {
+    return { uri: item };
+  }
+  return item;
+}
+
 /**
  * Upload images to backend
  * @param imageUris Array of local image URIs
  * @param folder Optional folder name in S3 (default: 'listings/')
  */
 export const uploadImages = async (
-  imageUris: string[],
+  images: Array<string | PickedImage>,
   folder: string = 'listings/'
 ): Promise<UploadedImage[]> => {
   try {
-    if (!imageUris || imageUris.length === 0) {
+    if (!images || images.length === 0) {
       throw new Error('No images to upload');
     }
 
-    // Create FormData
     const formData = new FormData();
-    
-    imageUris.forEach((uri, index) => {
-      const filename = uri.split('/').pop() || `image-${index}.jpg`;
-      const match = /\.(\w+)$/.exec(filename);
-      const type = match ? `image/${match[1]}` : 'image/jpeg';
+
+    images.forEach((item, index) => {
+      const picked = toPickedImage(item);
+      const uri =
+        Platform.OS === 'ios' && picked.uri.startsWith('file://')
+          ? picked.uri
+          : picked.uri;
+      const name = buildUploadFileName(index, picked.fileName, picked.uri);
+      const type = normalizeMimeType(picked.type, name);
 
       formData.append('images', {
-        uri: uri,
-        type: type,
-        name: filename,
+        uri,
+        type,
+        name,
       } as any);
     });
 
-    // Add folder if provided
     if (folder) {
       formData.append('folder', folder);
     }
 
-    // Upload to backend with FormData
-    // Use axios directly for multipart/form-data
     const token = await Storage.getItem(STORAGE_KEYS.USER_TOKEN);
     const response = await axios.post(
       `${API_CONFIG.BASE_URL}/upload/images`,
@@ -98,9 +158,10 @@ export const uploadImages = async (
       {
         headers: {
           'Content-Type': 'multipart/form-data',
-          'Authorization': token ? `Bearer ${token}` : '',
+          Accept: 'application/json',
+          Authorization: token ? `Bearer ${token}` : '',
         },
-        timeout: 60000, // 60 seconds for file uploads
+        timeout: 60000,
       }
     );
 
@@ -108,10 +169,11 @@ export const uploadImages = async (
       return response.data.data.images;
     }
 
-    throw new Error('Invalid response from server');
+    throw new Error(response.data?.message || 'Invalid response from server');
   } catch (error: any) {
     console.error('[Upload] Error uploading images:', error);
-    throw new Error(error.message || 'Failed to upload images');
+    const serverMessage = error.response?.data?.message;
+    throw new Error(serverMessage || error.message || 'Failed to upload images');
   }
 };
 
@@ -122,17 +184,13 @@ export const pickAndUploadImages = async (
   folder: string = 'listings/'
 ): Promise<UploadedImage[]> => {
   try {
-    // Pick images
-    const imageUris = await pickImages();
-    
-    if (imageUris.length === 0) {
+    const images = await pickImages();
+
+    if (images.length === 0) {
       return [];
     }
 
-    // Upload images
-    const uploadedImages = await uploadImages(imageUris, folder);
-    
-    return uploadedImages;
+    return uploadImages(images, folder);
   } catch (error: any) {
     console.error('[Upload] Error in pickAndUploadImages:', error);
     throw error;

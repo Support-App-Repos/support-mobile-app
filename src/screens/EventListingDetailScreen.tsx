@@ -34,6 +34,7 @@ import {
 import { Colors, Spacing, Typography, BorderRadius } from '../config/theme';
 import { listingService, profileService } from '../services';
 import { formatListingPrice } from '../utils/currency';
+import { ListingStoreProfileCTA } from '../components/listings';
 
 const { width } = Dimensions.get('window');
 
@@ -110,6 +111,12 @@ export const EventListingDetailScreen: React.FC<EventListingDetailScreenProps> =
 
   const handleBack = () => {
     navigation?.goBack();
+  };
+
+  const handleViewStoreProfile = () => {
+    if (listing?.store?.id) {
+      navigation?.navigate('StoreProfile', { storeId: listing.store.id });
+    }
   };
 
   const handleSearch = () => {
@@ -324,6 +331,13 @@ export const EventListingDetailScreen: React.FC<EventListingDetailScreenProps> =
           <Text style={styles.viewsText}>
             {formatViews(listing.viewsCount || listing.views)}
           </Text>
+        </View>
+
+        <View style={styles.storeCtaWrap}>
+          <ListingStoreProfileCTA
+            store={listing.store}
+            onPress={handleViewStoreProfile}
+          />
         </View>
 
         {/* Price and Actions */}
@@ -624,6 +638,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     paddingTop: Spacing.md,
     paddingBottom: Spacing.xs,
+  },
+  storeCtaWrap: {
+    paddingHorizontal: Spacing.md,
   },
   title: {
     ...Typography.h1,

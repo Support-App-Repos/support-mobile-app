@@ -243,8 +243,8 @@ export const SelectServiceTypeScreen: React.FC<SelectServiceTypeScreenProps> =
             setActiveTab(tab);
             if (tab === 'Home') {
               navigation?.navigate('Home');
-            } else if (tab === 'MyListings') {
-              navigation?.navigate('MyListings');
+            } else if (tab === 'Store') {
+              navigation?.navigate('Store');
             } else if (tab === 'Messages') {
               // Show coming soon snackbar
               setSnackbarVisible(true);

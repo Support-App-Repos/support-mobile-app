@@ -92,13 +92,11 @@ export const EditProfileScreen: React.FC<EditProfileScreenProps> = ({
   const handlePickProfileImage = async () => {
     try {
       setUploadingImage(true);
-      const selectedUris = await pickImages();
+      const selectedUris = await pickImages(1);
       
       if (selectedUris && selectedUris.length > 0) {
-        // Set local URI for preview
-        setProfileImageUri(selectedUris[0]);
+        setProfileImageUri(selectedUris[0].uri);
         
-        // Upload image
         const uploadedImages = await uploadImages(selectedUris, 'profiles/');
         if (uploadedImages && uploadedImages.length > 0) {
           setProfileImageUrl(uploadedImages[0].url);

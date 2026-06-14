@@ -199,7 +199,7 @@ export const ProductListingScreen: React.FC<ProductListingScreenProps> = ({
       const selectedUris = await pickImages();
 
       if (selectedUris && selectedUris.length > 0) {
-        const updatedUris = [...photoUris, ...selectedUris].slice(0, 6);
+        const updatedUris = [...photoUris, ...selectedUris.map((img) => img.uri)].slice(0, 6);
         setPhotoUris(updatedUris);
         setPhotos(updatedUris);
         setSnackbarMessage(`Added ${selectedUris.length} photo(s).`);
@@ -470,8 +470,8 @@ export const ProductListingScreen: React.FC<ProductListingScreenProps> = ({
           setActiveTab(tab);
           if (tab === 'Home') {
             navigation?.navigate('Home');
-          } else if (tab === 'MyListings') {
-            navigation?.navigate('MyListings');
+          } else if (tab === 'Store') {
+            navigation?.navigate('Store');
           } else if (tab === 'Messages') {
             // Show coming soon snackbar
             setSnackbarVisible(true);

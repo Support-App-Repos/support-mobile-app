@@ -23,6 +23,7 @@ import {
   MoreIcon,
   EditIcon,
   SettingsIcon,
+  StoreIcon,
   HelpIcon,
   LockIcon,
   RatingIcon,
@@ -36,6 +37,7 @@ import { profileService } from '../services';
 import { authService } from '../services/authService';
 import { Colors, Spacing, Typography, BorderRadius } from '../config/theme';
 import { useProfileContext } from '../contexts/ProfileContext';
+import { useStoreContext } from '../contexts/StoreContext';
 import { formatListingPrice } from '../utils/currency';
 import { useWishlist } from '../hooks';
 
@@ -93,7 +95,8 @@ const convertToListingCardData = (listing: any): ExtendedListingCardData => {
 export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   navigation,
 }) => {
-  const { user, loading, refreshProfile } = useProfileContext();
+  const { user, loading, refreshProfile, clearProfile } = useProfileContext();
+  const { clearStore } = useStoreContext();
   const { toggleWishlist } = useWishlist();
   const [activeTab, setActiveTab] = useState<TabType>('Browsing History');
   const [bottomNavTab, setBottomNavTab] = useState<BottomNavItem>('Profile');
@@ -107,9 +110,12 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   // Update active tab and refetch profile when screen comes into focus
   useFocusEffect(
     React.useCallback(() => {
+      if (deletingAccount) {
+        return;
+      }
       setBottomNavTab('Profile');
-      refreshProfile(); // Refetch profile data when screen comes into focus
-    }, [refreshProfile])
+      refreshProfile();
+    }, [refreshProfile, deletingAccount])
   );
 
   const fetchBrowsingHistory = useCallback(async () => {
@@ -191,18 +197,18 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
 
   const handleSignOut = async () => {
     try {
-      // Clear token and user data
       await authService.logout();
-      
-      // Navigate to login screen
+      clearProfile();
+      clearStore();
       navigation?.reset({
         index: 0,
         routes: [{ name: 'Login' }],
       });
     } catch (error: any) {
       console.error('Error signing out:', error);
-      // Even if logout fails, clear local storage and navigate to login
       await authService.logout();
+      clearProfile();
+      clearStore();
       navigation?.reset({
         index: 0,
         routes: [{ name: 'Login' }],
@@ -211,6 +217,10 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   };
 
   const handleDeleteAccount = () => {
+    if (deletingAccount) {
+      return;
+    }
+
     Alert.alert(
       'Delete Account',
       'Are you sure you want to delete your account? This action cannot be undone and all your data will be permanently deleted.',
@@ -226,21 +236,20 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             try {
               setDeletingAccount(true);
               const response = await profileService.deleteAccount();
-              
-              if (response.success) {
-                // Clear local storage
-                await authService.logout();
-                
-                // Navigate to login screen
-                navigation?.reset({
-                  index: 0,
-                  routes: [{ name: 'Login' }],
-                });
-                
-                Alert.alert('Success', 'Your account has been deleted successfully.');
-              } else {
+
+              if (!response.success) {
                 Alert.alert('Error', response.message || 'Failed to delete account');
+                return;
               }
+
+              await authService.logout();
+              clearProfile();
+              clearStore();
+
+              navigation?.reset({
+                index: 0,
+                routes: [{ name: 'Login' }],
+              });
             } catch (error: any) {
               console.error('Error deleting account:', error);
               Alert.alert('Error', error.message || 'Failed to delete account. Please try again.');
@@ -351,6 +360,14 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
 
         {/* Account Management Section */}
         <View style={styles.accountSection}>
+          <TouchableOpacity
+            style={styles.accountButton}
+            onPress={() => navigation?.navigate('Store')}
+            activeOpacity={0.7}
+          >
+            <StoreIcon size={24} color="#B7B7B7" />
+            <Text style={styles.accountButtonText}>My Store</Text>
+          </TouchableOpacity>
           <TouchableOpacity
             style={styles.accountButton}
             onPress={handleAccountSettings}
@@ -540,8 +557,8 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
           setBottomNavTab(tab);
           if (tab === 'Home') {
             navigation?.navigate('Home');
-          } else if (tab === 'MyListings') {
-            navigation?.navigate('MyListings');
+          } else if (tab === 'Store') {
+            navigation?.navigate('Store');
           } else if (tab === 'Messages') {
             // Show coming soon snackbar
             setSnackbarVisible(true);

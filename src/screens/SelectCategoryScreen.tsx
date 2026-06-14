@@ -24,7 +24,7 @@ import {
 import { BottomNavigation, type BottomNavItem } from '../components/navigation';
 import { Colors, Spacing, Typography, BorderRadius } from '../config/theme';
 import { categoryService } from '../services';
-import { useProfile } from '../hooks';
+import { useProfile, useStore } from '../hooks';
 
 type SelectCategoryScreenProps = {
   navigation?: any;
@@ -56,6 +56,25 @@ function normalizeCategories(apiList: any[]): any[] {
     }
   }
   return out;
+}
+
+const STORE_CATEGORY_TO_KEY: Record<string, string> = {
+  product: 'product',
+  service: 'service',
+  property: 'propert',
+  event: 'event',
+};
+
+function filterCategoriesForStore(categories: any[], businessCategory?: string | null): any[] {
+  if (!businessCategory || businessCategory.trim().toLowerCase() === 'mixed') {
+    return categories;
+  }
+  const key = STORE_CATEGORY_TO_KEY[businessCategory.trim().toLowerCase()];
+  if (!key) return categories;
+  return categories.filter((category) => {
+    const label = `${category?.name || ''} ${category?.slug || ''}`.toLowerCase();
+    return label.includes(key);
+  });
 }
 
 function categorySubtitle(category: any): string {
@@ -99,8 +118,12 @@ export const SelectCategoryScreen: React.FC<SelectCategoryScreenProps> = ({ navi
   const [loading, setLoading] = useState(true);
   const [snackbarVisible, setSnackbarVisible] = useState(false);
   const { profileImageUrl } = useProfile();
+  const { store } = useStore();
 
-  const categories = useMemo(() => normalizeCategories(categoriesRaw), [categoriesRaw]);
+  const categories = useMemo(() => {
+    const normalized = normalizeCategories(categoriesRaw);
+    return filterCategoriesForStore(normalized, store?.businessCategory);
+  }, [categoriesRaw, store?.businessCategory]);
 
   useEffect(() => {
     fetchCategories();
@@ -175,7 +198,11 @@ export const SelectCategoryScreen: React.FC<SelectCategoryScreenProps> = ({ navi
         ) : categories.length === 0 ? (
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyText}>No categories available</Text>
-            <Text style={styles.emptySubtext}>Please check your connection or contact support</Text>
+            <Text style={styles.emptySubtext}>
+              {store?.businessCategory && store.businessCategory.toLowerCase() !== 'mixed'
+                ? `Your store is set to ${store.businessCategory}. No matching listing category was found.`
+                : 'Please check your connection or contact support'}
+            </Text>
           </View>
         ) : (
           categories.map((category) => {
@@ -206,7 +233,7 @@ export const SelectCategoryScreen: React.FC<SelectCategoryScreenProps> = ({ navi
         onTabPress={(tab) => {
           setActiveTab(tab);
           if (tab === 'Home') navigation?.navigate('Home');
-          else if (tab === 'MyListings') navigation?.navigate('MyListings');
+          else if (tab === 'Store') navigation?.navigate('Store');
           else if (tab === 'Messages') setSnackbarVisible(true);
           else if (tab === 'Profile') navigation?.navigate('Profile');
         }}

@@ -30,7 +30,7 @@ import {
 import { PasswordInput } from '../components/common/PasswordInput';
 import { Colors, Spacing, BorderRadius, Typography } from '../config/theme';
 import { authService } from '../services';
-import { useProfile } from '../hooks';
+import { useProfile, useStore } from '../hooks';
 import { TERMS_AND_CONDITIONS_CONTENT, PRIVACY_POLICY_CONTENT } from '../constants';
 
 const googleWebClientId = (GOOGLE_WEB_CLIENT_ID || '').trim();
@@ -44,6 +44,7 @@ interface LoginScreenProps {
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
   const { refreshProfile } = useProfile();
+  const { refreshStore } = useStore();
   const [loginMethod, setLoginMethod] = useState<'OTP' | 'Password'>('OTP');
   const [email, setEmail] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -150,6 +151,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
       if (response.success && response.token) {
         setOtpError(false);
         await refreshProfile();
+        await refreshStore();
         navigation?.navigate?.('Home');
       } else {
         setOtpError(true);
@@ -241,6 +243,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
       
       if (response.success && response.token) {
         await refreshProfile();
+        await refreshStore();
         navigation?.navigate?.('Home');
       } else {
         // Show server error in snackbar
@@ -294,6 +297,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
       const result = await authService.signInWithGoogle(idToken);
       if (result?.success && result?.token) {
         await refreshProfile();
+        await refreshStore();
         navigation?.navigate?.('Home');
       } else {
         setSnackbarMessage(result?.message || 'Google sign-in failed');

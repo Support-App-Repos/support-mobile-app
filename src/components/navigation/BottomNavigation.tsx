@@ -1,6 +1,6 @@
 /**
  * Bottom Navigation Component
- * Fixed bottom navigation bar with Home, My Listings, Create, Messages, Profile
+ * Fixed bottom navigation bar with Home, Store, Create, Messages, Profile
  */
 
 import React from 'react';
@@ -13,20 +13,22 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   HomeIcon,
-  MyListingsIcon,
+  StoreIcon,
   MessageIcon,
   ProfileIcon,
   AddNewIcon,
 } from '../common';
 import { Colors, Spacing, Typography } from '../../config/theme';
 
-export type BottomNavItem = 'Home' | 'MyListings' | 'Messages' | 'Profile';
+export type BottomNavItem = 'Home' | 'Store' | 'Messages' | 'Profile';
 
 interface BottomNavigationProps {
   activeTab: BottomNavItem;
   onTabPress: (tab: BottomNavItem) => void;
   onCreatePress: () => void;
-  showCreateButton?: boolean; // Only show plus button on Home screen
+  showCreateButton?: boolean;
+  canCreateListing?: boolean;
+  onDisabledCreatePress?: () => void;
 }
 
 export const BottomNavigation: React.FC<BottomNavigationProps> = ({
@@ -34,7 +36,17 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
   onTabPress,
   onCreatePress,
   showCreateButton = true,
+  canCreateListing = true,
+  onDisabledCreatePress,
 }) => {
+  const handleCreatePress = () => {
+    if (!canCreateListing) {
+      onDisabledCreatePress?.();
+      return;
+    }
+    onCreatePress();
+  };
+
   return (
     <SafeAreaView edges={['bottom']} style={styles.container}>
       <View style={styles.navBar}>
@@ -59,29 +71,32 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
 
         <TouchableOpacity
           style={styles.navItem}
-          onPress={() => onTabPress('MyListings')}
+          onPress={() => onTabPress('Store')}
           activeOpacity={0.7}
         >
-          <MyListingsIcon
+          <StoreIcon
             size={24}
-            color={activeTab === 'MyListings' ? Colors.light.primary : '#828282'}
+            color={activeTab === 'Store' ? Colors.light.primary : '#828282'}
           />
           <Text
             style={[
               styles.navLabel,
-              activeTab === 'MyListings' && styles.navLabelActive,
+              activeTab === 'Store' && styles.navLabelActive,
             ]}
           >
-            My Listings
+            Store
           </Text>
         </TouchableOpacity>
 
         {showCreateButton && (
           <View style={styles.createButtonContainer}>
             <TouchableOpacity
-              style={styles.createButton}
-              onPress={onCreatePress}
-              activeOpacity={0.8}
+              style={[
+                styles.createButton,
+                !canCreateListing && styles.createButtonDisabled,
+              ]}
+              onPress={handleCreatePress}
+              activeOpacity={canCreateListing ? 0.8 : 1}
             >
               <AddNewIcon size={24} color="white" />
             </TouchableOpacity>
@@ -174,15 +189,14 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.light.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: -30, // Half the button height (56/2 = 28) to position it half above
+    marginTop: -30,
     shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 4,
     elevation: 8,
   },
+  createButtonDisabled: {
+    opacity: 0.45,
+  },
 });
-

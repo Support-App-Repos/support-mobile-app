@@ -14,6 +14,7 @@ import {
   ImageSourcePropType,
 } from 'react-native';
 import { Colors, Spacing, Typography, BorderRadius } from '../../config/theme';
+import { DeleteIcon } from '../common/DeleteIcon';
 import { formatListingPrice } from '../../utils/currency';
 
 export interface MyListingCardData {
@@ -36,6 +37,7 @@ export interface MyListingCardData {
 interface MyListingCardProps {
   listing: MyListingCardData;
   onPress?: (listing: MyListingCardData) => void;
+  onDelete?: () => void;
 }
 
 // Helper function to format time ago
@@ -85,6 +87,7 @@ const getStatusColors = (status: string): { textColor: string; backgroundColor: 
 export const MyListingCard: React.FC<MyListingCardProps> = ({
   listing,
   onPress,
+  onDelete,
 }) => {
   const handlePress = () => {
     onPress?.(listing);
@@ -96,16 +99,42 @@ export const MyListingCard: React.FC<MyListingCardProps> = ({
     : { uri: 'https://via.placeholder.com/100' };
 
   const statusColors = getStatusColors(listing.status);
-  const timeAgo = formatTimeAgo(new Date(listing.createdAt));
+  const timeAgo = listing.createdAt
+    ? formatTimeAgo(new Date(listing.createdAt))
+    : '';
 
-  return (
-    <TouchableOpacity
-      style={styles.card}
-      onPress={handlePress}
-      activeOpacity={0.8}
-    >
-      {/* Image on left - flush with left edge */}
-      <View style={styles.imageContainer}>
+  const statusColumn = (
+    <View style={styles.statusColumn}>
+      <View
+        style={[
+          styles.badgeChip,
+          { backgroundColor: statusColors.backgroundColor },
+        ]}
+      >
+        <Text
+          style={[styles.badgeText, { color: statusColors.textColor }]}
+          numberOfLines={1}
+        >
+          {listing.status}
+        </Text>
+      </View>
+      {onDelete ? (
+        <TouchableOpacity
+          style={[styles.badgeChip, styles.deleteAction]}
+          onPress={onDelete}
+          activeOpacity={0.7}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <DeleteIcon size={10} color="#DC2626" />
+          <Text style={[styles.badgeText, styles.deleteText]}>Delete</Text>
+        </TouchableOpacity>
+      ) : null}
+    </View>
+  );
+
+  const bodyContent = (
+    <>
+      <View style={[styles.imageContainer, onDelete && styles.imageContainerWithDelete]}>
         <Image
           source={imageSource}
           style={styles.image}
@@ -113,44 +142,67 @@ export const MyListingCard: React.FC<MyListingCardProps> = ({
         />
       </View>
 
-      {/* Content on right */}
-      <View style={styles.content}>
-        {/* Header: Title and Status badge aligned at top */}
-        <View style={styles.headerRow}>
-          <Text style={styles.title} numberOfLines={1}>
-            {listing.title}
-          </Text>
-          <View style={[styles.statusBadge, { backgroundColor: statusColors.backgroundColor }]}>
-            <Text style={[styles.statusText, { color: statusColors.textColor }]}>
-              {listing.status}
+      <View style={[styles.content, onDelete && styles.contentWithDelete]}>
+        <View style={styles.mainSection}>
+          <View style={styles.headerRow}>
+            <Text
+              style={[styles.title, onDelete && styles.titleWithActions]}
+              numberOfLines={1}
+            >
+              {listing.title}
             </Text>
+            {!onDelete ? statusColumn : null}
           </View>
+
+          {listing.viewsCount !== undefined && listing.viewsCount !== null && (
+            <Text style={styles.viewsText}>
+              {listing.viewsCount} views
+            </Text>
+          )}
+
+          {listing.price !== undefined && listing.price !== null && (
+            <>
+              <Text style={styles.price}>
+                {formatListingPrice(listing.price, listing.currency)}
+              </Text>
+              <Text style={styles.totalPrice}>
+                Total: {formatListingPrice(listing.price, listing.currency)}
+              </Text>
+            </>
+          )}
         </View>
 
-        {/* Views count - directly below title */}
-        {listing.viewsCount !== undefined && listing.viewsCount !== null && (
-          <Text style={styles.viewsText}>
-            {listing.viewsCount} views
-          </Text>
-        )}
-
-        {/* Price - larger, primary color */}
-        {listing.price !== undefined && listing.price !== null && (
-          <>
-            <Text style={styles.price}>
-              {formatListingPrice(listing.price, listing.currency)}
-            </Text>
-            <Text style={styles.totalPrice}>
-              Total: {formatListingPrice(listing.price, listing.currency)}
-            </Text>
-          </>
-        )}
-
-        {/* Footer: Time listed - right aligned at bottom */}
         <View style={styles.footerRow}>
-          <Text style={styles.timeText}>{timeAgo}</Text>
+          <Text style={styles.timeText} numberOfLines={1}>
+            {timeAgo}
+          </Text>
         </View>
       </View>
+    </>
+  );
+
+  if (onDelete) {
+    return (
+      <View style={[styles.card, styles.cardWithDelete]}>
+        <TouchableOpacity
+          style={styles.pressableBody}
+          onPress={handlePress}
+          activeOpacity={0.8}
+        >
+          {bodyContent}
+        </TouchableOpacity>
+        <View style={styles.statusColumnOverlay}>{statusColumn}</View>
+      </View>
+    );
+  }
+
+  return (
+    <TouchableOpacity
+      style={styles.card}
+      onPress={handlePress}
+      activeOpacity={0.8}
+    >
+      {bodyContent}
     </TouchableOpacity>
   );
 };
@@ -158,6 +210,7 @@ export const MyListingCard: React.FC<MyListingCardProps> = ({
 const styles = StyleSheet.create({
   card: {
     flexDirection: 'row',
+    alignItems: 'flex-start',
     backgroundColor: Colors.light.background,
     borderRadius: BorderRadius.md,
     marginBottom: Spacing.md,
@@ -170,10 +223,25 @@ const styles = StyleSheet.create({
     height: 110,
     overflow: 'hidden', // Ensure image doesn't overflow border radius
   },
+  cardWithDelete: {
+    minHeight: 128,
+    height: undefined,
+    position: 'relative',
+  },
+  pressableBody: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    flex: 1,
+  },
+  statusColumnOverlay: {
+    position: 'absolute',
+    top: 6,
+    right: 12,
+  },
   imageContainer: {
     width: 97,
     height: 97,
-    borderRadius: 0, // No border radius on left side
+    borderRadius: 0,
     borderTopLeftRadius: BorderRadius.md,
     borderBottomLeftRadius: BorderRadius.md,
     overflow: 'hidden',
@@ -182,6 +250,11 @@ const styles = StyleSheet.create({
     marginTop: 5.5,
     backgroundColor: '#F3F4F6',
   },
+  imageContainerWithDelete: {
+    height: 116,
+    marginTop: 6,
+    marginBottom: 6,
+  },
   image: {
     width: '100%',
     height: '100%',
@@ -189,48 +262,74 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     justifyContent: 'space-between',
-    paddingTop: 4, // Align with image top margin
-    paddingRight: 12, // Padding from right edge
-    paddingBottom: 8, // Bottom padding for time text spacing
+    paddingTop: 5.5,
+    paddingRight: 12,
+    paddingBottom: 8,
+    minHeight: 97,
+  },
+  contentWithDelete: {
+    paddingTop: 6,
+    minHeight: 116,
+  },
+  mainSection: {
+    flexShrink: 1,
   },
   headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 4,
+    marginBottom: 0,
     flex: 0,
+  },
+  statusColumn: {
+    width: 72,
+    alignItems: 'stretch',
+    flexShrink: 0,
+    gap: 4,
+  },
+  badgeChip: {
+    height: 22,
+    borderRadius: BorderRadius.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+    paddingHorizontal: 6,
+  },
+  deleteAction: {
+    flexDirection: 'row',
+    gap: 2,
+    backgroundColor: '#FEE2E2',
+  },
+  badgeText: {
+    fontSize: 9,
+    fontWeight: '600',
+    lineHeight: 11,
+    textAlign: 'center',
+    includeFontPadding: false,
+  },
+  deleteText: {
+    color: '#DC2626',
+    textTransform: 'none',
   },
   title: {
     ...Typography.h3,
     color: Colors.light.text,
     fontWeight: '600',
     fontSize: 13,
-    lineHeight: 18,
+    lineHeight: 14,
     flex: 1,
     marginRight: Spacing.sm,
   },
-  statusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: BorderRadius.sm,
-    minWidth: 55,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-  },
-  statusText: {
-    ...Typography.caption,
-    fontWeight: '600',
-    fontSize: 9,
-    textTransform: 'uppercase',
-    lineHeight: 12,
+  titleWithActions: {
+    marginRight: 80,
   },
   viewsText: {
     ...Typography.body,
     color: Colors.light.textSecondary,
     fontSize: 10,
+    marginTop: 0,
     marginBottom: 4,
-    lineHeight: 14,
+    lineHeight: 11,
   },
   price: {
     ...Typography.h2,
@@ -245,19 +344,18 @@ const styles = StyleSheet.create({
     color: Colors.light.primary,
     fontSize: 12,
     lineHeight: 16,
-    marginBottom: 4,
+    marginBottom: 2,
   },
   footerRow: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
     alignItems: 'center',
-    marginTop: 'auto',
+    flexShrink: 0,
   },
   timeText: {
     ...Typography.caption,
     color: Colors.light.textSecondary,
     fontSize: 10,
-    marginBottom: 8
   },
 });
 

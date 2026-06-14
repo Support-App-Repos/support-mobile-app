@@ -110,6 +110,17 @@ class ListingService {
   async publishListing(id: string) {
     return this.apiService.post<{ success: boolean; data: any }>(`/listings/${id}/publish`, {});
   }
+
+  async deleteListing(id: string) {
+    return this.apiService.delete<{ success: boolean }>(`/listings/${id}`);
+  }
+
+  async updateOwnerListingStatus(id: string, status: 'Active' | 'Paused') {
+    return this.apiService.put<{ success: boolean; data: any }>(
+      `/listings/${id}/owner-status`,
+      { status }
+    );
+  }
 }
 
 export const listingService = new ListingService();

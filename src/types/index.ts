@@ -58,6 +58,14 @@ export type RootStackParamList = {
     user?: any;
   };
   MyListings: undefined;
+  Store: undefined;
+  CreateStore: { edit?: boolean } | undefined;
+  StoreDashboard: undefined;
+  StoreProfile: { storeId?: string } | undefined;
+  ManageStoreListings: undefined;
+  StoreVerifiedSuccess: { storeName?: string } | undefined;
+  StoreAnalytics: undefined;
+  StoreListingsAll: { storeId: string; storeName?: string };
   ListingDetail: {
     listingId: string;
   };
@@ -116,5 +124,61 @@ export interface User {
   avatar?: string;
 }
 
-// Add more type definitions as needed
+export interface StoreWorkingHours {
+  days: string[];
+  open: string;
+  close: string;
+}
+
+export interface Store {
+  id: string;
+  userId?: string;
+  name: string;
+  slug?: string;
+  logoUrl?: string | null;
+  coverImageUrl?: string | null;
+  businessCategory: string;
+  description?: string | null;
+  address?: string | null;
+  city?: string | null;
+  location?: string | null;
+  contactPhone?: string | null;
+  contactEmail?: string | null;
+  workingHours?: StoreWorkingHours | null;
+  status?: string;
+  verificationStatus?: string;
+  isVerified?: boolean;
+  ratingAverage?: number;
+  reviewsCount?: number;
+  viewsCount?: number;
+  listingsCount?: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface StoreReview {
+  id: string;
+  rating: number;
+  comment?: string;
+  createdAt: string;
+  user?: {
+    id: string;
+    fullName: string;
+    profileImageUrl?: string;
+  } | null;
+}
+
+export interface StoreDashboard {
+  store: Store;
+  stats: {
+    totalListings: number;
+    activeListings: number;
+    pausedListings: number;
+    messages: number;
+    views: number;
+    ratingAverage: number;
+    reviewsCount: number;
+  };
+  recentReviews: StoreReview[];
+}
 

@@ -26,7 +26,15 @@ import {
   PublishScreen,
   ProfileScreen,
   EditProfileScreen,
+  StoreScreen,
   MyListingsScreen,
+  CreateStoreScreen,
+  StoreDashboardScreen,
+  StoreProfileScreen,
+  ManageStoreListingsScreen,
+  StoreVerifiedSuccessScreen,
+  StoreAnalyticsScreen,
+  StoreListingsAllScreen,
   ListingDetailScreen,
   EventListingDetailScreen,
   PropertyListingDetailScreen,
@@ -36,6 +44,7 @@ import {
 import { RootStackParamList } from '../types';
 import { authService } from '../services/authService';
 import { ProfileProvider } from '../contexts/ProfileContext';
+import { StoreProvider } from '../contexts/StoreContext';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -88,6 +97,7 @@ export const AppNavigator: React.FC = () => {
 
   return (
     <ProfileProvider>
+      <StoreProvider>
       <NavigationContainer
         ref={navigationRef}
         onStateChange={handleNavigationStateChange}
@@ -224,9 +234,47 @@ export const AppNavigator: React.FC = () => {
         <Stack.Screen
           name="MyListings"
           component={MyListingsScreen}
-          options={{
-            headerShown: false,
-          }}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="Store"
+          component={StoreScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="CreateStore"
+          component={CreateStoreScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="StoreDashboard"
+          component={StoreDashboardScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="StoreProfile"
+          component={StoreProfileScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="ManageStoreListings"
+          component={ManageStoreListingsScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="StoreVerifiedSuccess"
+          component={StoreVerifiedSuccessScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="StoreAnalytics"
+          component={StoreAnalyticsScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="StoreListingsAll"
+          component={StoreListingsAllScreen}
+          options={{ headerShown: false }}
         />
         <Stack.Screen
           name="ListingDetail"
@@ -258,6 +306,7 @@ export const AppNavigator: React.FC = () => {
         />
         </Stack.Navigator>
       </NavigationContainer>
+      </StoreProvider>
     </ProfileProvider>
   );
 };

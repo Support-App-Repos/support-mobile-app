@@ -18,6 +18,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   BellIcon,
+  BackIcon,
   ActiveStatusIcon,
   PendingStatusIcon,
   RejectedStatusIcon,
@@ -54,7 +55,7 @@ export const MyListingsScreen: React.FC<{
   navigation?: any;
   route?: any;
 }> = ({ navigation }) => {
-  const [activeTab, setActiveTab] = useState<BottomNavItem>('MyListings');
+  const [activeTab, setActiveTab] = useState<BottomNavItem>('Store');
   const [selectedStatus, setSelectedStatus] = useState<ListingStatus>('All');
   const [listings, setListings] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
@@ -73,7 +74,7 @@ export const MyListingsScreen: React.FC<{
   // Update active tab when screen comes into focus
   useFocusEffect(
     React.useCallback(() => {
-      setActiveTab('MyListings');
+      setActiveTab('Store');
     }, [])
   );
 
@@ -134,6 +135,13 @@ export const MyListingsScreen: React.FC<{
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => navigation?.goBack()}
+            activeOpacity={0.7}
+          >
+            <BackIcon size={24} color="#030303" />
+          </TouchableOpacity>
           <Text style={styles.headerTitle}>My Listings</Text>
         </View>
         <View style={styles.headerRight}>
@@ -270,8 +278,8 @@ export const MyListingsScreen: React.FC<{
           setActiveTab(tab);
           if (tab === 'Home') {
             navigation?.navigate('Home');
-          } else if (tab === 'MyListings') {
-            // Already on MyListings screen
+          } else if (tab === 'Store') {
+            navigation?.navigate('Store');
           } else if (tab === 'Messages') {
             // Show coming soon snackbar
             setSnackbarVisible(true);
@@ -310,6 +318,13 @@ const styles = StyleSheet.create({
   },
   headerLeft: {
     flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+  },
+  backButton: {
+    padding: Spacing.xs,
+    marginLeft: -Spacing.xs,
   },
   headerTitle: {
     ...Typography.h2,

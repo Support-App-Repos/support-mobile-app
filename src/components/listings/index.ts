@@ -11,9 +11,11 @@ export type {
   MarketplaceSearchServiceLine,
 } from './MarketplaceSearchResultCard';
 export { MyListingCard } from './MyListingCard';
+export { ListingStoreProfileCTA } from './ListingStoreProfileCTA';
 export type { Category } from './CategoryTabs';
 export type { ListingCardData } from './ListingCard';
 export type { MyListingCardData } from './MyListingCard';
+export type { ListingStoreInfo } from './ListingStoreProfileCTA';
 
 
 

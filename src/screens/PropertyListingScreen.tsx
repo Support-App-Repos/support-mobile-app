@@ -19,7 +19,7 @@ import {
   Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { BackIcon, BellIcon, AddPhotoIcon, Checkbox, GoogleLocationField } from '../components/common';
+import { BackIcon, BellIcon, AddPhotoIcon, Checkbox, GoogleLocationField, FormSelect } from '../components/common';
 import { BottomNavigation, type BottomNavItem } from '../components/navigation';
 import { Colors, Spacing, Typography, BorderRadius } from '../config/theme';
 import { listingService, paymentService, pickImages, uploadImages } from '../services';
@@ -51,65 +51,6 @@ const PROPERTY_TYPE_OPTIONS = [
 ];
 const OWNERSHIP_OPTIONS = ['Freehold', 'Leasehold'];
 const USAGE_OPTIONS = ['Residential', 'Commercial', 'Mixed'];
-
-type FormSelectProps = {
-  label: string;
-  required?: boolean;
-  value: string;
-  placeholder: string;
-  options: string[];
-  onSelect: (v: string) => void;
-};
-
-const FormSelect: React.FC<FormSelectProps> = ({
-  label,
-  required,
-  value,
-  placeholder,
-  options,
-  onSelect,
-}) => {
-  const [open, setOpen] = useState(false);
-
-  return (
-    <View style={styles.fieldFlex}>
-      {label ? (
-        <Text style={styles.label}>
-          {label}
-          {required ? <Text style={styles.required}> *</Text> : null}
-        </Text>
-      ) : null}
-      <TouchableOpacity style={styles.selectTrigger} onPress={() => setOpen(true)} activeOpacity={0.7}>
-        <Text style={[styles.selectText, !value && styles.selectPlaceholder]} numberOfLines={1}>
-          {value || placeholder}
-        </Text>
-        <Text style={styles.selectChevron}>▼</Text>
-      </TouchableOpacity>
-      <Modal visible={open} transparent animationType="slide" onRequestClose={() => setOpen(false)}>
-        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setOpen(false)}>
-          <View style={styles.modalSheet} onStartShouldSetResponder={() => true}>
-            <Text style={styles.modalTitle}>{label || 'Select'}</Text>
-            <FlatList
-              data={options}
-              keyExtractor={(item) => item}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={[styles.modalRow, value === item && styles.modalRowActive]}
-                  onPress={() => {
-                    onSelect(item);
-                    setOpen(false);
-                  }}
-                >
-                  <Text style={[styles.modalRowText, value === item && styles.modalRowTextActive]}>{item}</Text>
-                </TouchableOpacity>
-              )}
-            />
-          </View>
-        </TouchableOpacity>
-      </Modal>
-    </View>
-  );
-};
 
 export const PropertyListingScreen: React.FC<PropertyListingScreenProps> = ({ navigation, route }) => {
   const androidInputProps =
@@ -314,7 +255,7 @@ export const PropertyListingScreen: React.FC<PropertyListingScreenProps> = ({ na
       }
       const selectedUris = await pickImages();
       if (selectedUris?.length) {
-        const updated = [...photoUris, ...selectedUris].slice(0, 6);
+        const updated = [...photoUris, ...selectedUris.map((img) => img.uri)].slice(0, 6);
         setPhotoUris(updated);
         setPhotos(updated);
         setSnackbarMessage(`Added ${selectedUris.length} photo(s).`);
@@ -740,7 +681,7 @@ export const PropertyListingScreen: React.FC<PropertyListingScreenProps> = ({ na
         onTabPress={(tab) => {
           setActiveTab(tab);
           if (tab === 'Home') navigation?.navigate('Home');
-          else if (tab === 'MyListings') navigation?.navigate('MyListings');
+          else if (tab === 'Store') navigation?.navigate('Store');
           else if (tab === 'Messages') {
             setSnackbarMessage('Coming soon feature');
             setSnackbarType('info');

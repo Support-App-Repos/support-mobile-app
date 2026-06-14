@@ -2,7 +2,7 @@
  * Home Screen - Marketplace Feed
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import {
   View,
@@ -24,7 +24,7 @@ import { CategoryTabs, ListingCard, type Category, type ListingCardData } from '
 import { BottomNavigation, type BottomNavItem } from '../components/navigation';
 import { Colors, Spacing, Typography, BorderRadius } from '../config/theme';
 import { listingService, categoryService } from '../services';
-import { useProfile, useWishlist } from '../hooks';
+import { useProfile, useWishlist, useBottomNavHandlers } from '../hooks';
 
 type HomeScreenProps = {
   navigation?: any;
@@ -84,21 +84,21 @@ const convertToListingCardData = (listing: any): ListingCardData => {
 
 export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const [selectedCategory, setSelectedCategory] = useState<Category>('All');
-  const [activeTab, setActiveTab] = useState<BottomNavItem>('Home');
+  const {
+    activeTab,
+    setActiveTab,
+    snackbarVisible,
+    setSnackbarVisible,
+    canCreateListing,
+    handleCreatePress,
+    handleTabPress,
+    showCreateGateAlert,
+  } = useBottomNavHandlers(navigation, 'Home');
   const [listings, setListings] = useState<ListingCardData[]>([]);
   const [loading, setLoading] = useState(true);
   const [categoryMap, setCategoryMap] = useState<Record<string, string>>({});
-  const [snackbarVisible, setSnackbarVisible] = useState(false);
   const { profileImageUrl } = useProfile();
   const { isWishlisted, toggleWishlist, refresh: refreshWishlist } = useWishlist();
-
-  // Update active tab when screen comes into focus
-  useFocusEffect(
-    React.useCallback(() => {
-      setActiveTab('Home');
-      refreshWishlist();
-    }, [])
-  );
 
   // Fetch categories and listings on mount
   useEffect(() => {
@@ -181,6 +181,41 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     }
   };
 
+  const refetchHomeListings = useCallback(() => {
+    if (selectedCategory !== 'All') {
+      if (Object.keys(categoryMap).length === 0) {
+        return;
+      }
+
+      const categoryNameMap: Record<Category, string> = {
+        All: 'All',
+        Property: 'Properties',
+        Events: 'Events',
+        Product: 'Products',
+        Services: 'Services',
+      };
+
+      const categoryId = categoryMap[categoryNameMap[selectedCategory]];
+      if (categoryId) {
+        fetchListings(categoryId);
+      } else {
+        setListings([]);
+        setLoading(false);
+      }
+      return;
+    }
+
+    fetchListings();
+  }, [selectedCategory, categoryMap]);
+
+  useFocusEffect(
+    useCallback(() => {
+      setActiveTab('Home');
+      refreshWishlist();
+      refetchHomeListings();
+    }, [setActiveTab, refreshWishlist, refetchHomeListings])
+  );
+
   const handleCategoryChange = (category: Category) => {
     setSelectedCategory(category);
   };
@@ -188,24 +223,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const handleListingPress = (_listing: ListingCardData) => {
     // Navigation is now handled inside ListingCard based on category
     // This is kept for backward compatibility
-  };
-
-  const handleCreatePress = () => {
-    navigation?.navigate('SelectCategory');
-  };
-
-  const handleTabPress = (tab: BottomNavItem) => {
-    setActiveTab(tab);
-    if (tab === 'Home') {
-      // Already on Home screen
-    } else if (tab === 'MyListings') {
-      navigation?.navigate('MyListings');
-    } else if (tab === 'Messages') {
-      // Show coming soon snackbar
-      setSnackbarVisible(true);
-    } else if (tab === 'Profile') {
-      navigation?.navigate('Profile');
-    }
   };
 
   return (
@@ -300,6 +317,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         activeTab={activeTab}
         onTabPress={handleTabPress}
         onCreatePress={handleCreatePress}
+        canCreateListing={canCreateListing}
+        onDisabledCreatePress={showCreateGateAlert}
         showCreateButton={true}
       />
 

@@ -39,7 +39,7 @@ export const PublishScreen: React.FC<PublishScreenProps> = ({
 
   const handleViewListing = () => {
     // Navigate to MyListings screen
-    navigation?.navigate('MyListings');
+    navigation?.navigate('Store');
   };
 
   const handleCreateAnother = () => {
@@ -145,8 +145,8 @@ export const PublishScreen: React.FC<PublishScreenProps> = ({
           setActiveTab(tab);
           if (tab === 'Home') {
             handleReturnToHome();
-          } else if (tab === 'MyListings') {
-            navigation?.navigate('MyListings');
+          } else if (tab === 'Store') {
+            navigation?.navigate('Store');
           } else if (tab === 'Messages') {
             // TODO: Navigate to Messages screen when implemented
             console.log('Messages screen not yet implemented');

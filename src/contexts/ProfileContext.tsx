@@ -11,6 +11,7 @@ interface ProfileContextType {
   loading: boolean;
   error: string | null;
   refreshProfile: () => Promise<void>;
+  clearProfile: () => void;
   profileImageUrl: string | null;
 }
 
@@ -43,7 +44,16 @@ export const ProfileProvider: React.FC<{ children: ReactNode }> = ({ children })
       }
     } catch (err: any) {
       console.error('Error fetching profile:', err);
-      setError(err.message || 'Failed to fetch profile');
+      const message = err.message || 'Failed to fetch profile';
+      if (
+        message.toLowerCase().includes('not found') ||
+        message.toLowerCase().includes('unauthorized')
+      ) {
+        setUser(null);
+        setError(null);
+      } else {
+        setError(message);
+      }
     } finally {
       setLoading(false);
     }
@@ -57,6 +67,12 @@ export const ProfileProvider: React.FC<{ children: ReactNode }> = ({ children })
     await fetchProfile();
   }, [fetchProfile]);
 
+  const clearProfile = useCallback(() => {
+    setUser(null);
+    setError(null);
+    setLoading(false);
+  }, []);
+
   const profileImageUrl = user?.profileImageUrl || user?.profileImage || null;
 
   return (
@@ -66,6 +82,7 @@ export const ProfileProvider: React.FC<{ children: ReactNode }> = ({ children })
         loading,
         error,
         refreshProfile,
+        clearProfile,
         profileImageUrl,
       }}
     >

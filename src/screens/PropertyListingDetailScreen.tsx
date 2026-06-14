@@ -34,6 +34,7 @@ import {
 import { Colors, Spacing, Typography, BorderRadius } from '../config/theme';
 import { listingService, profileService } from '../services';
 import { formatListingPrice } from '../utils/currency';
+import { ListingStoreProfileCTA } from '../components/listings';
 import { parseStoredAmenities } from '../constants/propertyAmenities';
 
 const { width: SCREEN_W } = Dimensions.get('window');
@@ -249,8 +250,11 @@ export const PropertyListingDetailScreen: React.FC<PropertyListingDetailScreenPr
   const hasValidated =
     !!(listing.ownership || listing.builtUpArea || listing.propertyUsage || listing.balconySize);
 
-  const sellerAvatar =
-    listing.user?.profileImageUrl || 'https://i.pravatar.cc/150?img=12';
+  const handleViewStoreProfile = () => {
+    if (listing?.store?.id) {
+      navigation?.navigate('StoreProfile', { storeId: listing.store.id });
+    }
+  };
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -303,6 +307,10 @@ export const PropertyListingDetailScreen: React.FC<PropertyListingDetailScreenPr
         <View style={styles.padH}>
           <Text style={styles.listingTitle}>{listing.title || 'Property'}</Text>
           <Text style={styles.views}>{formatViews(listing.viewsCount ?? listing.views)}</Text>
+          <ListingStoreProfileCTA
+            store={listing.store}
+            onPress={handleViewStoreProfile}
+          />
           <Text style={styles.price}>
             {formatListingPrice(listing.price, listing.currency ?? 'AED')}
           </Text>

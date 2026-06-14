@@ -359,8 +359,8 @@ export const SelectRegionScreen: React.FC<SelectRegionScreenProps> = ({
           setActiveTab(tab);
           if (tab === 'Home') {
             navigation?.navigate('Home');
-          } else if (tab === 'MyListings') {
-            navigation?.navigate('MyListings');
+          } else if (tab === 'Store') {
+            navigation?.navigate('Store');
           } else if (tab === 'Messages') {
             // TODO: Navigate to Messages screen when implemented
             console.log('Messages screen not yet implemented');
