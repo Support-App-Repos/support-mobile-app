@@ -72,6 +72,34 @@ class EmailService {
     await this.transporter.sendMail(options);
   }
 
+  async sendStoreVerificationApprovedEmail(props) {
+    const template = await this.getTemplate('StoreVerificationApproved', {
+      title: `<span class="highlight">Store Verified</span>`,
+      ...props,
+    });
+    const options = {
+      from: `${this.fromName} <${this.fromEmail}>`,
+      to: props.email,
+      subject: 'Your Youzell store has been verified',
+      html: template,
+    };
+    await this.transporter.sendMail(options);
+  }
+
+  async sendStoreVerificationRejectedEmail(props) {
+    const template = await this.getTemplate('StoreVerificationRejected', {
+      title: `<span class="highlight">Store Verification Update</span>`,
+      ...props,
+    });
+    const options = {
+      from: `${this.fromName} <${this.fromEmail}>`,
+      to: props.email,
+      subject: 'Action required: Your Youzell store verification',
+      html: template,
+    };
+    await this.transporter.sendMail(options);
+  }
+
   async getTemplate(templateName, options, withLayout = true) {
     const templatePath = path.resolve(
       __dirname,

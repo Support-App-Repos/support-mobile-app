@@ -190,6 +190,22 @@ exports.createListing = async (req, res) => {
       });
     }
 
+    // Require verified store before creating listings
+    const storeCollection = await getCollection('Store');
+    const userStore = await storeCollection.findOne({ user_id: userIdObj });
+    if (!userStore) {
+      return res.status(403).json({
+        success: false,
+        message: 'You must create a store before adding listings',
+      });
+    }
+    if (!userStore.is_verified) {
+      return res.status(403).json({
+        success: false,
+        message: 'Your store must be verified before adding listings',
+      });
+    }
+
     // Create listing using MongoDB directly
     // Determine final location based on category type
     let finalLocation = '';
@@ -223,6 +239,7 @@ exports.createListing = async (req, res) => {
       city: city?.trim() || null,
       venue: venue?.trim() || null,
       user_id: userIdObj,
+      store_id: userStore._id,
       category_id: categoryIdObj,
       event_type_id: eventTypeIdObj,
       service_type_id: serviceTypeIdObj,
@@ -445,6 +462,7 @@ exports.getListingById = async (req, res) => {
     const listingRegionCollection = await getCollection('ListingRegion');
     const regionCollection = await getCollection('Region');
     const userCollection = await getCollection('User');
+    const storeCollection = await getCollection('Store');
     const reviewCollection = await getCollection('Review');
     const browsingHistoryCollection = await getCollection('BrowsingHistory');
 
@@ -528,6 +546,13 @@ exports.getListingById = async (req, res) => {
     const user = listing.user_id
       ? await userCollection.findOne({ _id: listing.user_id })
       : null;
+
+    let store = null;
+    if (listing.store_id) {
+      store = await storeCollection.findOne({ _id: listing.store_id });
+    } else if (listing.user_id) {
+      store = await storeCollection.findOne({ user_id: listing.user_id });
+    }
 
     // Get reviews with user data
     const reviews = await reviewCollection.find({ listing_id: listingIdObj })
@@ -637,6 +662,12 @@ exports.getListingById = async (req, res) => {
         email: user.email || null,
         phoneNumber: user.phone_number || null,
       } : null,
+      store: store ? {
+        id: store._id.toString(),
+        name: store.name,
+        logoUrl: store.logo_url || null,
+        isVerified: store.is_verified === true,
+      } : null,
       reviews: reviewsWithUsers,
       _count: {
         reviews: reviewsCount,
@@ -676,6 +707,7 @@ exports.getListings = async (req, res) => {
     const listingPhotoCollection = await getCollection('ListingPhoto');
     const categoryCollection = await getCollection('Category');
     const userCollection = await getCollection('User');
+    const storeCollection = await getCollection('Store');
     const reviewCollection = await getCollection('Review');
     const { ObjectId } = require('mongodb');
 
@@ -742,6 +774,14 @@ exports.getListings = async (req, res) => {
           ? await userCollection.findOne({ _id: listing.user_id })
           : null;
 
+        // Get store (by store_id, or fallback to owner's store for older listings)
+        let store = null;
+        if (listing.store_id) {
+          store = await storeCollection.findOne({ _id: listing.store_id });
+        } else if (listing.user_id) {
+          store = await storeCollection.findOne({ user_id: listing.user_id });
+        }
+
         // Get review count
         const reviewCount = await reviewCollection.countDocuments({ listing_id: listing._id });
 
@@ -773,6 +813,10 @@ exports.getListings = async (req, res) => {
             id: user._id.toString(),
             fullName: user.full_name,
             profileImageUrl: user.profile_image_url,
+          } : null,
+          store: store ? {
+            id: store._id.toString(),
+            name: store.name,
           } : null,
           _count: {
             reviews: reviewCount,
@@ -1230,6 +1274,119 @@ exports.updateListingStatus = async (req, res) => {
     });
   } catch (error) {
     console.error('Error updating listing status:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update listing status',
+      error: error.message,
+    });
+  }
+};
+
+// Delete listing (owner only)
+exports.deleteListing = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = getUserId(req);
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    const { ObjectId } = require('mongodb');
+    const listingIdObj = new ObjectId(id);
+    const listingCollection = await getCollection('Listing');
+    const listingPhotoCollection = await getCollection('ListingPhoto');
+    const listingRegionCollection = await getCollection('ListingRegion');
+
+    const listing = await listingCollection.findOne({ _id: listingIdObj });
+    if (!listing) {
+      return res.status(404).json({ success: false, message: 'Listing not found' });
+    }
+    if (listing.user_id.toString() !== userId.toString()) {
+      return res.status(403).json({ success: false, message: 'Forbidden' });
+    }
+
+    await listingPhotoCollection.deleteMany({ listing_id: listingIdObj });
+    await listingRegionCollection.deleteMany({ listing_id: listingIdObj });
+    await listingCollection.deleteOne({ _id: listingIdObj });
+
+    res.json({ success: true, message: 'Listing deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting listing:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to delete listing',
+      error: error.message,
+    });
+  }
+};
+
+// Owner update listing status (pause/activate)
+exports.ownerUpdateListingStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+    const userId = getUserId(req);
+
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    const ownerStatuses = ['Active', 'Paused'];
+    if (!status || !ownerStatuses.includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid status. Must be one of: ${ownerStatuses.join(', ')}`,
+      });
+    }
+
+    const { ObjectId } = require('mongodb');
+    const listingIdObj = new ObjectId(id);
+    const listingCollection = await getCollection('Listing');
+    const listingPhotoCollection = await getCollection('ListingPhoto');
+    const categoryCollection = await getCollection('Category');
+
+    const listing = await listingCollection.findOne({ _id: listingIdObj });
+    if (!listing) {
+      return res.status(404).json({ success: false, message: 'Listing not found' });
+    }
+    if (listing.user_id.toString() !== userId.toString()) {
+      return res.status(403).json({ success: false, message: 'Forbidden' });
+    }
+
+    await listingCollection.updateOne(
+      { _id: listingIdObj },
+      { $set: { status, updated_at: new Date() } }
+    );
+
+    const updatedListing = await listingCollection.findOne({ _id: listingIdObj });
+    const listingPhotos = await listingPhotoCollection
+      .find({ listing_id: listingIdObj })
+      .sort({ photo_order: 1 })
+      .toArray();
+    const category = updatedListing.category_id
+      ? await categoryCollection.findOne({ _id: updatedListing.category_id })
+      : null;
+
+    res.json({
+      success: true,
+      data: {
+        id: updatedListing._id.toString(),
+        title: updatedListing.title,
+        status: updatedListing.status,
+        price: updatedListing.price,
+        photos: listingPhotos.map((p) => ({
+          id: p._id.toString(),
+          photoUrl: p.photo_url,
+          isPrimary: p.is_primary,
+        })),
+        category: category
+          ? { id: category._id.toString(), name: category.name, slug: category.slug }
+          : null,
+      },
+      message: `Listing status updated to ${status}`,
+    });
+  } catch (error) {
+    console.error('Error updating owner listing status:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to update listing status',

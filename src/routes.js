@@ -8,6 +8,7 @@ const stripeController = require('./controllers/stripeController');
 const profileController = require('./controllers/profileController');
 const seedController = require('./controllers/seedController');
 const uploadController = require('./controllers/uploadController');
+const storeController = require('./controllers/storeController');
 
 const { jwtAuth, addReqUser } = require('./middlewares');
 const { uploadMultiple } = require('./middlewares/upload');
@@ -37,6 +38,15 @@ router.get('/regions', regionController.getRegions);
 router.get('/listings', listingController.getListings);
 router.get('/listings/:id', listingController.getListingById);
 
+// Store owner routes (must be before /stores/:id to avoid "me" matching as id)
+router.get('/stores/me', jwtAuth, addReqUser, storeController.getMyStore);
+router.get('/stores/me/dashboard', jwtAuth, addReqUser, storeController.getStoreDashboard);
+
+// Public store routes
+router.get('/stores/:id', storeController.getStoreById);
+router.get('/stores/:id/listings', storeController.getStoreListings);
+router.get('/stores/:id/reviews', storeController.getStoreReviews);
+
 // Public payment plans (for PaymentScreen)
 router.get('/payment-plans', paymentController.getPaymentPlans);
 router.get('/promo-codes/validate', paymentController.validatePromoCode);
@@ -59,8 +69,24 @@ router.post('/auth/logout', authController.logout);
 // Listing routes (for ProductListingScreen, EventListingScreen, ServiceListingScreen, PropertyListingScreen, ReviewScreen, PublishScreen)
 router.post('/listings', listingController.createListing);
 router.put('/listings/:id', listingController.updateListing);
+router.delete('/listings/:id', listingController.deleteListing);
 router.post('/listings/:id/publish', listingController.publishListing);
+router.put('/listings/:id/owner-status', listingController.ownerUpdateListingStatus);
 router.put('/listings/:id/status', listingController.updateListingStatus); // Admin: Update listing status (approve/reject)
+
+// Store routes
+router.post('/stores', storeController.createStore);
+router.put('/stores/:id', storeController.updateStore);
+router.post('/stores/:id/verification', storeController.submitVerification);
+router.put('/stores/:id/verification', storeController.updateVerificationStatus);
+
+// Admin routes
+const adminController = require('./controllers/adminController');
+router.get('/admin/dashboard', adminController.getDashboard);
+router.get('/admin/stores', adminController.getAdminStores);
+router.get('/admin/listings', adminController.getAdminListings);
+router.get('/admin/stores/:id/documents', adminController.getStoreDocuments);
+router.put('/admin/stores/:id/status', adminController.updateStoreStatus);
 
 // Region routes (for SelectRegionScreen)
 router.get('/regions/recent', regionController.getRecentRegions);

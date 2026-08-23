@@ -480,40 +480,73 @@ exports.getMyListings = async (req, res) => {
 // Get all users (Admin only)
 exports.getAllUsers = async (req, res) => {
   try {
-    const { page = 1, limit = 100 } = req.query;
+    const { page = 1, limit = 100, search = '' } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
     const { getCollection } = require('../lib/mongodb');
     const userCollection = await getCollection('User');
+    const storeCollection = await getCollection('Store');
 
-    // Get users
+    const query = {};
+    if (search?.trim()) {
+      const regex = { $regex: search.trim(), $options: 'i' };
+      query.$or = [{ email: regex }, { full_name: regex }, { phone_number: regex }];
+    }
+
     const users = await userCollection
-      .find({})
+      .find(query)
       .sort({ created_at: -1 })
       .skip(skip)
       .limit(parseInt(limit))
       .toArray();
 
-    // Get total count
-    const total = await userCollection.countDocuments({});
+    const total = await userCollection.countDocuments(query);
 
-    // Format users for response
-    const formattedUsers = users.map((user) => ({
-      id: user._id.toString(),
-      email: user.email,
-      phoneNumber: user.phone_number,
-      fullName: user.full_name,
-      profileImage: user.profile_image_url,
-      profileImageUrl: user.profile_image_url, // Keep for backward compatibility
-      isVerified: user.is_verified !== false,
-      isActive: user.is_active !== false,
-      createdAt: user.created_at,
-      updatedAt: user.updated_at,
-    }));
+    const userIds = users.map((u) => u._id);
+    const stores = userIds.length
+      ? await storeCollection.find({ user_id: { $in: userIds } }).toArray()
+      : [];
+    const storeCountMap = new Map();
+    stores.forEach((s) => {
+      const uid = s.user_id.toString();
+      storeCountMap.set(uid, (storeCountMap.get(uid) || 0) + 1);
+    });
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const newToday = await userCollection.countDocuments({
+      created_at: { $gte: today },
+    });
+    const storeOwners = await storeCollection.distinct('user_id');
+    const buyers = Math.max(0, total - storeOwners.length);
+
+    const formattedUsers = users.map((user) => {
+      const storeCount = storeCountMap.get(user._id.toString()) || 0;
+      return {
+        id: user._id.toString(),
+        email: user.email,
+        phoneNumber: user.phone_number,
+        fullName: user.full_name,
+        profileImage: user.profile_image_url,
+        profileImageUrl: user.profile_image_url,
+        isVerified: user.is_verified !== false,
+        isActive: user.is_active !== false,
+        storeCount,
+        role: storeCount > 0 ? 'Store Owner' : 'Buyer',
+        createdAt: user.created_at,
+        updatedAt: user.updated_at,
+      };
+    });
 
     res.json({
       success: true,
       data: formattedUsers,
+      stats: {
+        totalUsers: total,
+        storeOwners: storeOwners.length,
+        buyers,
+        newToday,
+      },
       pagination: {
         page: parseInt(page),
         limit: parseInt(limit),
@@ -746,11 +779,30 @@ exports.deleteAccount = async (req, res) => {
       });
     }
 
-    // Check if user exists
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-    });
+    let userIdObj;
+    try {
+      userIdObj = new ObjectId(userId);
+    } catch {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid user ID',
+      });
+    }
 
+    const userCollection = await getCollection('User');
+    const listingCollection = await getCollection('Listing');
+    const listingPhotoCollection = await getCollection('ListingPhoto');
+    const listingRegionCollection = await getCollection('ListingRegion');
+    const reviewCollection = await getCollection('Review');
+    const wishlistCollection = await getCollection('Wishlist');
+    const browsingHistoryCollection = await getCollection('BrowsingHistory');
+    const subscriptionCollection = await getCollection('Subscription');
+    const notificationCollection = await getCollection('Notification');
+    const storeCollection = await getCollection('Store');
+    const storeDocumentCollection = await getCollection('StoreDocument');
+    const userRecentRegionCollection = await getCollection('UserRecentRegion');
+
+    const user = await userCollection.findOne({ _id: userIdObj });
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -758,10 +810,41 @@ exports.deleteAccount = async (req, res) => {
       });
     }
 
-    // Delete user (cascade delete will handle related records)
-    await prisma.user.delete({
-      where: { id: userId },
-    });
+    const userListings = await listingCollection
+      .find({ user_id: userIdObj })
+      .project({ _id: 1 })
+      .toArray();
+    const listingIds = userListings.map((listing) => listing._id);
+
+    if (listingIds.length > 0) {
+      await listingPhotoCollection.deleteMany({ listing_id: { $in: listingIds } });
+      await listingRegionCollection.deleteMany({ listing_id: { $in: listingIds } });
+      await reviewCollection.deleteMany({ listing_id: { $in: listingIds } });
+      await wishlistCollection.deleteMany({ listing_id: { $in: listingIds } });
+      await browsingHistoryCollection.deleteMany({ listing_id: { $in: listingIds } });
+      await subscriptionCollection.deleteMany({ listing_id: { $in: listingIds } });
+      await listingCollection.deleteMany({ _id: { $in: listingIds } });
+    }
+
+    await reviewCollection.deleteMany({ user_id: userIdObj });
+    await wishlistCollection.deleteMany({ user_id: userIdObj });
+    await browsingHistoryCollection.deleteMany({ user_id: userIdObj });
+    await subscriptionCollection.deleteMany({ user_id: userIdObj });
+    await notificationCollection.deleteMany({ user_id: userIdObj });
+    await userRecentRegionCollection.deleteMany({ user_id: userIdObj });
+
+    const stores = await storeCollection
+      .find({ user_id: userIdObj })
+      .project({ _id: 1 })
+      .toArray();
+    const storeIds = stores.map((store) => store._id);
+
+    if (storeIds.length > 0) {
+      await storeDocumentCollection.deleteMany({ store_id: { $in: storeIds } });
+      await storeCollection.deleteMany({ _id: { $in: storeIds } });
+    }
+
+    await userCollection.deleteOne({ _id: userIdObj });
 
     res.json({
       success: true,

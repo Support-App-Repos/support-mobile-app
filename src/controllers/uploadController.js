@@ -52,15 +52,14 @@ exports.uploadImages = async (req, res) => {
         const timestamp = Date.now();
         const randomString = Math.random().toString(36).substring(2, 15);
         const extension = file.originalname.split('.').pop();
-        const folder = req.body.folder || 'listings/'; // Default folder for listings
-        const filename = `${folder}${timestamp}-${randomString}.${extension}`;
+        const folder = req.body.folder || 'listings/';
+        const filename = `${timestamp}-${randomString}.${extension}`;
 
-        // Create image object for uploadToS3
         const imageData = {
           buffer: file.buffer,
           originalname: filename,
           mimetype: file.mimetype,
-          folder: folder,
+          folder,
         };
 
         const fileUrl = await uploadFileToS3(imageData);

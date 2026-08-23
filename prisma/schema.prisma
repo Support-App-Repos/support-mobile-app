@@ -28,6 +28,7 @@ model User {
   updatedAt       DateTime @updatedAt @map("updated_at")
 
   // Relations
+  stores          Store[]
   listings        Listing[]
   reviews         Review[]
   subscriptions   Subscription[]
@@ -132,6 +133,7 @@ model Region {
 model Listing {
   id        String   @id @default(auto()) @map("_id") @db.ObjectId
   userId    String   @map("user_id") @db.ObjectId
+  storeId   String?  @map("store_id") @db.ObjectId
   categoryId String  @map("category_id") @db.ObjectId
   eventTypeId String? @map("event_type_id") @db.ObjectId
   serviceTypeId String? @map("service_type_id") @db.ObjectId
@@ -175,6 +177,7 @@ model Listing {
 
   // Relations
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  store     Store?    @relation(fields: [storeId], references: [id], onDelete: SetNull)
   category  Category  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   eventType EventType? @relation(fields: [eventTypeId], references: [id], onDelete: Cascade)
   serviceType ServiceType? @relation(fields: [serviceTypeId], references: [id], onDelete: Cascade)
@@ -187,6 +190,7 @@ model Listing {
   notifications Notification[]
 
   @@index([userId])
+  @@index([storeId])
   @@index([categoryId])
   @@index([status])
   @@index([publishedAt])
@@ -427,4 +431,57 @@ model UserRecentRegion {
   @@index([userId])
   @@index([userId, lastUsedAt])
   @@map("UserRecentRegion")
+}
+
+// ============================================
+// STORE MODEL
+// ============================================
+model Store {
+  id                 String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId             String   @map("user_id") @db.ObjectId
+  name               String
+  slug               String   @unique
+  logoUrl            String?  @map("logo_url")
+  coverImageUrl      String?  @map("cover_image_url")
+  businessCategory   String   @map("business_category")
+  description        String?
+  address            String?
+  city               String?
+  location           String?
+  contactPhone       String?  @map("contact_phone")
+  contactEmail       String?  @map("contact_email")
+  workingHours       Json?    @map("working_hours")
+  status             String   @default("draft")
+  verificationStatus String   @default("unverified") @map("verification_status")
+  isVerified         Boolean  @default(false) @map("is_verified")
+  ratingAverage      Float    @default(0) @map("rating_average")
+  reviewsCount       Int      @default(0) @map("reviews_count")
+  viewsCount         Int      @default(0) @map("views_count")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  listings  Listing[]
+  documents StoreDocument[]
+
+  @@index([userId])
+  @@index([verificationStatus])
+  @@map("Store")
+}
+
+// ============================================
+// STORE DOCUMENT MODEL
+// ============================================
+model StoreDocument {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  storeId      String   @map("store_id") @db.ObjectId
+  documentUrl  String   @map("document_url")
+  documentType String   @default("business_license") @map("document_type")
+  status       String   @default("pending")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@index([storeId])
+  @@map("StoreDocument")
 }
