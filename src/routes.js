@@ -9,6 +9,7 @@ const profileController = require('./controllers/profileController');
 const seedController = require('./controllers/seedController');
 const uploadController = require('./controllers/uploadController');
 const storeController = require('./controllers/storeController');
+const serviceBookingController = require('./controllers/serviceBookingController');
 
 const { jwtAuth, addReqUser } = require('./middlewares');
 const { uploadMultiple } = require('./middlewares/upload');
@@ -43,6 +44,10 @@ router.get('/stores/me', jwtAuth, addReqUser, storeController.getMyStore);
 router.get('/stores/me/dashboard', jwtAuth, addReqUser, storeController.getStoreDashboard);
 
 // Public store routes
+router.get(
+  '/stores/:storeId/service-listings',
+  serviceBookingController.getStoreServiceListings,
+);
 router.get('/stores/:id', storeController.getStoreById);
 router.get('/stores/:id/listings', storeController.getStoreListings);
 router.get('/stores/:id/reviews', storeController.getStoreReviews);
@@ -119,7 +124,21 @@ router.get('/users', profileController.getAllUsers); // Admin: Get all users
 router.put('/users/:id', profileController.updateUser); // Admin: Update user
 
 // Upload routes (for image uploads) - Protected
-router.post('/upload/images', uploadMultiple, uploadController.uploadImages);
+router.post('/upload/images', (req, res, next) => {
+  uploadMultiple(req, res, (err) => {
+    if (err) {
+      console.error('[Upload] Multer error:', err);
+      const message =
+        err.code === 'LIMIT_FILE_SIZE'
+          ? 'File size too large. Maximum size is 10MB per file.'
+          : err.code === 'LIMIT_FILE_COUNT'
+            ? 'Too many files. Maximum is 10 images at once.'
+            : err.message || 'Failed to process uploaded files';
+      return res.status(400).json({ success: false, message });
+    }
+    return next();
+  });
+}, uploadController.uploadImages);
 router.delete('/upload/images/:imageUrl', uploadController.deleteImage);
 
 module.exports = {
