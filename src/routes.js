@@ -10,6 +10,7 @@ const seedController = require('./controllers/seedController');
 const uploadController = require('./controllers/uploadController');
 const storeController = require('./controllers/storeController');
 const serviceBookingController = require('./controllers/serviceBookingController');
+const serviceAddonController = require('./controllers/serviceAddonController');
 
 const { jwtAuth, addReqUser } = require('./middlewares');
 const { uploadMultiple } = require('./middlewares/upload');
@@ -37,6 +38,7 @@ router.get('/regions', regionController.getRegions);
 
 // Public listing routes (for HomeScreen)
 router.get('/listings', listingController.getListings);
+router.get('/listings/:listingId/addons', serviceAddonController.getAddons);
 router.get('/listings/:id', listingController.getListingById);
 
 // Store owner routes (must be before /stores/:id to avoid "me" matching as id)
@@ -73,6 +75,9 @@ router.post('/auth/logout', authController.logout);
 
 // Listing routes (for ProductListingScreen, EventListingScreen, ServiceListingScreen, PropertyListingScreen, ReviewScreen, PublishScreen)
 router.post('/listings', listingController.createListing);
+router.post('/listings/:listingId/addons', serviceAddonController.createAddon);
+router.put('/listings/:listingId/addons/:addonId', serviceAddonController.updateAddon);
+router.delete('/listings/:listingId/addons/:addonId', serviceAddonController.deleteAddon);
 router.put('/listings/:id', listingController.updateListing);
 router.delete('/listings/:id', listingController.deleteListing);
 router.post('/listings/:id/publish', listingController.publishListing);
