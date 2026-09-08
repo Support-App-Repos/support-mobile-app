@@ -70,6 +70,9 @@ router.post('/seed', seedController.seedDatabase);
 router.use(jwtAuth);
 router.use(addReqUser);
 
+router.post('/bookings', serviceBookingController.createBooking);
+router.get('/bookings/:id', serviceBookingController.getBookingById);
+
 // Auth routes
 router.post('/auth/logout', authController.logout);
 
