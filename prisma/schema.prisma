@@ -174,6 +174,23 @@ model Listing {
   bathrooms Int?
   squareFeet Int? @map("square_feet")
   yearBuilt Int? @map("year_built")
+  propertyPurpose String? @map("property_purpose")
+  currency String?
+  referenceNo String? @map("reference_no")
+  furnishing String?
+  amenities String?
+  additionalTags String? @map("additional_tags")
+  propertyType String? @map("property_type")
+  ownership String?
+  builtUpArea String? @map("built_up_area")
+  propertyUsage String? @map("property_usage")
+  balconySize String? @map("balcony_size")
+
+  // Product-specific fields
+  condition String?
+  productCategory String? @map("product_category")
+  brand String?
+  warranty String?
 
   // Relations
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -484,4 +501,54 @@ model StoreDocument {
 
   @@index([storeId])
   @@map("StoreDocument")
+}
+
+model ServiceAddon {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  listingId   String   @map("listing_id") @db.ObjectId
+  storeId     String?  @map("store_id") @db.ObjectId
+  userId      String   @map("user_id") @db.ObjectId
+  name        String
+  description String?
+  price       Float
+  icon        String?
+  isActive    Boolean  @default(true) @map("is_active")
+  sortOrder   Int      @default(0) @map("sort_order")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@index([listingId])
+  @@index([storeId])
+  @@index([userId])
+  @@map("ServiceAddon")
+}
+
+model ServiceBooking {
+  id               String   @id @default(auto()) @map("_id") @db.ObjectId
+  storeId          String   @map("store_id") @db.ObjectId
+  listingId        String   @map("listing_id") @db.ObjectId
+  buyerUserId      String   @map("buyer_user_id") @db.ObjectId
+  sellerUserId     String   @map("seller_user_id") @db.ObjectId
+  serviceTitle     String   @map("service_title")
+  servicePrice     Float    @map("service_price")
+  currency         String?
+  priceType        String?  @map("price_type")
+  duration         String?
+  appointmentDate  String   @map("appointment_date")
+  appointmentTime  String   @map("appointment_time")
+  addonIds         String[] @map("addon_ids") @db.ObjectId
+  addonsSnapshot   Json     @map("addons_snapshot")
+  addonsTotal      Float    @map("addons_total")
+  totalAmount      Float    @map("total_amount")
+  status           String   @default("Confirmed")
+  notes            String?
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  @@index([buyerUserId])
+  @@index([sellerUserId])
+  @@index([storeId])
+  @@index([listingId])
+  @@index([appointmentDate])
+  @@map("ServiceBooking")
 }
