@@ -30,6 +30,7 @@ export type RootStackParamList = {
   };
   SelectServiceType: {
     category?: string;
+    categoryId?: string;
   };
   ServiceListing: {
     category?: string;
@@ -77,6 +78,33 @@ export type RootStackParamList = {
   };
   ServiceListingDetail: {
     listingId: string;
+  };
+  ChooseService: {
+    storeId: string;
+    listingId: string;
+  };
+  SelectBookingDateTime: {
+    storeId: string;
+    listingId: string;
+    serviceTitle: string;
+    servicePrice: number | null;
+    currency?: string | null;
+    priceType?: string | null;
+    duration?: string | null;
+  };
+  ServiceBookingAddOns: {
+    storeId: string;
+    listingId: string;
+    serviceTitle: string;
+    servicePrice: number | null;
+    currency?: string | null;
+    priceType?: string | null;
+    duration?: string | null;
+    appointmentDate: string;
+    appointmentTime: string;
+  };
+  BookingConfirmed: {
+    bookingId: string;
   };
   // Add more screen params as needed
 };

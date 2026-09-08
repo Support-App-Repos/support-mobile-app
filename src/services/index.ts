@@ -10,6 +10,7 @@ export { listingService } from './listingService';
 export { regionService } from './regionService';
 export { profileService } from './profileService';
 export { storeService } from './storeService';
+export { bookingService } from './bookingService';
 export * from './uploadService';
 
 
