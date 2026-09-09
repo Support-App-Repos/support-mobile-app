@@ -1,5 +1,5 @@
 /**
- * Calendar Icon Component
+ * Calendar Icon — 15×15 outline from Figma booking calendar header
  */
 
 import React from 'react';
@@ -13,26 +13,40 @@ interface CalendarIconProps {
 }
 
 export const CalendarIcon: React.FC<CalendarIconProps> = ({
-  size = 20,
-  color = '#00CAD4',
+  size = 15,
+  color = '#1B4F72',
   style,
 }) => {
   return (
-    <Svg
-      width={size}
-      height={size}
-      viewBox="0 0 20 24"
-      fill="none"
-      style={style}
-    >
+    <Svg width={size} height={size} viewBox="0 0 15 15" fill="none" style={style}>
       <Path
-        d="M7 7.26316H6.66667C5.19391 7.26316 4 8.39423 4 9.78947M7 7.26316V6M7 7.26316H13M13 7.26316H13.3333C14.8061 7.26316 16 8.39423 16 9.78947M13 7.26316V6M4 9.78947V15.4737C4 16.8689 5.19391 18 6.66667 18H13.3333C14.8061 18 16 16.8689 16 15.4737V9.78947M4 9.78947H16M6.66667 12.3158H9.33333V14.8421H6.66667V12.3158Z"
+        d="M4.99756 1.24951V3.74831"
         stroke={color}
-        strokeWidth="1.5"
+        strokeWidth={1.2494}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M9.99512 1.24951V3.74831"
+        stroke={color}
+        strokeWidth={1.2494}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M11.8692 2.49902H3.12342C2.4334 2.49902 1.87402 3.0584 1.87402 3.74842V12.4942C1.87402 13.1842 2.4334 13.7436 3.12342 13.7436H11.8692C12.5592 13.7436 13.1186 13.1842 13.1186 12.4942V3.74842C13.1186 3.0584 12.5592 2.49902 11.8692 2.49902Z"
+        stroke={color}
+        strokeWidth={1.2494}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M1.87402 6.24707H13.1186"
+        stroke={color}
+        strokeWidth={1.2494}
         strokeLinecap="round"
         strokeLinejoin="round"
       />
     </Svg>
   );
 };
-

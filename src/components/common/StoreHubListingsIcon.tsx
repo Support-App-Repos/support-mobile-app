@@ -1,11 +1,10 @@
 /**
- * Store hub — Manage Listings action icon
+ * Store hub — Manage Listings (Figma: numbered list)
  */
 
 import React from 'react';
-import Svg, { Path, Rect } from 'react-native-svg';
+import Svg, { G, Path, Rect } from 'react-native-svg';
 import { ViewStyle } from 'react-native';
-import { Colors } from '../../config/theme';
 
 interface StoreHubListingsIconProps {
   size?: number;
@@ -13,51 +12,18 @@ interface StoreHubListingsIconProps {
 }
 
 export const StoreHubListingsIcon: React.FC<StoreHubListingsIconProps> = ({
-  size = 44,
+  size = 48,
   style,
 }) => (
-  <Svg width={size} height={size} viewBox="0 0 44 44" fill="none" style={style}>
-    <Rect
-      x="0.5"
-      y="0.5"
-      width="43"
-      height="43"
-      rx="10"
-      fill={Colors.light.surface}
-      stroke={Colors.light.border}
-      strokeWidth="1"
-    />
-    <Path
-      d="M16 13H28V31H16V13Z"
-      stroke={Colors.light.primary}
-      strokeWidth="1.75"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-    <Path
-      d="M19 13V11C19 10.4477 19.4477 10 20 10H24C24.5523 10 25 10.4477 25 11V13"
-      stroke={Colors.light.primary}
-      strokeWidth="1.75"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-    <Path
-      d="M19 18H25"
-      stroke={Colors.light.primary}
-      strokeWidth="1.75"
-      strokeLinecap="round"
-    />
-    <Path
-      d="M19 22H25"
-      stroke={Colors.light.primary}
-      strokeWidth="1.75"
-      strokeLinecap="round"
-    />
-    <Path
-      d="M19 26H23"
-      stroke={Colors.light.primary}
-      strokeWidth="1.75"
-      strokeLinecap="round"
-    />
+  <Svg width={size} height={size} viewBox="0 0 48 48" fill="none" style={style}>
+    <Rect width="48" height="48" rx="12" fill="#FCE7F3" />
+    <G transform="translate(12 12)" stroke="#EC4899" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <Path d="M10 12h11" />
+      <Path d="M10 18h11" />
+      <Path d="M10 6h11" />
+      <Path d="M4 6h1v4" />
+      <Path d="M4 10h2" />
+      <Path d="M6 18H4c0-1 2-2 2-3s-1-1.5-2-1" />
+    </G>
   </Svg>
 );

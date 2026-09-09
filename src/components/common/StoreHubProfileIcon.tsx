@@ -1,11 +1,10 @@
 /**
- * Store hub — View Store Profile action icon
+ * Store hub — View Store Profile (Figma: eye outline)
  */
 
 import React from 'react';
-import Svg, { Path, Rect } from 'react-native-svg';
+import Svg, { Circle, G, Path, Rect } from 'react-native-svg';
 import { ViewStyle } from 'react-native';
-import { Colors } from '../../config/theme';
 
 interface StoreHubProfileIconProps {
   size?: number;
@@ -13,33 +12,14 @@ interface StoreHubProfileIconProps {
 }
 
 export const StoreHubProfileIcon: React.FC<StoreHubProfileIconProps> = ({
-  size = 44,
+  size = 48,
   style,
 }) => (
-  <Svg width={size} height={size} viewBox="0 0 44 44" fill="none" style={style}>
-    <Rect
-      x="0.5"
-      y="0.5"
-      width="43"
-      height="43"
-      rx="10"
-      fill={Colors.light.surface}
-      stroke={Colors.light.border}
-      strokeWidth="1"
-    />
-    <Path
-      d="M13 19L22 13L31 19V29C31 29.5523 30.5523 30 30 30H14C13.4477 30 13 29.5523 13 29V19Z"
-      stroke={Colors.light.primary}
-      strokeWidth="1.75"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-    <Path
-      d="M18 30V22H26V30"
-      stroke={Colors.light.primary}
-      strokeWidth="1.75"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
+  <Svg width={size} height={size} viewBox="0 0 48 48" fill="none" style={style}>
+    <Rect width="48" height="48" rx="12" fill="#E8F8EF" />
+    <G transform="translate(12 12)" stroke="#22C55E" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <Path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" />
+      <Circle cx="12" cy="12" r="3" />
+    </G>
   </Svg>
 );

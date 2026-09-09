@@ -64,6 +64,7 @@ export type RootStackParamList = {
   StoreDashboard: undefined;
   StoreProfile: { storeId?: string } | undefined;
   ManageStoreListings: undefined;
+  StoreBookings: undefined;
   StoreVerifiedSuccess: { storeName?: string } | undefined;
   StoreAnalytics: undefined;
   StoreListingsAll: { storeId: string; storeName?: string };
@@ -91,6 +92,9 @@ export type RootStackParamList = {
     currency?: string | null;
     priceType?: string | null;
     duration?: string | null;
+    serviceImageUrl?: string | null;
+    storeName?: string | null;
+    storeLogoUrl?: string | null;
   };
   ServiceBookingAddOns: {
     storeId: string;
@@ -100,10 +104,28 @@ export type RootStackParamList = {
     currency?: string | null;
     priceType?: string | null;
     duration?: string | null;
+    serviceImageUrl?: string | null;
+    storeName?: string | null;
+    storeLogoUrl?: string | null;
     appointmentDate: string;
     appointmentTime: string;
   };
   BookingConfirmed: {
+    bookingId: string;
+  };
+  EventBookTickets: {
+    listingId: string;
+    storeId?: string | null;
+    eventTitle: string;
+    eventPrice: number | null;
+    currency?: string | null;
+    priceType?: string | null;
+    eventDate?: string | null;
+    eventTime?: string | null;
+    location?: string | null;
+    eventImageUrl?: string | null;
+  };
+  EventBookingConfirmed: {
     bookingId: string;
   };
   // Add more screen params as needed

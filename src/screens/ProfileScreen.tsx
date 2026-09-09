@@ -38,12 +38,13 @@ import { authService } from '../services/authService';
 import { Colors, Spacing, Typography, BorderRadius } from '../config/theme';
 import { useProfileContext } from '../contexts/ProfileContext';
 import { useStoreContext } from '../contexts/StoreContext';
-import { formatListingPrice } from '../utils/currency';
+import { formatListingPriceWithType, listingPriceUnitLabel } from '../utils/currency';
 import { useWishlist } from '../hooks';
 
 // Extended ListingCardData for ProfileScreen
 interface ExtendedListingCardData extends ListingCardData {
   badge?: string;
+  priceType?: string | null;
 }
 
 const { width } = Dimensions.get('window');
@@ -70,15 +71,9 @@ const convertToListingCardData = (listing: any): ExtendedListingCardData => {
   return {
     id: listing.id,
     title: listing.title || 'Untitled',
-    price: listing.price ? listing.price.toFixed(0) : '0',
-    priceUnit:
-      listing.priceType === 'Per Hour'
-        ? 'hr'
-        : listing.priceType === 'Per Seat'
-          ? 'seat'
-          : listing.priceType === 'Per Month' || listing.priceType === 'Monthly'
-            ? 'mo'
-            : undefined,
+    price: listing.price != null ? String(listing.price) : '0',
+    priceUnit: listingPriceUnitLabel(listing.priceType),
+    priceType: listing.priceType || null,
     image: imageUrl,
     ratingAverage:
       typeof listing.averageRating === 'number' ? listing.averageRating : undefined,
@@ -492,7 +487,11 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                       {listing.title}
                     </Text>
                     <Text style={styles.listingPrice}>
-                      {formatListingPrice(Number(listing.price), listing.currency)}
+                      {formatListingPriceWithType(
+                        Number(listing.price),
+                        listing.currency,
+                        listing.priceType,
+                      )}
                     </Text>
                     <View style={styles.listingMeta}>
                       <View style={styles.listingRating}>

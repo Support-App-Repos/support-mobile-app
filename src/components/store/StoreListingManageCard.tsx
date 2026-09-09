@@ -5,13 +5,14 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { Colors, Spacing, Typography, BorderRadius } from '../../config/theme';
-import { formatListingPrice } from '../../utils/currency';
+import { formatListingPriceWithType } from '../../utils/currency';
 
 export interface StoreListingManageData {
   id: string;
   title: string;
   price?: number;
   currency?: string;
+  priceType?: string | null;
   status: string;
   photos?: Array<{ photoUrl: string }>;
   category?: { name: string };
@@ -57,7 +58,7 @@ export const StoreListingManageCard: React.FC<Props> = ({
         <View style={styles.info}>
           <Text style={styles.title} numberOfLines={1}>{listing.title}</Text>
           <Text style={styles.meta}>
-            {formatListingPrice(listing.price, listing.currency)}
+            {formatListingPriceWithType(listing.price, listing.currency, listing.priceType)}
             {listing.category?.name ? ` · ${listing.category.name}` : ''}
           </Text>
           <View style={[styles.badge, { backgroundColor: colors.bg }]}>

@@ -10,14 +10,19 @@ import {
   StyleSheet,
   TextInput,
   TouchableOpacity,
-  Image,
   ScrollView,
   Alert,
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useStripe } from '@stripe/stripe-react-native';
-import { BackIcon, BellIcon, CheckedIcon, StepCompletedMarkIcon } from '../components/common';
+import { CheckedIcon } from '../components/common';
+import {
+  ListingWizardHeader,
+  ListingStepProgress,
+  ListingWizardFooter,
+  LISTING_FORM_STEPS,
+} from '../components/listings/wizard';
 import { BottomNavigation, type BottomNavItem } from '../components/navigation';
 import { Colors, Spacing, Typography, BorderRadius } from '../config/theme';
 import { paymentService } from '../services/paymentService';
@@ -32,7 +37,7 @@ type PaymentScreenProps = {
   };
 };
 
-const FORM_STEPS = ['Details', 'Payment', 'Select Region', 'Confirm'];
+const FORM_STEPS = LISTING_FORM_STEPS;
 
 interface PaymentPlan {
   id: string;
@@ -221,97 +226,20 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={handleBack}
-          activeOpacity={0.7}
-        >
-          <BackIcon size={24} color="#030303" />
-        </TouchableOpacity>
-        <View style={styles.headerRight}>
-          <TouchableOpacity
-            style={styles.iconButton}
-            activeOpacity={0.7}
-            onPress={() => {
-              // TODO: Navigate to notifications
-              console.log('Notifications pressed');
-            }}
-          >
-            <BellIcon size={24} color="#111827" />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.profileButton}
-            activeOpacity={0.7}
-            onPress={() => {
-              // TODO: Navigate to profile
-              console.log('Profile pressed');
-            }}
-          >
-            <Image
-              source={{ uri: profileImageUrl || 'https://i.pravatar.cc/150?img=12' }}
-              style={styles.profileImage}
-            />
-          </TouchableOpacity>
-        </View>
-      </View>
+      <ListingWizardHeader
+        title="Payment Option"
+        subtitle="Choose how you'd like to pay for your listing"
+        profileImageUrl={profileImageUrl}
+        onBack={handleBack}
+        onProfilePress={() => navigation?.navigate('Profile')}
+      />
+      <ListingStepProgress currentStep={currentStep} steps={FORM_STEPS} numbered />
 
-      {/* Title Section */}
-      <View style={styles.titleSection}>
-        <Text style={styles.titleText}>Payment Option</Text>
-      </View>
-
-      {/* Progress Indicator */}
-      <View style={styles.progressContainer}>
-        {FORM_STEPS.map((step, index) => (
-          <React.Fragment key={step}>
-            <View style={styles.progressStepContainer}>
-              <View style={styles.progressCircleWrapper}>
-                <View
-                  style={[
-                    styles.progressCircle,
-                    index === currentStep && styles.progressCircleActive,
-                    index < currentStep && styles.progressCircleCompleted,
-                  ]}
-                >
-                  {index < currentStep && (
-                    <StepCompletedMarkIcon size={8} />
-                  )}
-                  {index === currentStep && (
-                    <View style={styles.progressDotActive} />
-                  )}
-                  {index > currentStep && (
-                    <View style={styles.progressDotInactive} />
-                  )}
-                </View>
-                {index < FORM_STEPS.length - 1 && (
-                  <View
-                    style={[
-                      styles.progressLine,
-                      index < currentStep && styles.progressLineActive,
-                    ]}
-                  />
-                )}
-              </View>
-              <Text style={styles.progressLabel}>
-                {step}
-              </Text>
-            </View>
-          </React.Fragment>
-        ))}
-      </View>
-
-      {/* Content */}
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.introText}>
-          Choose how you'd like to pay for your listing
-        </Text>
-
         {/* Loading state */}
         {loadingPlans ? (
           <View style={styles.loadingContainer}>
@@ -433,30 +361,15 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
           )}
         </View>
 
-        {/* Proceed to Payment Button */}
-        <TouchableOpacity
-          style={[
-            styles.proceedButton,
-            (!selectedPlan || loading || loadingPlans) && styles.proceedButtonDisabled,
-          ]}
-          onPress={handleProceedToPayment}
-          disabled={!selectedPlan || loading || loadingPlans}
-          activeOpacity={0.8}
-        >
-          {loading ? (
-            <ActivityIndicator color="#FFFFFF" />
-          ) : (
-            <Text
-              style={[
-                styles.proceedButtonText,
-                (!selectedPlan || loading || loadingPlans) && styles.proceedButtonTextDisabled,
-              ]}
-            >
-              Proceed to Payment
-            </Text>
-          )}
-        </TouchableOpacity>
       </ScrollView>
+
+      <ListingWizardFooter
+        label="Proceed to Payment"
+        onPress={handleProceedToPayment}
+        disabled={!selectedPlan || loadingPlans}
+        loading={loading}
+        showArrow={false}
+      />
 
       {/* Bottom Navigation */}
       <BottomNavigation

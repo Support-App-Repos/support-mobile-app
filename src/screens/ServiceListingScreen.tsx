@@ -1,6 +1,6 @@
 /**
  * Service Listing Screen
- * First step of the multi-step listing creation form for Services
+ * Figma: create service (node 1055:1277)
  */
 
 import React, { useState, useEffect } from 'react';
@@ -10,25 +10,40 @@ import {
   Text,
   StyleSheet,
   TextInput,
-  TouchableOpacity,
-  Image,
   ScrollView,
-  Dimensions,
   Alert,
-  ActivityIndicator,
-  Modal,
-  FlatList,
   Platform,
+  Modal,
+  Switch,
+  TouchableOpacity,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { BackIcon, BellIcon, AddPhotoIcon, PriceTypeDropdown, type PriceType, GoogleLocationField } from '../components/common';
+import { GoogleLocationField, FormSelect } from '../components/common';
+import {
+  ListingWizardHeader,
+  ListingStepProgress,
+  ListingFormField,
+  ListingPhotoUpload,
+  ListingWizardFooter,
+  listingWizardInputStyles,
+  androidInputProps as wizardAndroidInputProps,
+  androidMultilineProps as wizardAndroidMultilineProps,
+  LISTING_FORM_STEPS,
+} from '../components/listings/wizard';
 import { BottomNavigation, type BottomNavItem } from '../components/navigation';
-import { Colors, Spacing, Typography, BorderRadius } from '../config/theme';
-import { listingService, paymentService, pickImages, uploadImages } from '../services';
+import { Colors, Spacing, BorderRadius } from '../config/theme';
+import {
+  bookingService,
+  listingService,
+  paymentService,
+  pickImages,
+  type PickedImage,
+} from '../services';
+import type { ServiceAddon } from '../services/bookingService';
+import { resolveListingPhotoUrls, resolveListingId } from '../utils/listingPhotos';
 import { useProfile } from '../hooks';
-import { filterNumbersOnly, filterLettersOnly } from '../utils/validation';
-
-const { width } = Dimensions.get('window');
+import { unwrapApiPayload } from '../utils/apiHelpers';
+import { filterNumbersOnly } from '../utils/validation';
 
 type ServiceListingScreenProps = {
   navigation?: any;
@@ -42,19 +57,31 @@ type ServiceListingScreenProps = {
   };
 };
 
-const FORM_STEPS = ['Details', 'Payment', 'Select Region', 'Confirm'];
+type DraftAddon = {
+  localId: string;
+  id?: string;
+  name: string;
+  description: string;
+  price: string;
+  icon: string;
+  isActive: boolean;
+};
 
-const DESCRIPTION_WORD_LIMIT = 500;
-function countWords(text: string): number {
-  const t = text.trim();
-  if (!t) return 0;
-  return t.split(/\s+/).filter(Boolean).length;
-}
-function clampWords(text: string, limit: number): string {
-  const words = text.trim().split(/\s+/).filter(Boolean);
-  if (words.length <= limit) return text;
-  return words.slice(0, limit).join(' ') + ' ';
-}
+type DraftAddonForm = Omit<DraftAddon, 'localId' | 'id'>;
+
+const MP = Colors.light.marketplace;
+const FORM_STEPS = LISTING_FORM_STEPS;
+const inputStyles = listingWizardInputStyles;
+const CURRENCY_OPTIONS = ['USD', 'AED', 'EUR'];
+const DURATION_OPTIONS = [
+  '30 minutes',
+  '45 minutes',
+  '60 minutes',
+  '90 minutes',
+  '120 minutes',
+  'Half day',
+  'Full day',
+];
 
 const BEAUTY_SPECIALIZATIONS = [
   'Injection & fillers',
@@ -148,112 +175,311 @@ const PROFESSIONAL_SERVICES_SPECIALIZATIONS = [
   'Tutor',
 ] as const;
 
-export const ServiceListingScreen: React.FC<ServiceListingScreenProps> = ({
-  navigation,
-  route,
-}) => {
-  const androidInputProps =
-    Platform.OS === 'android'
-      ? ({ includeFontPadding: false, textAlignVertical: 'center' as const } as const)
-      : undefined;
-  const androidMultilineProps =
-    Platform.OS === 'android' ? ({ includeFontPadding: false } as const) : undefined;
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [priceType, setPriceType] = useState<PriceType | null>(null);
-  const [priceTypePickerOpen, setPriceTypePickerOpen] = useState(false);
-  const [price, setPrice] = useState('');
-  const [location, setLocation] = useState('');
-  const [city, setCity] = useState('');
-  const [specialization, setSpecialization] = useState('');
-  const [specializationPickerOpen, setSpecializationPickerOpen] = useState(false);
-  const [yearsOfExperience, setYearsOfExperience] = useState('');
-  const [serviceProviderName, setServiceProviderName] = useState('');
-  const [serviceProviderContact, setServiceProviderContact] = useState('');
-  const [serviceProviderEmail, setServiceProviderEmail] = useState('');
-  const [tags, setTags] = useState('');
-  const [photos, setPhotos] = useState<string[]>([]); // Store local URIs first
-  const [photoUris, setPhotoUris] = useState<string[]>([]); // Store local URIs for upload
-  const [activeTab, setActiveTab] = useState<BottomNavItem>('Home');
-  const [loading, setLoading] = useState(false);
-  const [snackbarVisible, setSnackbarVisible] = useState(false);
-  const [snackbarMessage, setSnackbarMessage] = useState('');
-  const [snackbarType, setSnackbarType] = useState<'error' | 'success' | 'info'>('error');
-  const { profileImageUrl } = useProfile();
-
-  const currentStep = 0; // First step
-  const categoryId = route?.params?.categoryId;
-  const serviceTypeId = route?.params?.serviceTypeId;
-  const serviceTypeName = String(route?.params?.serviceType || '').trim();
-  const serviceTypeKey = serviceTypeName
+function getSpecializationOptions(serviceTypeName: string): string[] {
+  const key = serviceTypeName
     .toLowerCase()
     .replace(/[_-]+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 
-  const isBeautyServiceType = serviceTypeKey.includes('beauty');
-  const isHomeServicesType =
-    serviceTypeKey.includes('home service') || serviceTypeKey.includes('home services');
-  const isMedicalServiceType = serviceTypeKey.includes('medical');
-  const isProfessionalServiceType = serviceTypeKey.includes('professional');
+  if (key.includes('beauty')) return [...BEAUTY_SPECIALIZATIONS];
+  if (key.includes('home service') || key.includes('home services')) {
+    return [...HOME_SERVICES_SPECIALIZATIONS];
+  }
+  if (key.includes('medical')) return [...MEDICAL_SERVICES_SPECIALIZATIONS];
+  if (key.includes('professional')) return [...PROFESSIONAL_SERVICES_SPECIALIZATIONS];
+  return [];
+}
 
-  const specializationOptions: readonly string[] | null =
-    isBeautyServiceType
-      ? BEAUTY_SPECIALIZATIONS
-      : isHomeServicesType
-        ? HOME_SERVICES_SPECIALIZATIONS
-        : isMedicalServiceType
-          ? MEDICAL_SERVICES_SPECIALIZATIONS
-          : isProfessionalServiceType
-            ? PROFESSIONAL_SERVICES_SPECIALIZATIONS
-            : null;
-  const anyDropdownOpen = priceTypePickerOpen || specializationPickerOpen;
+const DESCRIPTION_WORD_LIMIT = 500;
+function countWords(text: string): number {
+  const t = text.trim();
+  if (!t) return 0;
+  return t.split(/\s+/).filter(Boolean).length;
+}
+function clampWords(text: string, limit: number): string {
+  const words = text.trim().split(/\s+/).filter(Boolean);
+  if (words.length <= limit) return text;
+  return words.slice(0, limit).join(' ') + ' ';
+}
 
-  // Prefill when editing from Review/Region flow
+const createDraftAddonLocalId = () =>
+  `addon-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+const createEmptyAddonForm = (): DraftAddonForm => ({
+  name: '',
+  description: '',
+  price: '',
+  icon: '',
+  isActive: true,
+});
+
+const toDraftAddon = (addon: ServiceAddon & { _id?: string }): DraftAddon => {
+  const id = addon.id || addon._id;
+  return {
+    localId: id || createDraftAddonLocalId(),
+    id,
+    name: addon.name || '',
+    description: addon.description || '',
+    price: addon.price != null ? String(addon.price) : '',
+    icon: addon.icon || '',
+    isActive: addon.isActive !== false,
+  };
+};
+
+const mapOriginalAddons = (addons: DraftAddon[]) =>
+  addons.reduce<Record<string, DraftAddon>>((acc, addon) => {
+    if (addon.id) acc[addon.id] = { ...addon };
+    return acc;
+  }, {});
+
+const parseAddonPrice = (value: string) => parseFloat(filterNumbersOnly(value, true));
+
+const buildAddonBody = (addon: DraftAddon) => ({
+  name: addon.name.trim(),
+  description: addon.description.trim(),
+  price: parseAddonPrice(addon.price),
+  icon: addon.icon.trim(),
+  isActive: addon.isActive,
+});
+
+const hasDraftAddonChanged = (addon: DraftAddon, original?: DraftAddon) => {
+  if (!original) return true;
+  return (
+    addon.name.trim() !== original.name.trim() ||
+    addon.description.trim() !== original.description.trim() ||
+    parseAddonPrice(addon.price) !== parseAddonPrice(original.price) ||
+    addon.icon.trim() !== original.icon.trim() ||
+    addon.isActive !== original.isActive
+  );
+};
+
+export const ServiceListingScreen: React.FC<ServiceListingScreenProps> = ({
+  navigation,
+  route,
+}) => {
+  const androidInputProps = wizardAndroidInputProps;
+  const androidMultilineProps = wizardAndroidMultilineProps;
+  const initialListingId = resolveListingId((route?.params as any)?.listingData);
+  const [title, setTitle] = useState('');
+  const [specialization, setSpecialization] = useState('');
+  const [duration, setDuration] = useState('');
+  const [description, setDescription] = useState('');
+  const [price, setPrice] = useState('');
+  const [currency, setCurrency] = useState('USD');
+  const [location, setLocation] = useState('');
+  const [, setPhotos] = useState<string[]>([]);
+  const [photoUris, setPhotoUris] = useState<PickedImage[]>([]);
+  const [activeTab, setActiveTab] = useState<BottomNavItem>('Home');
+  const [loading, setLoading] = useState(false);
+  const [snackbarVisible, setSnackbarVisible] = useState(false);
+  const [snackbarMessage, setSnackbarMessage] = useState('');
+  const [snackbarType, setSnackbarType] = useState<'error' | 'success' | 'info'>('error');
+  const [listingId, setListingId] = useState<string | null>(initialListingId);
+  const [draftAddons, setDraftAddons] = useState<DraftAddon[]>([]);
+  const [originalAddonsById, setOriginalAddonsById] = useState<Record<string, DraftAddon>>({});
+  const [deletedAddonIds, setDeletedAddonIds] = useState<string[]>([]);
+  const [addonModalVisible, setAddonModalVisible] = useState(false);
+  const [editingAddonLocalId, setEditingAddonLocalId] = useState<string | null>(null);
+  const [addonForm, setAddonForm] = useState<DraftAddonForm>(createEmptyAddonForm);
+  const { profileImageUrl } = useProfile();
+
+  const currentStep = 0;
+  const categoryId =
+    route?.params?.categoryId ||
+    (route?.params as any)?.listingData?.category?.id ||
+    (route?.params as any)?.listingData?.categoryId;
+  const serviceTypeId =
+    route?.params?.serviceTypeId || (route?.params as any)?.listingData?.serviceTypeId;
+  const serviceTypeName = String(route?.params?.serviceType || '').trim();
+  const specializationOptions = getSpecializationOptions(serviceTypeName);
+  const hasSpecializationList = specializationOptions.length > 0;
+
   useEffect(() => {
     const incoming = (route?.params as any)?.listingData || route?.params;
     if (!incoming) return;
 
+    const incomingId = resolveListingId(incoming);
+    if (incomingId) setListingId(incomingId);
+
     if (incoming.title != null) setTitle(String(incoming.title));
-    if (incoming.description != null) setDescription(String(incoming.description));
-    if (incoming.priceType != null) setPriceType(incoming.priceType);
-    if (incoming.price != null) setPrice(String(incoming.price));
-    if (incoming.location != null) setLocation(String(incoming.location));
-    if (incoming.city != null) setCity(String(incoming.city));
     if (incoming.specialization != null) setSpecialization(String(incoming.specialization));
-    if (incoming.yearsOfExperience != null) setYearsOfExperience(String(incoming.yearsOfExperience));
-    if (incoming.serviceProviderName != null) setServiceProviderName(String(incoming.serviceProviderName));
-    if (incoming.serviceProviderContact != null) setServiceProviderContact(String(incoming.serviceProviderContact));
-    if (incoming.serviceProviderEmail != null) setServiceProviderEmail(String(incoming.serviceProviderEmail));
-    if (incoming.tags != null) setTags(String(incoming.tags));
+    if (incoming.description != null) setDescription(String(incoming.description));
+    if (incoming.price != null) setPrice(String(incoming.price));
+    if (incoming.currency != null) setCurrency(String(incoming.currency));
+    if (incoming.location != null) setLocation(String(incoming.location));
+    if (incoming.duration != null) setDuration(String(incoming.duration));
+    else if (incoming.tags != null && String(incoming.tags).includes('min')) {
+      setDuration(String(incoming.tags));
+    }
 
     if (Array.isArray(incoming.photos) && incoming.photos.length > 0 && photoUris.length === 0) {
       const urls = incoming.photos
         .map((p: any) => (typeof p === 'string' ? p : p?.photoUrl || p?.url))
-        .filter(Boolean);
+        .filter(Boolean) as string[];
       setPhotos(urls);
+      setPhotoUris(urls.map((uri) => ({ uri })));
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Check if all required fields are filled
-  const isFormValid = title.trim() !== '' && 
-                      description.trim() !== '' && 
-                      priceType !== null &&
-                      (priceType === 'Free' || price.trim() !== '') &&
-                      location.trim() !== '' && 
-                      city.trim() !== '' &&
-                      serviceProviderName.trim() !== '' &&
-                      serviceProviderContact.trim() !== '' &&
-                      serviceProviderEmail.trim() !== '' &&
-                      photoUris.length > 0;
+  useEffect(() => {
+    if (!initialListingId) return;
 
-  const handleSaveAndContinue = async () => {
-    if (!isFormValid) {
-      Alert.alert('Validation Error', 'Please fill in all required fields and upload at least one photo');
+    let cancelled = false;
+
+    const loadAddons = async () => {
+      try {
+        const response = await bookingService.getAddons(initialListingId, true);
+        const payload = unwrapApiPayload<ServiceAddon[]>(response);
+        const addons = Array.isArray(payload) ? payload.map(toDraftAddon) : [];
+
+        if (!cancelled) {
+          setDraftAddons(addons);
+          setOriginalAddonsById(mapOriginalAddons(addons));
+          setDeletedAddonIds([]);
+        }
+      } catch (error: any) {
+        if (!cancelled) {
+          setSnackbarMessage(error.message || 'Failed to load optional add-ons.');
+          setSnackbarType('error');
+          setSnackbarVisible(true);
+        }
+      }
+    };
+
+    loadAddons();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [initialListingId]);
+
+  const isFormValid =
+    title.trim() !== '' &&
+    specialization.trim() !== '' &&
+    duration.trim() !== '' &&
+    description.trim() !== '' &&
+    price.trim() !== '' &&
+    currency.trim() !== '' &&
+    location.trim() !== '' &&
+    photoUris.length > 0;
+
+  const navigateAfterSave = async (listingData: any) => {
+    const existingPayment = (route?.params as any)?.paymentData;
+    const existingRegion = (route?.params as any)?.regionData;
+    if (existingPayment && existingRegion) {
+      navigation?.navigate('Review', {
+        listingData,
+        paymentData: existingPayment,
+        regionData: existingRegion,
+      });
+      return;
+    }
+    try {
+      const subscriptionCheck = await paymentService.checkSubscriptionValidity();
+      const subscriptionData = (subscriptionCheck.data as any)?.data || subscriptionCheck.data;
+      if (subscriptionData?.hasValidSubscription) {
+        navigation?.navigate('SelectRegion', {
+          listingData,
+          paymentData: {
+            plan: 'monthly',
+            subscription: subscriptionData.subscription,
+            skipPayment: true,
+          },
+        });
+      } else {
+        navigation?.navigate('Payment', { listingData });
+      }
+    } catch {
+      navigation?.navigate('Payment', { listingData });
+    }
+  };
+
+  const openCreateAddonModal = () => {
+    setEditingAddonLocalId(null);
+    setAddonForm(createEmptyAddonForm());
+    setAddonModalVisible(true);
+  };
+
+  const openEditAddonModal = (addon: DraftAddon) => {
+    setEditingAddonLocalId(addon.localId);
+    setAddonForm({
+      name: addon.name,
+      description: addon.description,
+      price: addon.price,
+      icon: addon.icon,
+      isActive: addon.isActive,
+    });
+    setAddonModalVisible(true);
+  };
+
+  const closeAddonModal = () => {
+    setAddonModalVisible(false);
+    setEditingAddonLocalId(null);
+    setAddonForm(createEmptyAddonForm());
+  };
+
+  const saveDraftAddon = () => {
+    const parsedPrice = parseAddonPrice(addonForm.price);
+    if (!addonForm.name.trim()) {
+      Alert.alert('Validation', 'Add-on name is required.');
+      return;
+    }
+    if (Number.isNaN(parsedPrice) || parsedPrice < 0) {
+      Alert.alert('Validation', 'Add-on price must be 0 or greater.');
       return;
     }
 
+    const nextAddon = {
+      name: addonForm.name.trim(),
+      description: addonForm.description.trim(),
+      price: String(parsedPrice),
+      icon: addonForm.icon.trim(),
+      isActive: addonForm.isActive,
+    };
+
+    setDraftAddons((current) => {
+      if (editingAddonLocalId) {
+        return current.map((addon) =>
+          addon.localId === editingAddonLocalId ? { ...addon, ...nextAddon } : addon,
+        );
+      }
+      return [...current, { localId: createDraftAddonLocalId(), ...nextAddon }];
+    });
+
+    closeAddonModal();
+  };
+
+  const removeDraftAddon = (addon: DraftAddon) => {
+    if (addon.id) {
+      setDeletedAddonIds((current) =>
+        current.includes(addon.id!) ? current : [...current, addon.id!],
+      );
+    }
+    setDraftAddons((current) => current.filter((item) => item.localId !== addon.localId));
+  };
+
+  const syncDraftAddons = async (savedListingId: string) => {
+    for (const addonId of deletedAddonIds) {
+      await bookingService.deleteAddon(savedListingId, addonId);
+    }
+
+    for (const addon of draftAddons) {
+      const body = buildAddonBody(addon);
+      if (!addon.id) {
+        await bookingService.createAddon(savedListingId, body);
+      } else if (hasDraftAddonChanged(addon, originalAddonsById[addon.id])) {
+        await bookingService.updateAddon(savedListingId, addon.id, body);
+      }
+    }
+  };
+
+  const handleSaveAndContinue = async () => {
+    if (!isFormValid) {
+      Alert.alert('Validation Error', 'Please fill in all required fields and upload at least one photo.');
+      return;
+    }
     if (!categoryId) {
       Alert.alert('Error', 'Category ID is missing');
       return;
@@ -261,94 +487,66 @@ export const ServiceListingScreen: React.FC<ServiceListingScreenProps> = ({
 
     try {
       setLoading(true);
-
-      // Upload images first if any are selected
       let photoUrls: string[] = [];
       if (photoUris.length > 0) {
         try {
-          const uploadedImages = await uploadImages(photoUris, 'listings/');
-          photoUrls = uploadedImages.map((img) => img.url);
+          photoUrls = await resolveListingPhotoUrls(photoUris, 'listings/');
           setPhotos(photoUrls);
         } catch (uploadError: any) {
-          console.error('Error uploading photos:', uploadError);
-          Alert.alert('Upload Error', uploadError.message || 'Failed to upload photos. Please try again.');
+          Alert.alert('Upload Error', uploadError.message || 'Failed to upload photos.');
           setLoading(false);
           return;
         }
       }
 
-      // Create listing on backend with uploaded photo URLs
-      let finalPrice: number | undefined;
-      if (priceType === 'Free') {
-        finalPrice = 0;
-      } else if (price.trim()) {
-        const parsedPrice = parseFloat(price);
-        finalPrice = isNaN(parsedPrice) ? undefined : parsedPrice;
-      } else {
-        finalPrice = undefined;
+      const parsedPrice = parseFloat(filterNumbersOnly(price, true));
+      if (Number.isNaN(parsedPrice)) {
+        Alert.alert('Validation', 'Enter a valid price.');
+        setLoading(false);
+        return;
       }
 
-      const response = await listingService.createListing({
+      const payload = {
         title: title.trim(),
         description: description.trim(),
-        price: finalPrice,
-        priceType: priceType || 'Paid',
+        price: parsedPrice,
+        priceType: 'Paid' as const,
         location: location.trim(),
-        city: city.trim() || undefined,
         categoryId,
         serviceTypeId: serviceTypeId || undefined,
-        specialization: specialization.trim() || undefined,
-        yearsOfExperience: yearsOfExperience ? parseInt(yearsOfExperience) : undefined,
-        serviceProviderName: serviceProviderName.trim(),
-        serviceProviderContact: serviceProviderContact.trim(),
-        serviceProviderEmail: serviceProviderEmail.trim(),
-        tags: tags.trim() || undefined,
+        currency: currency.trim(),
+        duration: duration.trim(),
+        specialization: specialization.trim(),
+        tags: duration.trim(),
+        serviceProviderName: title.trim(),
         photos: photoUrls,
-      });
+      };
+
+      const response = listingId
+        ? await listingService.updateListing(listingId, payload)
+        : await listingService.createListing(payload);
 
       if (response.success) {
         const listingData = (response.data as any)?.data || response.data;
-        
-        // Check if user has a valid subscription
-        try {
-          const subscriptionCheck = await paymentService.checkSubscriptionValidity();
-          const subscriptionData = (subscriptionCheck.data as any)?.data || subscriptionCheck.data;
-          
-          if (subscriptionData?.hasValidSubscription) {
-            // User has valid subscription - skip payment and go directly to region selection
-            navigation?.navigate('SelectRegion', {
-              listingData,
-              paymentData: {
-                plan: 'monthly',
-                subscription: subscriptionData.subscription,
-                skipPayment: true, // Flag to indicate payment was skipped
-              },
-            });
-          } else {
-            // No valid subscription - proceed to payment screen
-            navigation?.navigate('Payment', { listingData });
-          }
-        } catch (subscriptionError: any) {
-          console.error('Error checking subscription:', subscriptionError);
-          // If subscription check fails, default to payment screen
-          navigation?.navigate('Payment', { listingData });
+        const savedId = resolveListingId(listingData);
+        if (!savedId && (draftAddons.length > 0 || deletedAddonIds.length > 0)) {
+          throw new Error('Listing was saved, but add-ons could not be synced.');
         }
+        if (savedId) {
+          await syncDraftAddons(savedId);
+          setListingId(savedId);
+        }
+        await navigateAfterSave(listingData);
       } else {
         throw new Error(response.message || 'Failed to save listing');
       }
     } catch (error: any) {
-      console.error('Error creating listing:', error);
-      // Show server error in snackbar
-      setSnackbarMessage(error.message || 'Failed to create listing. Please try again.');
+      setSnackbarMessage(error.message || 'Failed to save listing. Please try again.');
       setSnackbarType('error');
       setSnackbarVisible(true);
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleBack = () => {
-    navigation?.goBack();
   };
 
   const handlePhotoUpload = async () => {
@@ -357,142 +555,92 @@ export const ServiceListingScreen: React.FC<ServiceListingScreenProps> = ({
         Alert.alert('Limit Reached', 'You can upload a maximum of 6 photos.');
         return;
       }
-
-      const selectedUris = await pickImages();
-
-      if (selectedUris && selectedUris.length > 0) {
-        const updatedUris = [...photoUris, ...selectedUris.map((img) => img.uri)].slice(0, 6);
-        setPhotoUris(updatedUris);
-        setPhotos(updatedUris);
-        setSnackbarMessage(`Added ${selectedUris.length} photo(s).`);
+      const selected = await pickImages();
+      if (selected?.length) {
+        const updated = [...photoUris, ...selected].slice(0, 6);
+        setPhotoUris(updated);
+        setPhotos(updated.map((p) => p.uri));
+        setSnackbarMessage(`Added ${selected.length} photo(s).`);
         setSnackbarType('success');
         setSnackbarVisible(true);
       }
     } catch (error: any) {
-      console.error('Error picking photos:', error);
-      Alert.alert('Error', error.message || 'Failed to select photos. Please try again.');
+      Alert.alert('Error', error.message || 'Failed to select photos.');
     }
   };
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={handleBack}
-          activeOpacity={0.7}
-        >
-          <BackIcon size={24} color="#030303" />
-        </TouchableOpacity>
-        <View style={styles.headerRight}>
-          <TouchableOpacity
-            style={styles.iconButton}
-            activeOpacity={0.7}
-            onPress={() => {
-              // TODO: Navigate to notifications
-              console.log('Notifications pressed');
-            }}
-          >
-            <BellIcon size={24} color="#111827" />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.profileButton}
-            activeOpacity={0.7}
-            onPress={() => {
-              // TODO: Navigate to profile
-              console.log('Profile pressed');
-            }}
-          >
-            <Image
-              source={{ uri: profileImageUrl || 'https://i.pravatar.cc/150?img=12' }}
-              style={styles.profileImage}
-            />
-          </TouchableOpacity>
-        </View>
+      <View style={styles.headerBand}>
+        <ListingWizardHeader
+          title="Create Service"
+          subtitle="Fill in the information below to list your service"
+          profileImageUrl={profileImageUrl}
+          onBack={() => navigation?.goBack()}
+          showBell
+          usePillControls
+        />
+        <ListingStepProgress
+          currentStep={currentStep}
+          steps={FORM_STEPS}
+          numbered
+          activeColor={MP.beautyBadge}
+        />
       </View>
 
-      {/* Title Section */}
-      <View style={styles.titleSection}>
-        <Text style={styles.titleText}>Listing Details</Text>
-      </View>
-
-      {/* Progress Indicator */}
-      <View style={styles.progressContainer}>
-        {FORM_STEPS.map((step, index) => (
-          <React.Fragment key={step}>
-            <View style={styles.progressStepContainer}>
-              <View style={styles.progressCircleWrapper}>
-                <View
-                  style={[
-                    styles.progressCircle,
-                    index === currentStep && styles.progressCircleActive,
-                    index < currentStep && styles.progressCircleCompleted,
-                  ]}
-                >
-                  {index === currentStep && (
-                    <View style={styles.progressDotActive} />
-                  )}
-                  {index < currentStep && (
-                    <View style={styles.progressDotCompleted} />
-                  )}
-                  {index > currentStep && (
-                    <View style={styles.progressDotInactive} />
-                  )}
-                </View>
-                {index < FORM_STEPS.length - 1 && (
-                  <View
-                    style={[
-                      styles.progressLine,
-                      index <= currentStep && styles.progressLineActive,
-                    ]}
-                  />
-                )}
-              </View>
-              <Text style={styles.progressLabel}>
-                {step}
-              </Text>
-            </View>
-          </React.Fragment>
-        ))}
-      </View>
-
-      {/* Content */}
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
-        scrollEnabled={!anyDropdownOpen}
       >
-        <Text style={styles.introText}>
-          Add details about your {route?.params?.serviceType?.toLowerCase() || 'service'} service.
-        </Text>
-
-        {/* Service Title Field */}
-        <View style={styles.fieldContainer}>
-          <Text style={styles.label}>
-            Service Title <Text style={styles.required}>*</Text>
-          </Text>
+        <ListingFormField label="Service Name" required>
           <TextInput
-            style={styles.input}
-            placeholder="Listing title"
-            placeholderTextColor={Colors.light.textSecondary}
+            style={inputStyles.input}
+            placeholder="e.g. Luxury Facial Treatment"
+            placeholderTextColor="rgba(153,153,153,0.5)"
             value={title}
             onChangeText={setTitle}
             {...androidInputProps}
           />
-        </View>
+        </ListingFormField>
 
-        {/* Description Field */}
-        <View style={styles.fieldContainer}>
-          <Text style={styles.label}>
-            Description <Text style={styles.required}>*</Text>
-          </Text>
+        {hasSpecializationList ? (
+          <FormSelect
+            label="Category"
+            required
+            value={specialization}
+            placeholder="Select category"
+            options={specializationOptions}
+            onSelect={setSpecialization}
+          />
+        ) : (
+          <ListingFormField label="Category" required>
+            <TextInput
+              style={inputStyles.input}
+              placeholder="e.g. manicure, nails"
+              placeholderTextColor="rgba(153,153,153,0.5)"
+              value={specialization}
+              onChangeText={setSpecialization}
+              {...androidInputProps}
+            />
+          </ListingFormField>
+        )}
+
+        <FormSelect
+          label="Duration"
+          required
+          value={duration}
+          placeholder="e.g. 60 minutes"
+          options={DURATION_OPTIONS}
+          onSelect={setDuration}
+        />
+
+        <ListingFormField label="Description" required>
           <TextInput
-            style={[styles.input, styles.textArea]}
+            style={[inputStyles.input, inputStyles.textArea]}
             placeholder="Describe your service in detail..."
-            placeholderTextColor={Colors.light.textSecondary}
+            placeholderTextColor="rgba(153,153,153,0.5)"
             value={description}
             onChangeText={(t) => setDescription(clampWords(t, DESCRIPTION_WORD_LIMIT))}
             multiline
@@ -500,361 +648,254 @@ export const ServiceListingScreen: React.FC<ServiceListingScreenProps> = ({
             textAlignVertical="top"
             {...androidMultilineProps}
           />
-          <Text style={styles.wordCount}>
+          <Text style={inputStyles.wordCount}>
             {countWords(description)}/{DESCRIPTION_WORD_LIMIT} words
           </Text>
-        </View>
+        </ListingFormField>
 
-        {/* Price Type and Price Row */}
-        <View
-          style={[
-            styles.rowContainer,
-            priceTypePickerOpen && styles.rowPickerOpen,
-          ]}
-        >
-          <View style={[styles.fieldContainer, styles.halfWidth]}>
-            <Text style={styles.label}>
-              Price Type <Text style={styles.required}>*</Text>
-            </Text>
-            <PriceTypeDropdown
-              value={priceType}
-              onSelect={setPriceType}
-              onOpenChange={setPriceTypePickerOpen}
-            />
-          </View>
-          <View style={[styles.fieldContainer, styles.halfWidth]}>
-            <Text style={styles.label}>
-              Price <Text style={styles.required}>*</Text>
-            </Text>
-            <TextInput
-              style={[
-                styles.input,
-                (priceType === 'Free' || priceType === null) && styles.inputDisabled,
-              ]}
-              placeholder="0.00"
-              placeholderTextColor={Colors.light.textSecondary}
-              value={price}
-              onChangeText={(text) => setPrice(filterNumbersOnly(text, true))}
-              keyboardType="decimal-pad"
-              editable={priceType !== 'Free' && priceType !== null}
-              {...androidInputProps}
-            />
-          </View>
-        </View>
-
-        {/* Location and City Row */}
-        <View style={styles.rowContainer}>
-          <View style={[styles.fieldContainer, styles.halfWidth]}>
-            <Text style={styles.label}>
-              Location <Text style={styles.required}>*</Text>
-            </Text>
-            <GoogleLocationField
-              label=""
-              required
-              value={location}
-              placeholder="Search location"
-              onSelect={({ location: loc, city: c }) => {
-                setLocation(loc);
-                if (c) setCity(c);
-              }}
-            />
-          </View>
-          <View style={[styles.fieldContainer, styles.halfWidth]}>
-            <Text style={styles.label}>
-              City <Text style={styles.required}>*</Text>
-            </Text>
-            <TextInput
-              style={styles.input}
-              placeholder="City, State"
-              placeholderTextColor={Colors.light.textSecondary}
-              value={city}
-              onChangeText={setCity}
-              {...androidInputProps}
-            />
-          </View>
-        </View>
-
-        {/* Specialization and Years of Experience Row */}
-        <View
-          style={[
-            styles.rowContainer,
-            specializationPickerOpen && styles.rowPickerOpen,
-          ]}
-        >
-          <View style={[styles.fieldContainer, styles.halfWidth]}>
-            <Text style={styles.label}>Specialization</Text>
-            {specializationOptions ? (
-              <View
-                style={[
-                  styles.dropdownRoot,
-                  specializationPickerOpen && styles.dropdownRootOpen,
-                ]}
-                collapsable={false}
-              >
-                <TouchableOpacity
-                  style={styles.dropdownTrigger}
-                  activeOpacity={0.75}
-                  onPress={() => setSpecializationPickerOpen((v) => !v)}
-                  accessibilityRole="button"
-                >
-                  <Text
-                    style={[
-                      styles.dropdownTriggerText,
-                      !specialization && styles.dropdownPlaceholder,
-                    ]}
-                    numberOfLines={1}
-                  >
-                    {specialization || 'Select specialization'}
-                  </Text>
-                  <Text style={styles.dropdownChevron}>
-                    {specializationPickerOpen ? '▲' : '▼'}
-                  </Text>
-                </TouchableOpacity>
+        <View style={inputStyles.row}>
+          <View style={styles.fieldFlex}>
+            <ListingFormField label="Price" required>
+              <View style={styles.priceInputWrap}>
+                <Text style={styles.pricePrefix}>$</Text>
+                <TextInput
+                  style={styles.priceInput}
+                  placeholder="e.g. 45"
+                  placeholderTextColor="rgba(153,153,153,0.5)"
+                  value={price}
+                  onChangeText={(text) => setPrice(filterNumbersOnly(text, true))}
+                  keyboardType="decimal-pad"
+                  {...androidInputProps}
+                />
               </View>
-            ) : (
-              <TextInput
-                style={styles.input}
-                placeholder="e.g manicure, nails"
-                placeholderTextColor={Colors.light.textSecondary}
-                value={specialization}
-                onChangeText={setSpecialization}
-                {...androidInputProps}
-              />
-            )}
+            </ListingFormField>
           </View>
-          <View style={[styles.fieldContainer, styles.halfWidth]}>
-            <Text style={styles.label}>Years of Experience</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="e.g 03"
-              placeholderTextColor={Colors.light.textSecondary}
-              value={yearsOfExperience}
-              onChangeText={(text) => setYearsOfExperience(filterNumbersOnly(text, false))}
-              keyboardType="numeric"
-              {...androidInputProps}
-            />
-          </View>
-        </View>
-
-        {/* Service Provider Details */}
-        <View style={styles.fieldContainer}>
-          <Text style={styles.label}>Service Provider details <Text style={styles.required}>*</Text></Text>
-          <TextInput
-            style={[styles.input, styles.marginBottom]}
-            placeholder="Name *"
-            placeholderTextColor={Colors.light.textSecondary}
-            value={serviceProviderName}
-            onChangeText={(text) => setServiceProviderName(filterLettersOnly(text))}
-            {...androidInputProps}
-          />
-          <TextInput
-            style={[styles.input, styles.marginBottom]}
-            placeholder="Contact *"
-            placeholderTextColor={Colors.light.textSecondary}
-            value={serviceProviderContact}
-            onChangeText={(text) => setServiceProviderContact(filterNumbersOnly(text, false))}
-            keyboardType="phone-pad"
-            {...androidInputProps}
-          />
-          <TextInput
-            style={styles.input}
-            placeholder="Email *"
-            placeholderTextColor={Colors.light.textSecondary}
-            value={serviceProviderEmail}
-            onChangeText={setServiceProviderEmail}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            {...androidInputProps}
+          <FormSelect
+            label="Currency"
+            value={currency}
+            placeholder="USD"
+            options={CURRENCY_OPTIONS}
+            onSelect={setCurrency}
           />
         </View>
 
-        {/* Additional Tags */}
-        <View style={styles.fieldContainer}>
-          <Text style={styles.label}>Additional Tags</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="e.g Professional, Certified"
-            placeholderTextColor={Colors.light.textSecondary}
-            value={tags}
-            onChangeText={setTags}
-            {...androidInputProps}
+        <ListingFormField label="Location" required>
+          <GoogleLocationField
+            label=""
+            required
+            value={location}
+            placeholder="Salon or home visits?"
+            onSelect={({ location: loc }) => setLocation(loc)}
           />
-        </View>
+        </ListingFormField>
 
-        {/* Photo Upload Section */}
-        <View style={styles.fieldContainer}>
-          <Text style={styles.label}>Photo <Text style={styles.required}>*</Text></Text>
-          <View style={styles.photoSection}>
-            <TouchableOpacity
-              style={styles.photoIconButton}
-              onPress={handlePhotoUpload}
-              activeOpacity={0.7}
-              disabled={photoUris.length >= 6 || loading}
-            >
-              <AddPhotoIcon size={57} />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.photoUploadArea}
-              onPress={handlePhotoUpload}
-              activeOpacity={0.7}
-              disabled={photoUris.length >= 6 || loading}
-            >
-              <Text style={styles.uploadText}>
-                {photoUris.length >= 6
-                  ? 'Maximum photos reached'
-                  : 'Click to select photos'}
+        <ListingPhotoUpload
+          photos={photoUris.map((p) => ({ uri: p.uri }))}
+          onAdd={handlePhotoUpload}
+          onRemove={(index) => {
+            const updated = photoUris.filter((_, i) => i !== index);
+            setPhotoUris(updated);
+            setPhotos(updated.map((p) => p.uri));
+          }}
+          uploading={loading}
+          uploadTitle="Click to upload service photos"
+          uploadHint="Add up to 6 photos"
+        />
+
+        <View style={styles.addonsSection}>
+          <View style={styles.addonsHeader}>
+            <View style={styles.addonsHeaderText}>
+              <Text style={styles.addonsTitle}>Optional add-ons</Text>
+              <Text style={styles.addonsSubtitle}>
+                Offer extras customers can choose while booking.
               </Text>
-              <Text style={styles.uploadSubtext}>
-                (SVG, PNG, JPG or GIF, max. 10MB per file)
-              </Text>
-            </TouchableOpacity>
-          </View>
-          <Text style={styles.photoHint}>
-            {photoUris.length > 0
-              ? `${photoUris.length}/6 photos selected (will upload on save)`
-              : 'Add up to 6 photos'}
-          </Text>
-          {photoUris.length > 0 && (
-            <View style={styles.photosPreview}>
-              {photoUris.map((photoUri, index) => {
-                // Ensure URI is properly formatted for React Native Image
-                const imageUri = photoUri.startsWith('file://') || photoUri.startsWith('content://') || photoUri.startsWith('http')
-                  ? photoUri
-                  : `file://${photoUri}`;
-                
-                return (
-                  <View key={`photo-${index}-${photoUri}`} style={styles.photoPreviewItem}>
-                    <Image 
-                      source={{ uri: imageUri }} 
-                      style={styles.photoPreview}
-                      onError={(error) => {
-                        console.error(`[Image Preview] Error loading image ${index}:`, error.nativeEvent.error);
-                      }}
-                    />
-                    <TouchableOpacity
-                      style={styles.removePhotoButton}
-                      onPress={() => {
-                        const updatedUris = photoUris.filter((_, i) => i !== index);
-                        setPhotoUris(updatedUris);
-                        setPhotos(updatedUris);
-                      }}
-                    >
-                      <Text style={styles.removePhotoText}>×</Text>
-                    </TouchableOpacity>
-                  </View>
-                );
-              })}
             </View>
+            <TouchableOpacity
+              style={styles.addonAddButton}
+              onPress={openCreateAddonModal}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.addonAddButtonText}>Add add-on</Text>
+            </TouchableOpacity>
+          </View>
+
+          {draftAddons.length === 0 ? (
+            <View style={styles.addonsEmptyCard}>
+              <Text style={styles.addonsEmptyText}>No optional add-ons yet.</Text>
+            </View>
+          ) : (
+            draftAddons.map((addon) => (
+              <View key={addon.localId} style={styles.addonRow}>
+                <View style={styles.addonIconBubble}>
+                  <Text style={styles.addonIconText}>{addon.icon || '+'}</Text>
+                </View>
+                <View style={styles.addonDetails}>
+                  <View style={styles.addonTitleRow}>
+                    <Text style={styles.addonName} numberOfLines={1}>
+                      {addon.name}
+                    </Text>
+                    <Text style={styles.addonPrice}>+{currency} {addon.price}</Text>
+                  </View>
+                  {addon.description ? (
+                    <Text style={styles.addonDescription} numberOfLines={2}>
+                      {addon.description}
+                    </Text>
+                  ) : null}
+                  <Text style={styles.addonStatus}>
+                    {addon.isActive ? 'Active' : 'Inactive'}
+                  </Text>
+                </View>
+                <View style={styles.addonActions}>
+                  <TouchableOpacity onPress={() => openEditAddonModal(addon)} activeOpacity={0.75}>
+                    <Text style={styles.addonActionText}>Edit</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => removeDraftAddon(addon)} activeOpacity={0.75}>
+                    <Text style={[styles.addonActionText, styles.addonDeleteText]}>Delete</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ))
           )}
         </View>
-
-        {/* Save & Continue Button */}
-        <TouchableOpacity
-          style={[
-            styles.saveButton,
-            (!isFormValid || loading) && styles.saveButtonDisabled,
-          ]}
-          onPress={handleSaveAndContinue}
-          disabled={!isFormValid || loading}
-          activeOpacity={0.8}
-        >
-          {loading ? (
-            <ActivityIndicator color="#FFFFFF" />
-          ) : (
-            <Text
-              style={[
-                styles.saveButtonText,
-                (!isFormValid || loading) && styles.saveButtonTextDisabled,
-              ]}
-            >
-              Save & Continue
-            </Text>
-          )}
-        </TouchableOpacity>
       </ScrollView>
 
-      {/* Beauty Specialization Picker (Modal) */}
-      <Modal
-        visible={specializationPickerOpen && !!specializationOptions}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setSpecializationPickerOpen(false)}
-      >
-        <TouchableOpacity
-          style={styles.pickerOverlay}
-          activeOpacity={1}
-          onPress={() => setSpecializationPickerOpen(false)}
-        >
-          <TouchableOpacity
-            style={styles.pickerSheet}
-            activeOpacity={1}
-            onPress={() => {}}
-          >
-            <Text style={styles.pickerTitle}>Select Specialization</Text>
-            <FlatList
-              data={(specializationOptions || []) as unknown as string[]}
-              keyExtractor={(item) => item}
-              keyboardShouldPersistTaps="handled"
-              showsVerticalScrollIndicator
-              renderItem={({ item }) => {
-                const selectedNow = specialization === item;
-                return (
-                  <TouchableOpacity
-                    style={[
-                      styles.pickerOption,
-                      selectedNow && styles.pickerOptionSelected,
-                    ]}
-                    activeOpacity={0.7}
-                    onPress={() => {
-                      setSpecialization(item);
-                      setSpecializationPickerOpen(false);
-                    }}
-                  >
-                    <Text
-                      style={[
-                        styles.pickerOptionText,
-                        selectedNow && styles.pickerOptionTextSelected,
-                      ]}
-                    >
-                      {item}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              }}
-            />
-          </TouchableOpacity>
-        </TouchableOpacity>
-      </Modal>
+      <ListingWizardFooter
+        label="Next"
+        onPress={handleSaveAndContinue}
+        disabled={!isFormValid}
+        loading={loading}
+        showArrow
+      />
 
-      {/* Bottom Navigation */}
       <BottomNavigation
         activeTab={activeTab}
         onTabPress={(tab) => {
           setActiveTab(tab);
-          if (tab === 'Home') {
-            navigation?.navigate('Home');
-          } else if (tab === 'Store') {
-            navigation?.navigate('Store');
-          } else if (tab === 'Messages') {
-            // Show coming soon snackbar
+          if (tab === 'Home') navigation?.navigate('Home');
+          else if (tab === 'Store') navigation?.navigate('Store');
+          else if (tab === 'Messages') {
             setSnackbarVisible(true);
             setSnackbarMessage('Coming soon feature');
             setSnackbarType('info');
-          } else if (tab === 'Profile') {
-            navigation?.navigate('Profile');
-          }
+          } else if (tab === 'Profile') navigation?.navigate('Profile');
         }}
         onCreatePress={() => {}}
         showCreateButton={false}
       />
 
-      {/* Snackbar for messages */}
       <Snackbar
         visible={snackbarVisible}
         message={snackbarMessage}
         type={snackbarType}
         onDismiss={() => setSnackbarVisible(false)}
       />
+
+      <Modal
+        visible={addonModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={closeAddonModal}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.addonModalCard}>
+            <Text style={styles.modalTitle}>
+              {editingAddonLocalId ? 'Edit add-on' : 'Add optional add-on'}
+            </Text>
+            <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+              <ListingFormField label="Name" required>
+                <TextInput
+                  style={inputStyles.input}
+                  placeholder="e.g. Extra 30 minutes"
+                  placeholderTextColor="rgba(153,153,153,0.5)"
+                  value={addonForm.name}
+                  onChangeText={(name) => setAddonForm((current) => ({ ...current, name }))}
+                  {...androidInputProps}
+                />
+              </ListingFormField>
+
+              <ListingFormField label="Description">
+                <TextInput
+                  style={[inputStyles.input, inputStyles.textArea]}
+                  placeholder="Describe this add-on..."
+                  placeholderTextColor="rgba(153,153,153,0.5)"
+                  value={addonForm.description}
+                  onChangeText={(nextDescription) =>
+                    setAddonForm((current) => ({ ...current, description: nextDescription }))
+                  }
+                  multiline
+                  numberOfLines={3}
+                  textAlignVertical="top"
+                  {...androidMultilineProps}
+                />
+              </ListingFormField>
+
+              <ListingFormField label="Price" required>
+                <View style={styles.priceInputWrap}>
+                  <Text style={styles.pricePrefix}>$</Text>
+                  <TextInput
+                    style={styles.priceInput}
+                    placeholder="e.g. 15"
+                    placeholderTextColor="rgba(153,153,153,0.5)"
+                    value={addonForm.price}
+                    onChangeText={(text) =>
+                      setAddonForm((current) => ({
+                        ...current,
+                        price: filterNumbersOnly(text, true),
+                      }))
+                    }
+                    keyboardType="decimal-pad"
+                    {...androidInputProps}
+                  />
+                </View>
+              </ListingFormField>
+
+              <ListingFormField label="Icon">
+                <TextInput
+                  style={inputStyles.input}
+                  placeholder="Optional emoji"
+                  placeholderTextColor="rgba(153,153,153,0.5)"
+                  value={addonForm.icon}
+                  onChangeText={(icon) => setAddonForm((current) => ({ ...current, icon }))}
+                  maxLength={8}
+                  {...androidInputProps}
+                />
+              </ListingFormField>
+
+              <View style={styles.switchRow}>
+                <View>
+                  <Text style={styles.switchLabel}>Active</Text>
+                  <Text style={styles.switchHint}>Show this add-on to customers</Text>
+                </View>
+                <Switch
+                  value={addonForm.isActive}
+                  onValueChange={(isActive) =>
+                    setAddonForm((current) => ({ ...current, isActive }))
+                  }
+                  trackColor={{ false: '#D1D5DB', true: MP.primary }}
+                  thumbColor="#FFFFFF"
+                />
+              </View>
+            </ScrollView>
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalCancelButton]}
+                onPress={closeAddonModal}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalSaveButton]}
+                onPress={saveDraftAddon}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.modalSaveText}>Save add-on</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -862,357 +903,217 @@ export const ServiceListingScreen: React.FC<ServiceListingScreenProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: MP.screenSurface,
+  },
+  headerBand: {
     backgroundColor: Colors.light.background,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 2,
+    elevation: 2,
+    paddingBottom: Spacing.sm,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.md,
-  },
-  backButton: {
-    padding: Spacing.xs,
-    marginLeft: -Spacing.xs,
-  },
-  headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-  },
-  iconButton: {
-    padding: Spacing.xs,
-  },
-  profileButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: Colors.light.border,
-  },
-  profileImage: {
-    width: '100%',
-    height: '100%',
-    resizeMode: 'cover',
-  },
-  titleSection: {
-    paddingHorizontal: Spacing.md,
-    paddingBottom: Spacing.md,
-  },
-  titleText: {
-    ...Typography.h2,
-    color: Colors.light.text,
-    fontWeight: '700',
-    fontSize: 18,
-  },
-  progressContainer: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    paddingHorizontal: Spacing.md,
-    paddingBottom: Spacing.lg,
-  },
-  progressStepContainer: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  progressCircleWrapper: {
-    width: '100%',
-    height: 28,
-    position: 'relative',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  progressCircle: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: '#E5E7EB',
-    backgroundColor: Colors.light.background,
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 2,
-  },
-  progressCircleActive: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    borderWidth: 2,
-    borderColor: Colors.light.primary,
-    backgroundColor: Colors.light.background,
-  },
-  progressCircleCompleted: {
-    borderColor: Colors.light.primary,
-    backgroundColor: Colors.light.primary,
-  },
-  progressDotActive: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: Colors.light.primary,
-  },
-  progressDotCompleted: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#FFFFFF',
-  },
-  progressDotInactive: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: '#D1D5DB',
-  },
-  progressLabel: {
-    ...Typography.caption,
-    color: '#374151',
-    fontSize: 12,
-    marginTop: Spacing.xs,
-  },
-  progressLine: {
-    position: 'absolute',
-    left: '50%',
-    right: '-50%',
-    height: 2,
-    backgroundColor: '#E5E7EB',
-    top: 13,
-    zIndex: 1,
-  },
-  progressLineActive: {
-    backgroundColor: Colors.light.primary,
-  },
-  scrollView: {
-    flex: 1,
-  },
+  scrollView: { flex: 1 },
   content: {
     padding: Spacing.md,
     paddingBottom: Spacing.xl,
-  },
-  introText: {
-    ...Typography.body,
-    color: Colors.light.textSecondary,
-    marginBottom: Spacing.lg,
-    fontSize: 14,
-  },
-  fieldContainer: {
-    marginBottom: Spacing.lg,
-  },
-  rowContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
     gap: Spacing.md,
   },
-  rowPickerOpen: {
-    zIndex: 50,
-    elevation: 50,
-  },
-  halfWidth: {
-    flex: 1,
-  },
-  label: {
-    ...Typography.body,
-    color: Colors.light.text,
-    fontWeight: '500',
-    marginBottom: Spacing.xs,
-    fontSize: 14,
-  },
-  required: {
-    color: '#EF4444',
-  },
-  input: {
-    ...Typography.body,
-    backgroundColor: Colors.light.background,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: BorderRadius.md,
-    paddingHorizontal: Spacing.md,
-    paddingTop: Spacing.sm,
-    paddingBottom: Platform.OS === 'android' ? Spacing.sm - 2 : Spacing.sm,
-    color: Colors.light.text,
-    fontSize: 14,
-  },
-  dropdownRoot: {
-    position: 'relative',
-    zIndex: 0,
-  },
-  dropdownRootOpen: {
-    zIndex: 100,
-    elevation: 12,
-  },
-  dropdownTrigger: {
+  fieldFlex: { flex: 1, minWidth: 0 },
+  priceInputWrap: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    backgroundColor: Colors.light.background,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: BorderRadius.md,
+    borderColor: Colors.light.cardBorder,
+    borderRadius: BorderRadius.lg,
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    backgroundColor: Colors.light.background,
     minHeight: 44,
-    gap: Spacing.sm,
   },
-  dropdownTriggerText: {
-    ...Typography.body,
-    color: Colors.light.text,
-    fontSize: 14,
-    flex: 1,
-    minWidth: 0,
-  },
-  dropdownPlaceholder: {
-    color: Colors.light.textSecondary,
-  },
-  dropdownChevron: {
-    color: Colors.light.textSecondary,
+  pricePrefix: {
     fontSize: 12,
-    marginLeft: Spacing.sm,
+    color: '#BBBBBB',
+    marginRight: Spacing.xs,
   },
-  pickerOverlay: {
+  priceInput: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.45)',
-    justifyContent: 'center',
-    paddingHorizontal: Spacing.md,
+    fontSize: 14,
+    color: Colors.light.textHeading,
+    paddingVertical: Platform.OS === 'android' ? Spacing.sm - 2 : Spacing.sm,
   },
-  pickerSheet: {
+  addonsSection: {
     backgroundColor: Colors.light.background,
+    borderWidth: 1,
+    borderColor: Colors.light.cardBorder,
     borderRadius: BorderRadius.lg,
     padding: Spacing.md,
-    maxHeight: '75%',
-  },
-  pickerTitle: {
-    ...Typography.h3,
-    color: Colors.light.text,
-    marginBottom: Spacing.sm,
-  },
-  pickerOption: {
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-  },
-  pickerOptionSelected: {
-    backgroundColor: 'rgba(17, 24, 39, 0.05)',
-  },
-  pickerOptionText: {
-    ...Typography.body,
-    fontSize: 14,
-    color: Colors.light.text,
-  },
-  pickerOptionTextSelected: {
-    fontWeight: '700',
-    color: Colors.light.text,
-  },
-  inputDisabled: {
-    backgroundColor: '#F9FAFB',
-    color: Colors.light.textSecondary,
-  },
-  textArea: {
-    minHeight: 100,
-    paddingTop: Spacing.sm,
-  },
-  wordCount: {
-    ...Typography.caption,
-    color: Colors.light.textSecondary,
-    marginTop: 6,
-    textAlign: 'right',
-  },
-  marginBottom: {
-    marginBottom: Spacing.sm,
-  },
-  photoSection: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.md,
-    marginTop: Spacing.xs,
-  },
-  photoIconButton: {
-    // Icon handles its own styling
-  },
-  photoUploadArea: {
-    flex: 1,
-    borderWidth: 2,
-    borderColor: '#E5E7EB',
-    borderStyle: 'dashed',
-    borderRadius: BorderRadius.md,
-    padding: Spacing.lg,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 120,
-  },
-  uploadText: {
-    ...Typography.body,
-    color: Colors.light.primary,
-    fontWeight: '500',
-    marginBottom: Spacing.xs,
-    fontSize: 14,
-  },
-  uploadSubtext: {
-    ...Typography.caption,
-    color: Colors.light.textSecondary,
-    fontSize: 12,
-  },
-  photoHint: {
-    ...Typography.caption,
-    color: Colors.light.textSecondary,
-    marginTop: Spacing.xs,
-    fontSize: 12,
-  },
-  photosPreview: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
     gap: Spacing.sm,
-    marginTop: Spacing.md,
   },
-  photoPreviewItem: {
-    position: 'relative',
-    width: 100,
-    height: 100,
-    borderRadius: BorderRadius.md,
-    overflow: 'hidden',
+  addonsHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: Spacing.sm,
   },
-  photoPreview: {
-    width: '100%',
-    height: '100%',
-    resizeMode: 'cover',
+  addonsHeaderText: {
+    flex: 1,
   },
-  removePhotoButton: {
-    position: 'absolute',
-    top: 4,
-    right: 4,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    alignItems: 'center',
-    justifyContent: 'center',
+  addonsTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: Colors.light.textHeading,
   },
-  removePhotoText: {
+  addonsSubtitle: {
+    marginTop: 4,
+    fontSize: 12,
+    color: MP.metaText,
+  },
+  addonAddButton: {
+    backgroundColor: MP.primary,
+    borderRadius: BorderRadius.round,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+  },
+  addonAddButtonText: {
     color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: 'bold',
-    lineHeight: 20,
+    fontSize: 12,
+    fontWeight: '700',
   },
-  saveButton: {
-    backgroundColor: Colors.light.primary,
+  addonsEmptyCard: {
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: Colors.light.cardBorder,
     borderRadius: BorderRadius.md,
-    paddingVertical: Spacing.md,
-    paddingHorizontal: Spacing.lg,
+    padding: Spacing.md,
+  },
+  addonsEmptyText: {
+    color: MP.metaText,
+    fontSize: 13,
+  },
+  addonRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    borderWidth: 1,
+    borderColor: Colors.light.cardBorder,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.sm,
+    gap: Spacing.sm,
+  },
+  addonIconBubble: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: Spacing.lg,
+    backgroundColor: '#F0F9FF',
   },
-  saveButtonDisabled: {
+  addonIconText: {
+    fontSize: 16,
+    color: MP.primary,
+    fontWeight: '700',
+  },
+  addonDetails: {
+    flex: 1,
+  },
+  addonTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  addonName: {
+    flex: 1,
+    color: Colors.light.textHeading,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  addonPrice: {
+    color: MP.primary,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  addonDescription: {
+    marginTop: 4,
+    color: MP.descriptionText,
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  addonStatus: {
+    marginTop: 4,
+    color: MP.metaText,
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  addonActions: {
+    alignItems: 'flex-end',
+    gap: Spacing.sm,
+  },
+  addonActionText: {
+    color: MP.primary,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  addonDeleteText: {
+    color: MP.report,
+  },
+  modalBackdrop: {
+    flex: 1,
+    justifyContent: 'center',
+    padding: Spacing.lg,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+  },
+  addonModalCard: {
+    maxHeight: '88%',
+    backgroundColor: Colors.light.background,
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.lg,
+    gap: Spacing.md,
+  },
+  modalTitle: {
+    color: Colors.light.textHeading,
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  switchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: Spacing.sm,
+  },
+  switchLabel: {
+    color: Colors.light.textHeading,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  switchHint: {
+    marginTop: 2,
+    color: MP.metaText,
+    fontSize: 12,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+  },
+  modalButton: {
+    flex: 1,
+    alignItems: 'center',
+    borderRadius: BorderRadius.round,
+    paddingVertical: Spacing.md,
+  },
+  modalCancelButton: {
     backgroundColor: '#F3F4F6',
   },
-  saveButtonText: {
-    ...Typography.body,
-    color: '#FFFFFF',
-    fontWeight: '600',
-    fontSize: 16,
+  modalSaveButton: {
+    backgroundColor: MP.primary,
   },
-  saveButtonTextDisabled: {
-    color: '#9CA3AF',
+  modalCancelText: {
+    color: Colors.light.textHeading,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  modalSaveText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
   },
 });
-

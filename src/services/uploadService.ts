@@ -1,10 +1,9 @@
 /**
  * Upload Service
- * Handles image uploads to the backend
+ * Handles image uploads to the backend (React Native FormData + fetch)
  */
 
 import { launchImageLibrary, ImagePickerResponse, MediaType } from 'react-native-image-picker';
-import axios from 'axios';
 import { Platform } from 'react-native';
 import { API_CONFIG, STORAGE_KEYS } from '../constants';
 import { Storage } from '../utils/storage';
@@ -28,6 +27,16 @@ export interface UploadImagesResponse {
   count: number;
 }
 
+const PICKER_OPTIONS = {
+  mediaType: 'photo' as MediaType,
+  quality: 0.8 as const,
+  maxWidth: 2048,
+  maxHeight: 2048,
+  includeBase64: false,
+  /** iOS: prefer JPEG-compatible representation for HEIC assets */
+  assetRepresentationMode: 'compatible' as const,
+};
+
 /**
  * Open image picker and select images (returns local URIs with metadata)
  */
@@ -35,10 +44,8 @@ export const pickImages = (selectionLimit = 6): Promise<PickedImage[]> => {
   return new Promise((resolve, reject) => {
     launchImageLibrary(
       {
-        mediaType: 'photo' as MediaType,
-        quality: 0.8,
+        ...PICKER_OPTIONS,
         selectionLimit,
-        includeBase64: false,
       },
       (response: ImagePickerResponse) => {
         if (response.didCancel) {
@@ -55,8 +62,8 @@ export const pickImages = (selectionLimit = 6): Promise<PickedImage[]> => {
           const images = response.assets
             .map((asset) => ({
               uri: asset.uri || '',
-              type: asset.type,
-              fileName: asset.fileName,
+              type: asset.type || undefined,
+              fileName: asset.fileName || undefined,
             }))
             .filter((asset) => asset.uri);
           resolve(images);
@@ -74,9 +81,24 @@ export const pickSingleImage = (): Promise<PickedImage | null> =>
 
 function normalizeMimeType(type?: string, fileName?: string): string {
   if (type) {
-    const normalized = type.toLowerCase();
-    if (normalized === 'image/jpg') return 'image/jpeg';
-    if (normalized.startsWith('image/')) return normalized;
+    const normalized = type.toLowerCase().trim();
+    if (normalized === 'image/jpg' || normalized === 'jpg' || normalized === 'jpeg') {
+      return 'image/jpeg';
+    }
+    if (normalized === 'image/heic' || normalized === 'image/heif') {
+      return 'image/jpeg';
+    }
+    if (
+      normalized === 'image/jpeg' ||
+      normalized === 'image/png' ||
+      normalized === 'image/gif' ||
+      normalized === 'image/webp'
+    ) {
+      return normalized;
+    }
+    if (normalized.startsWith('image/')) {
+      return 'image/jpeg';
+    }
   }
 
   const ext = fileName?.split('.').pop()?.toLowerCase();
@@ -87,93 +109,167 @@ function normalizeMimeType(type?: string, fileName?: string): string {
       return 'image/gif';
     case 'webp':
       return 'image/webp';
+    case 'heic':
+    case 'heif':
     case 'jpeg':
     case 'jpg':
-      return 'image/jpeg';
     default:
       return 'image/jpeg';
   }
 }
 
-function buildUploadFileName(index: number, fileName?: string, uri?: string): string {
-  if (fileName && /\.\w+$/.test(fileName)) {
-    return fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
+function extensionForMime(mime: string): string {
+  switch (mime) {
+    case 'image/png':
+      return 'png';
+    case 'image/gif':
+      return 'gif';
+    case 'image/webp':
+      return 'webp';
+    default:
+      return 'jpg';
   }
-
-  const fromUri = uri?.split('/').pop()?.split('?')[0];
-  if (fromUri && /\.\w+$/.test(fromUri)) {
-    return fromUri.replace(/[^a-zA-Z0-9._-]/g, '_');
-  }
-
-  return `image-${Date.now()}-${index}.jpg`;
 }
 
-function toPickedImage(item: string | PickedImage): PickedImage {
+function buildUploadFileName(index: number, fileName?: string, uri?: string, mime?: string): string {
+  const resolvedMime = normalizeMimeType(mime, fileName);
+  const ext = extensionForMime(resolvedMime);
+
+  let base: string | null = null;
+  if (fileName && /\.\w+$/.test(fileName)) {
+    base = fileName;
+  } else {
+    const fromUri = uri?.split('/').pop()?.split('?')[0];
+    if (fromUri && /\.\w+$/.test(fromUri)) {
+      base = fromUri;
+    }
+  }
+
+  if (base) {
+    return base.replace(/[^a-zA-Z0-9._-]/g, '_').replace(/\.\w+$/, `.${ext}`);
+  }
+
+  return `image-${Date.now()}-${index}.${ext}`;
+}
+
+function normalizeUploadUri(uri: string): string {
+  if (!uri) return uri;
+  if (Platform.OS === 'android' && uri.startsWith('/')) {
+    return `file://${uri}`;
+  }
+  return uri;
+}
+
+export function toPickedImage(item: string | PickedImage): PickedImage {
   if (typeof item === 'string') {
     return { uri: item };
   }
   return item;
 }
 
+function getUploadErrorMessage(status?: number, data?: any, fallback?: string): string {
+  if (typeof data === 'string' && data.trim()) {
+    // Avoid dumping HTML error pages into the alert
+    if (data.trim().startsWith('<')) {
+      return status
+        ? `Upload failed (${status}). Please try again.`
+        : 'Upload failed. Please try again.';
+    }
+    return data;
+  }
+  if (data?.message) return data.message;
+  if (data?.error) {
+    return typeof data.error === 'string' ? data.error : data.error?.message || fallback || 'Upload failed';
+  }
+  if (status === 413) return 'Image is too large. Please choose a smaller photo.';
+  if (status === 401) return 'Session expired. Please sign in again and retry.';
+  if (status === 400) return fallback || 'Invalid image upload. Please try a JPG or PNG under 10MB.';
+  return fallback || (status ? `Upload failed (${status})` : 'Failed to upload images');
+}
+
 /**
- * Upload images to backend
- * @param imageUris Array of local image URIs
- * @param folder Optional folder name in S3 (default: 'listings/')
+ * Upload images to backend via fetch (most reliable with RN FormData).
  */
 export const uploadImages = async (
   images: Array<string | PickedImage>,
   folder: string = 'listings/'
 ): Promise<UploadedImage[]> => {
+  if (!images || images.length === 0) {
+    throw new Error('No images to upload');
+  }
+
+  const formData = new FormData();
+
+  images.forEach((item, index) => {
+    const picked = toPickedImage(item);
+    if (!picked.uri) return;
+
+    const type = normalizeMimeType(picked.type, picked.fileName || picked.uri);
+    const name = buildUploadFileName(index, picked.fileName, picked.uri, type);
+    const uri = normalizeUploadUri(picked.uri);
+
+    formData.append('images', {
+      uri,
+      type,
+      name,
+    } as any);
+  });
+
+  if (folder) {
+    formData.append('folder', folder);
+  }
+
+  const token = await Storage.getItem(STORAGE_KEYS.USER_TOKEN);
+  const headers: Record<string, string> = {
+    Accept: 'application/json',
+  };
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+  // Never set Content-Type — RN fetch adds multipart boundary automatically.
+
+  const controller = new AbortController();
+  const timeoutMs = 60000;
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  const url = `${API_CONFIG.BASE_URL}/upload/images`;
+
   try {
-    if (!images || images.length === 0) {
-      throw new Error('No images to upload');
-    }
-
-    const formData = new FormData();
-
-    images.forEach((item, index) => {
-      const picked = toPickedImage(item);
-      const uri =
-        Platform.OS === 'ios' && picked.uri.startsWith('file://')
-          ? picked.uri
-          : picked.uri;
-      const name = buildUploadFileName(index, picked.fileName, picked.uri);
-      const type = normalizeMimeType(picked.type, name);
-
-      formData.append('images', {
-        uri,
-        type,
-        name,
-      } as any);
+    const response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: formData,
+      signal: controller.signal,
     });
 
-    if (folder) {
-      formData.append('folder', folder);
+    const raw = await response.text();
+    let data: any = null;
+    try {
+      data = raw ? JSON.parse(raw) : null;
+    } catch {
+      data = raw;
     }
 
-    const token = await Storage.getItem(STORAGE_KEYS.USER_TOKEN);
-    const response = await axios.post(
-      `${API_CONFIG.BASE_URL}/upload/images`,
-      formData,
-      {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-          Accept: 'application/json',
-          Authorization: token ? `Bearer ${token}` : '',
-        },
-        timeout: 60000,
-      }
-    );
-
-    if (response.data?.success && response.data?.data?.images) {
-      return response.data.data.images;
+    if (!response.ok) {
+      throw new Error(getUploadErrorMessage(response.status, data));
     }
 
-    throw new Error(response.data?.message || 'Invalid response from server');
+    if (data?.success && data?.data?.images) {
+      return data.data.images as UploadedImage[];
+    }
+
+    throw new Error(data?.message || 'Invalid response from server');
   } catch (error: any) {
-    console.error('[Upload] Error uploading images:', error);
-    const serverMessage = error.response?.data?.message;
-    throw new Error(serverMessage || error.message || 'Failed to upload images');
+    if (error?.name === 'AbortError') {
+      throw new Error('Upload timed out. Please try a smaller image or check your connection.');
+    }
+    console.error('[Upload] Error uploading images:', {
+      message: error?.message,
+      url,
+    });
+    throw new Error(error?.message || 'Failed to upload images');
+  } finally {
+    clearTimeout(timeoutId);
   }
 };
 
@@ -183,17 +279,9 @@ export const uploadImages = async (
 export const pickAndUploadImages = async (
   folder: string = 'listings/'
 ): Promise<UploadedImage[]> => {
-  try {
-    const images = await pickImages();
-
-    if (images.length === 0) {
-      return [];
-    }
-
-    return uploadImages(images, folder);
-  } catch (error: any) {
-    console.error('[Upload] Error in pickAndUploadImages:', error);
-    throw error;
+  const images = await pickImages();
+  if (images.length === 0) {
+    return [];
   }
+  return uploadImages(images, folder);
 };
-

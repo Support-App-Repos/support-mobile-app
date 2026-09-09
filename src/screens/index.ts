@@ -28,6 +28,7 @@ export { CreateStoreScreen } from './CreateStoreScreen';
 export { StoreDashboardScreen } from './StoreDashboardScreen';
 export { StoreProfileScreen } from './StoreProfileScreen';
 export { ManageStoreListingsScreen } from './ManageStoreListingsScreen';
+export { StoreBookingsScreen } from './StoreBookingsScreen';
 export { StoreVerifiedSuccessScreen } from './StoreVerifiedSuccessScreen';
 export { StoreAnalyticsScreen } from './StoreAnalyticsScreen';
 export { StoreListingsAllScreen } from './StoreListingsAllScreen';

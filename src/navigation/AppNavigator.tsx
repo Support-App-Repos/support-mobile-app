@@ -32,6 +32,7 @@ import {
   StoreDashboardScreen,
   StoreProfileScreen,
   ManageStoreListingsScreen,
+  StoreBookingsScreen,
   StoreVerifiedSuccessScreen,
   StoreAnalyticsScreen,
   StoreListingsAllScreen,
@@ -45,6 +46,12 @@ import { RootStackParamList } from '../types';
 import { authService } from '../services/authService';
 import { ProfileProvider } from '../contexts/ProfileContext';
 import { StoreProvider } from '../contexts/StoreContext';
+import { ChooseServiceScreen } from '../screens/booking/ChooseServiceScreen';
+import { SelectBookingDateTimeScreen } from '../screens/booking/SelectBookingDateTimeScreen';
+import { ServiceBookingAddOnsScreen } from '../screens/booking/ServiceBookingAddOnsScreen';
+import { BookingConfirmedScreen } from '../screens/booking/BookingConfirmedScreen';
+import { EventBookTicketsScreen } from '../screens/booking/EventBookTicketsScreen';
+import { EventBookingConfirmedScreen } from '../screens/booking/EventBookingConfirmedScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -262,6 +269,11 @@ export const AppNavigator: React.FC = () => {
           options={{ headerShown: false }}
         />
         <Stack.Screen
+          name="StoreBookings"
+          component={StoreBookingsScreen}
+          options={{ headerShown: false, contentStyle: { backgroundColor: '#F2F2F2' } }}
+        />
+        <Stack.Screen
           name="StoreVerifiedSuccess"
           component={StoreVerifiedSuccessScreen}
           options={{ headerShown: false }}
@@ -303,6 +315,36 @@ export const AppNavigator: React.FC = () => {
           options={{
             headerShown: false,
           }}
+        />
+        <Stack.Screen
+          name="ChooseService"
+          component={ChooseServiceScreen}
+          options={{ headerShown: false, contentStyle: { backgroundColor: '#F2F2F2' } }}
+        />
+        <Stack.Screen
+          name="SelectBookingDateTime"
+          component={SelectBookingDateTimeScreen}
+          options={{ headerShown: false, contentStyle: { backgroundColor: '#F2F2F2' } }}
+        />
+        <Stack.Screen
+          name="ServiceBookingAddOns"
+          component={ServiceBookingAddOnsScreen}
+          options={{ headerShown: false, contentStyle: { backgroundColor: '#F2F2F2' } }}
+        />
+        <Stack.Screen
+          name="BookingConfirmed"
+          component={BookingConfirmedScreen}
+          options={{ headerShown: false, contentStyle: { backgroundColor: '#F2F2F2' } }}
+        />
+        <Stack.Screen
+          name="EventBookTickets"
+          component={EventBookTicketsScreen}
+          options={{ headerShown: false, contentStyle: { backgroundColor: '#F2F2F2' } }}
+        />
+        <Stack.Screen
+          name="EventBookingConfirmed"
+          component={EventBookingConfirmedScreen}
+          options={{ headerShown: false, contentStyle: { backgroundColor: '#F2F2F2' } }}
         />
         </Stack.Navigator>
       </NavigationContainer>

@@ -9,25 +9,26 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  Image,
   ScrollView,
   Alert,
-  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
-  BackIcon,
-  BellIcon,
-  StepCompletedMarkIcon,
   EditIcon,
-  LocationIcon,
   CardIcon,
 } from '../components/common';
+import {
+  ListingWizardHeader,
+  ListingStepProgress,
+  ListingWizardFooter,
+  PreviewListingCard,
+  LISTING_FORM_STEPS,
+} from '../components/listings/wizard';
 import { BottomNavigation, type BottomNavItem } from '../components/navigation';
 import { Colors, Spacing, Typography, BorderRadius } from '../config/theme';
 import { listingService } from '../services';
 import { useProfile } from '../hooks';
-import { formatListingPrice } from '../utils/currency';
+import { resolveListingId } from '../utils/listingPhotos';
 
 type ReviewScreenProps = {
   navigation?: any;
@@ -40,7 +41,7 @@ type ReviewScreenProps = {
   };
 };
 
-const FORM_STEPS = ['Details', 'Payment', 'Select Region', 'Confirm'];
+const FORM_STEPS = LISTING_FORM_STEPS;
 
 export const ReviewScreen: React.FC<ReviewScreenProps> = ({
   navigation,
@@ -62,6 +63,12 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
   };
 
   const handleEditDetails = () => {
+    const listingId = resolveListingId(listingData);
+    if (!listingId) {
+      Alert.alert('Error', 'Cannot edit this listing because its id is missing.');
+      return;
+    }
+
     const categoryName =
       listingData?.category?.name ||
       (typeof listingData?.category === 'string' ? listingData.category : '');
@@ -73,19 +80,19 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
     const params = {
       category: categoryName,
       categoryId: listingData?.category?.id || listingData?.categoryId,
-      listingData,
+      listingData: { ...listingData, id: listingId },
       paymentData,
       regionData,
     };
 
     if (normalized.includes('propert')) {
-      navigation?.navigate('PropertyListing', params);
+      navigation?.push('PropertyListing', params);
     } else if (normalized.includes('service')) {
-      navigation?.navigate('ServiceListing', params);
+      navigation?.push('ServiceListing', params);
     } else if (normalized.includes('event')) {
-      navigation?.navigate('EventListing', params);
+      navigation?.push('EventListing', params);
     } else {
-      navigation?.navigate('ProductListing', params);
+      navigation?.push('ProductListing', params);
     }
   };
 
@@ -115,7 +122,7 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
     try {
       setLoading(true);
 
-      // First, update listing with regionIds if regionData is provided
+      // Region already saved on Select Region confirm; keep update for edits / older flows
       if (regionData?.id) {
         const updateResponse = await listingService.updateListing(listingData.id, {
           regionIds: [regionData.id],
@@ -145,133 +152,56 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
     }
   };
 
+  const resolvePhotoUri = (photo: unknown): string | null => {
+    if (!photo) return null;
+    if (typeof photo === 'string' && photo.trim()) return photo.trim();
+    if (typeof photo === 'object') {
+      const p = photo as Record<string, unknown>;
+      const candidate = p.photoUrl ?? p.url ?? p.uri;
+      if (typeof candidate === 'string' && candidate.trim()) return candidate.trim();
+    }
+    return null;
+  };
+
+  const previewImageUri =
+    resolvePhotoUri(listingData?.photos?.[0]) ||
+    resolvePhotoUri(listingData?.images?.[0]) ||
+    resolvePhotoUri(
+      Array.isArray(listingData?.photoUrls) ? listingData.photoUrls[0] : null
+    );
+
+  const categoryLabel =
+    listingData?.category?.name ||
+    (typeof listingData?.category === 'string' ? listingData.category : 'Category');
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={handleBack}
-          activeOpacity={0.7}
-        >
-          <BackIcon size={24} color="#030303" />
-        </TouchableOpacity>
-        <View style={styles.headerRight}>
-          <TouchableOpacity
-            style={styles.iconButton}
-            activeOpacity={0.7}
-            onPress={() => {
-              // TODO: Navigate to notifications
-              console.log('Notifications pressed');
-            }}
-          >
-            <BellIcon size={24} color="#111827" />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.profileButton}
-            activeOpacity={0.7}
-            onPress={() => {
-              // TODO: Navigate to profile
-              console.log('Profile pressed');
-            }}
-          >
-            <Image
-              source={{ uri: profileImageUrl || 'https://i.pravatar.cc/150?img=12' }}
-              style={styles.profileImage}
-            />
-          </TouchableOpacity>
-        </View>
-      </View>
+      <ListingWizardHeader
+        title="Preview Listing"
+        subtitle="This is how your listing will appear"
+        profileImageUrl={profileImageUrl}
+        onBack={handleBack}
+        showBell={false}
+        usePillControls
+      />
+      <ListingStepProgress currentStep={currentStep} steps={FORM_STEPS} numbered />
 
-      {/* Title Section */}
-      <View style={styles.titleSection}>
-        <Text style={styles.titleText}>Review & Confirm</Text>
-      </View>
-
-      {/* Progress Indicator */}
-      <View style={styles.progressContainer}>
-        {FORM_STEPS.map((step, index) => (
-          <React.Fragment key={step}>
-            <View style={styles.progressStepContainer}>
-              <View style={styles.progressCircleWrapper}>
-                <View
-                  style={[
-                    styles.progressCircle,
-                    index === currentStep && styles.progressCircleActive,
-                    index < currentStep && styles.progressCircleCompleted,
-                  ]}
-                >
-                  {index < currentStep && (
-                    <StepCompletedMarkIcon size={8} />
-                  )}
-                  {index === currentStep && (
-                    <View style={styles.progressDotActive} />
-                  )}
-                  {index > currentStep && (
-                    <View style={styles.progressDotInactive} />
-                  )}
-                </View>
-                {index < FORM_STEPS.length - 1 && (
-                  <View
-                    style={[
-                      styles.progressLine,
-                      index < currentStep && styles.progressLineActive,
-                    ]}
-                  />
-                )}
-              </View>
-              <Text style={styles.progressLabel}>
-                {step}
-              </Text>
-            </View>
-          </React.Fragment>
-        ))}
-      </View>
-
-      {/* Content */}
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.introText}>
-          Review your listing before publishing.
-        </Text>
-
-        {/* Preview Card */}
-        <View style={styles.reviewCard}>
-          <View style={styles.cardHeader}>
-            <Text style={styles.cardTitle}>Preview</Text>
-            <TouchableOpacity
-              style={styles.editButton}
-              onPress={handleEditDetails}
-              activeOpacity={0.7}
-            >
-              <EditIcon size={11} color="#8E8E8E" />
-            </TouchableOpacity>
-          </View>
-          <View style={styles.cardContent}>
-            <View style={styles.previewRow}>
-              <Text style={styles.previewLabel}>
-                {listingData?.category?.name || 
-                 (typeof listingData?.category === 'string' ? listingData.category : 'Category')}
-              </Text>
-            </View>
-            <Text style={styles.previewValue}>{listingData?.title || 'Title'}</Text>
-            <Text style={styles.previewPrice}>
-              {listingData?.price != null
-                ? formatListingPrice(Number(listingData.price), listingData?.currency)
-                : 'Price'}
-            </Text>
-            <View style={styles.previewLocationRow}>
-              <LocationIcon size={15} color="#6B7280" />
-              <Text style={styles.previewLocation}>{listingData?.location || 'Location'}</Text>
-              {listingData?.categoryType && (
-                <Text style={styles.previewCategory}>{listingData.categoryType}</Text>
-              )}
-            </View>
-          </View>
-        </View>
+        <PreviewListingCard
+          title={listingData?.title}
+          categoryLabel={categoryLabel}
+          price={listingData?.price}
+          currency={listingData?.currency}
+          priceType={listingData?.priceType}
+          location={listingData?.location}
+          imageUri={previewImageUri}
+          showEdit
+          onEdit={handleEditDetails}
+        />
 
         {/* Payment Summary Card */}
         <View style={styles.reviewCard}>
@@ -333,20 +263,15 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
           </View>
         </View>
 
-        {/* Confirm & Publish Button */}
-        <TouchableOpacity
-          style={[styles.confirmButton, loading && styles.confirmButtonDisabled]}
-          onPress={handleConfirmAndPublish}
-          disabled={loading || !listingData}
-          activeOpacity={0.8}
-        >
-          {loading ? (
-            <ActivityIndicator color="#FFFFFF" />
-          ) : (
-            <Text style={styles.confirmButtonText}>Confirm & Publish</Text>
-          )}
-        </TouchableOpacity>
       </ScrollView>
+
+      <ListingWizardFooter
+        label="Confirm & Publish"
+        onPress={handleConfirmAndPublish}
+        disabled={!listingData}
+        loading={loading}
+        showArrow={false}
+      />
 
       {/* Bottom Navigation */}
       <BottomNavigation

@@ -1,11 +1,10 @@
 /**
- * Store hub — Store Dashboard action icon
+ * Store hub — Store Dashboard (Figma: 2×2 grid)
  */
 
 import React from 'react';
-import Svg, { Path, Rect } from 'react-native-svg';
+import Svg, { G, Rect } from 'react-native-svg';
 import { ViewStyle } from 'react-native';
-import { Colors } from '../../config/theme';
 
 interface StoreHubDashboardIconProps {
   size?: number;
@@ -13,47 +12,16 @@ interface StoreHubDashboardIconProps {
 }
 
 export const StoreHubDashboardIcon: React.FC<StoreHubDashboardIconProps> = ({
-  size = 44,
+  size = 48,
   style,
 }) => (
-  <Svg width={size} height={size} viewBox="0 0 44 44" fill="none" style={style}>
-    <Rect
-      x="0.5"
-      y="0.5"
-      width="43"
-      height="43"
-      rx="10"
-      fill={Colors.light.surface}
-      stroke={Colors.light.border}
-      strokeWidth="1"
-    />
-    <Path
-      d="M14 14H20V20H14V14Z"
-      stroke={Colors.light.primary}
-      strokeWidth="1.75"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-    <Path
-      d="M24 14H30V20H24V14Z"
-      stroke={Colors.light.primary}
-      strokeWidth="1.75"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-    <Path
-      d="M14 24H20V30H14V24Z"
-      stroke={Colors.light.primary}
-      strokeWidth="1.75"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-    <Path
-      d="M24 24H30V30H24V24Z"
-      stroke={Colors.light.primary}
-      strokeWidth="1.75"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
+  <Svg width={size} height={size} viewBox="0 0 48 48" fill="none" style={style}>
+    <Rect width="48" height="48" rx="12" fill="#F3E8FF" />
+    <G transform="translate(12 12)" stroke="#A855F7" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <Rect x="3" y="3" width="7" height="7" rx="1.2" />
+      <Rect x="14" y="3" width="7" height="7" rx="1.2" />
+      <Rect x="3" y="14" width="7" height="7" rx="1.2" />
+      <Rect x="14" y="14" width="7" height="7" rx="1.2" />
+    </G>
   </Svg>
 );

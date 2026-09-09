@@ -1,7 +1,5 @@
 /**
- * My Listing Card Component
- * Displays a listing card for the My Listings screen
- * Shows image on left, details on right with status badge
+ * My Listing Card — Figma listing row (node 1055:806)
  */
 
 import React from 'react';
@@ -10,21 +8,39 @@ import {
   Text,
   StyleSheet,
   Image,
-  TouchableOpacity,
-  ImageSourcePropType,
+  Pressable,
 } from 'react-native';
-import { Colors, Spacing, Typography, BorderRadius } from '../../config/theme';
-import { DeleteIcon } from '../common/DeleteIcon';
-import { formatListingPrice } from '../../utils/currency';
+import {
+  RatingIcon,
+  LocationIcon,
+  VisibilityIcon,
+  SaveIcon,
+  DurationIcon,
+} from '../common';
+import { Colors, BorderRadius } from '../../config/theme';
+import { formatListingPriceWithType } from '../../utils/currency';
+import {
+  getListingBadgeColor,
+  getListingBadgeLabel,
+  getListingStatusStyle,
+} from './myListingUtils';
+
+const MP = Colors.light.marketplace;
+const IMAGE_SIZE = 84;
 
 export interface MyListingCardData {
   id: string;
   title: string;
   price?: number;
   currency?: string | null;
+  priceType?: string | null;
   viewsCount?: number;
-  status: 'Active' | 'Pending' | 'Rejected' | 'Expired';
+  ratingAverage?: number;
+  status: 'Active' | 'Pending' | 'Rejected' | 'Expired' | 'Paused';
   createdAt: string;
+  location?: string;
+  city?: string;
+  propertyPurpose?: string;
   photos?: Array<{ photoUrl: string }>;
   category?: {
     id: string;
@@ -32,178 +48,138 @@ export interface MyListingCardData {
     slug: string;
     iconUrl?: string;
   };
+  serviceType?: {
+    name?: string;
+    slug?: string;
+  };
 }
 
 interface MyListingCardProps {
   listing: MyListingCardData;
   onPress?: (listing: MyListingCardData) => void;
-  onDelete?: () => void;
+  onLongPress?: (listing: MyListingCardData) => void;
+  wishlisted?: boolean;
+  onToggleWishlist?: (listingId: string) => void;
 }
 
-// Helper function to format time ago
-const formatTimeAgo = (date: Date): string => {
-  const now = new Date();
-  const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
-
-  if (diffInSeconds < 60) return 'Just now';
-  if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)} minutes ago`;
-  if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)} hours ago`;
-  if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)} days ago`;
-  if (diffInSeconds < 2592000) return `${Math.floor(diffInSeconds / 604800)} weeks ago`;
-  return `${Math.floor(diffInSeconds / 2592000)} months ago`;
-};
-
-// Get status badge colors (text and background)
-const getStatusColors = (status: string): { textColor: string; backgroundColor: string } => {
-  switch (status) {
-    case 'Active':
-      return {
-        textColor: '#10B981', // Green
-        backgroundColor: 'rgba(16, 185, 129, 0.1)', // Light green background
-      };
-    case 'Pending':
-      return {
-        textColor: '#F59E0B', // Amber
-        backgroundColor: 'rgba(245, 158, 11, 0.1)', // Light amber background
-      };
-    case 'Rejected':
-      return {
-        textColor: '#EF4444', // Red
-        backgroundColor: 'rgba(239, 68, 68, 0.1)', // Light red background
-      };
-    case 'Expired':
-      return {
-        textColor: '#EF4444', // Red
-        backgroundColor: 'rgba(239, 68, 68, 0.1)', // Light red background
-      };
-    default:
-      return {
-        textColor: '#6B7280', // Gray
-        backgroundColor: 'rgba(107, 114, 128, 0.1)', // Light gray background
-      };
-  }
-};
+function formatShortTimeAgo(raw?: string): string {
+  if (!raw) return '';
+  const date = new Date(raw);
+  if (Number.isNaN(date.getTime())) return '';
+  const diffSec = Math.floor((Date.now() - date.getTime()) / 1000);
+  if (diffSec < 60) return 'now';
+  if (diffSec < 3600) return `${Math.floor(diffSec / 60)}m ago`;
+  if (diffSec < 86400) return `${Math.floor(diffSec / 3600)}h ago`;
+  if (diffSec < 604800) return `${Math.floor(diffSec / 86400)}d ago`;
+  if (diffSec < 2592000) return `${Math.floor(diffSec / 604800)}w ago`;
+  return `${Math.floor(diffSec / 2592000)}mo ago`;
+}
 
 export const MyListingCard: React.FC<MyListingCardProps> = ({
   listing,
   onPress,
-  onDelete,
+  onLongPress,
+  wishlisted = false,
+  onToggleWishlist,
 }) => {
-  const handlePress = () => {
-    onPress?.(listing);
-  };
-
   const primaryPhoto = listing.photos?.[0]?.photoUrl;
   const imageSource = primaryPhoto
     ? { uri: primaryPhoto }
     : { uri: 'https://via.placeholder.com/100' };
 
-  const statusColors = getStatusColors(listing.status);
-  const timeAgo = listing.createdAt
-    ? formatTimeAgo(new Date(listing.createdAt))
-    : '';
+  const locationLine =
+    [listing.location, listing.city].filter(Boolean).join(', ') || 'Location TBD';
 
-  const statusColumn = (
-    <View style={styles.statusColumn}>
-      <View
-        style={[
-          styles.badgeChip,
-          { backgroundColor: statusColors.backgroundColor },
-        ]}
-      >
-        <Text
-          style={[styles.badgeText, { color: statusColors.textColor }]}
-          numberOfLines={1}
-        >
-          {listing.status}
-        </Text>
-      </View>
-      {onDelete ? (
-        <TouchableOpacity
-          style={[styles.badgeChip, styles.deleteAction]}
-          onPress={onDelete}
-          activeOpacity={0.7}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-        >
-          <DeleteIcon size={10} color="#DC2626" />
-          <Text style={[styles.badgeText, styles.deleteText]}>Delete</Text>
-        </TouchableOpacity>
-      ) : null}
-    </View>
-  );
+  const ratingText =
+    listing.ratingAverage != null && listing.ratingAverage > 0
+      ? Number(listing.ratingAverage).toFixed(1)
+      : null;
 
-  const bodyContent = (
-    <>
-      <View style={[styles.imageContainer, onDelete && styles.imageContainerWithDelete]}>
-        <Image
-          source={imageSource}
-          style={styles.image}
-          resizeMode="cover"
-        />
-      </View>
+  const viewsText =
+    listing.viewsCount != null && listing.viewsCount > 0
+      ? String(listing.viewsCount)
+      : null;
 
-      <View style={[styles.content, onDelete && styles.contentWithDelete]}>
-        <View style={styles.mainSection}>
-          <View style={styles.headerRow}>
-            <Text
-              style={[styles.title, onDelete && styles.titleWithActions]}
-              numberOfLines={1}
-            >
-              {listing.title}
-            </Text>
-            {!onDelete ? statusColumn : null}
-          </View>
-
-          {listing.viewsCount !== undefined && listing.viewsCount !== null && (
-            <Text style={styles.viewsText}>
-              {listing.viewsCount} views
-            </Text>
-          )}
-
-          {listing.price !== undefined && listing.price !== null && (
-            <>
-              <Text style={styles.price}>
-                {formatListingPrice(listing.price, listing.currency)}
-              </Text>
-              <Text style={styles.totalPrice}>
-                Total: {formatListingPrice(listing.price, listing.currency)}
-              </Text>
-            </>
-          )}
-        </View>
-
-        <View style={styles.footerRow}>
-          <Text style={styles.timeText} numberOfLines={1}>
-            {timeAgo}
-          </Text>
-        </View>
-      </View>
-    </>
-  );
-
-  if (onDelete) {
-    return (
-      <View style={[styles.card, styles.cardWithDelete]}>
-        <TouchableOpacity
-          style={styles.pressableBody}
-          onPress={handlePress}
-          activeOpacity={0.8}
-        >
-          {bodyContent}
-        </TouchableOpacity>
-        <View style={styles.statusColumnOverlay}>{statusColumn}</View>
-      </View>
-    );
-  }
+  const timeAgo = formatShortTimeAgo(listing.createdAt);
+  const badgeLabel = getListingBadgeLabel(listing);
+  const badgeColor = getListingBadgeColor(listing);
+  const statusColors = getListingStatusStyle(listing.status);
+  const heartColor = wishlisted ? '#EF4444' : MP.chipInactiveText;
 
   return (
-    <TouchableOpacity
-      style={styles.card}
-      onPress={handlePress}
-      activeOpacity={0.8}
-    >
-      {bodyContent}
-    </TouchableOpacity>
+    <View style={styles.card}>
+      <Pressable
+        style={styles.pressable}
+        onPress={() => onPress?.(listing)}
+        onLongPress={() => onLongPress?.(listing)}
+        delayLongPress={400}
+      >
+        <View style={styles.imageWrap}>
+          <Image source={imageSource} style={styles.image} resizeMode="cover" />
+          <View style={[styles.badge, { backgroundColor: badgeColor }]}>
+            <Text style={styles.badgeText}>{badgeLabel}</Text>
+          </View>
+        </View>
+
+        <View style={styles.body}>
+          <View style={styles.titleRow}>
+            <Text style={styles.title} numberOfLines={2}>
+              {listing.title}
+            </Text>
+          </View>
+
+          {listing.price != null || listing.priceType ? (
+            <Text style={styles.price}>
+              {formatListingPriceWithType(listing.price, listing.currency, listing.priceType)}
+            </Text>
+          ) : null}
+
+          <View style={styles.locationRow}>
+            <LocationIcon size={10} color={MP.metaMuted} />
+            <Text style={styles.locationText} numberOfLines={1}>
+              {locationLine}
+            </Text>
+          </View>
+
+          <View style={styles.metaRow}>
+            {ratingText ? (
+              <View style={styles.metaItem}>
+                <RatingIcon size={10} color="#FFB904" />
+                <Text style={styles.metaText}>{ratingText}</Text>
+              </View>
+            ) : null}
+            {viewsText ? (
+              <View style={styles.metaItem}>
+                <VisibilityIcon size={10} color={MP.metaText} />
+                <Text style={styles.metaText}>{viewsText}</Text>
+              </View>
+            ) : null}
+            {timeAgo ? (
+              <View style={styles.metaItem}>
+                <DurationIcon size={10} color="#BBBBBB" />
+                <Text style={styles.timeText}>{timeAgo}</Text>
+              </View>
+            ) : null}
+            <View style={styles.statusSpacer} />
+            <View style={[styles.statusPill, { backgroundColor: statusColors.bg }]}>
+              <Text style={[styles.statusText, { color: statusColors.color }]}>
+                {statusColors.label}
+              </Text>
+            </View>
+          </View>
+        </View>
+      </Pressable>
+
+      <Pressable
+        style={styles.actionCircle}
+        onPress={() => onToggleWishlist?.(listing.id)}
+        hitSlop={8}
+        accessibilityRole="button"
+        accessibilityLabel={wishlisted ? 'Remove from favourites' : 'Add to favourites'}
+      >
+        <SaveIcon size={14} color={heartColor} filled={wishlisted} />
+      </Pressable>
+    </View>
   );
 };
 
@@ -212,150 +188,128 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     backgroundColor: Colors.light.background,
-    borderRadius: BorderRadius.md,
-    marginBottom: Spacing.md,
-    paddingTop: 0,
-    paddingRight: 0,
-    paddingBottom: 0,
-    paddingLeft: 0,
-    borderWidth: 1,
-    borderColor: '#E8E8E8',
-    height: 110,
-    overflow: 'hidden', // Ensure image doesn't overflow border radius
+    borderRadius: BorderRadius.xl,
+    padding: 12,
+    paddingRight: 8,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.07,
+    shadowRadius: 8,
+    elevation: 2,
   },
-  cardWithDelete: {
-    minHeight: 128,
-    height: undefined,
-    position: 'relative',
-  },
-  pressableBody: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
+  pressable: {
     flex: 1,
+    flexDirection: 'row',
+    gap: 12,
+    minWidth: 0,
   },
-  statusColumnOverlay: {
-    position: 'absolute',
-    top: 6,
-    right: 12,
-  },
-  imageContainer: {
-    width: 97,
-    height: 97,
-    borderRadius: 0,
-    borderTopLeftRadius: BorderRadius.md,
-    borderBottomLeftRadius: BorderRadius.md,
+  imageWrap: {
+    width: IMAGE_SIZE,
+    height: IMAGE_SIZE,
+    borderRadius: 14,
     overflow: 'hidden',
-    marginRight: 8,
-    marginLeft: 2,
-    marginTop: 5.5,
     backgroundColor: '#F3F4F6',
-  },
-  imageContainerWithDelete: {
-    height: 116,
-    marginTop: 6,
-    marginBottom: 6,
   },
   image: {
     width: '100%',
     height: '100%',
   },
-  content: {
-    flex: 1,
-    justifyContent: 'space-between',
-    paddingTop: 5.5,
-    paddingRight: 12,
-    paddingBottom: 8,
-    minHeight: 97,
-  },
-  contentWithDelete: {
-    paddingTop: 6,
-    minHeight: 116,
-  },
-  mainSection: {
-    flexShrink: 1,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 0,
-    flex: 0,
-  },
-  statusColumn: {
-    width: 72,
-    alignItems: 'stretch',
-    flexShrink: 0,
-    gap: 4,
-  },
-  badgeChip: {
-    height: 22,
-    borderRadius: BorderRadius.sm,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
+  badge: {
+    position: 'absolute',
+    left: 4,
+    bottom: 4,
+    borderRadius: BorderRadius.round,
     paddingHorizontal: 6,
-  },
-  deleteAction: {
-    flexDirection: 'row',
-    gap: 2,
-    backgroundColor: '#FEE2E2',
+    paddingVertical: 2,
   },
   badgeText: {
-    fontSize: 9,
-    fontWeight: '600',
-    lineHeight: 11,
-    textAlign: 'center',
-    includeFontPadding: false,
+    fontSize: 8,
+    lineHeight: 12,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
-  deleteText: {
-    color: '#DC2626',
-    textTransform: 'none',
+  body: {
+    flex: 1,
+    minWidth: 0,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
   },
   title: {
-    ...Typography.h3,
-    color: Colors.light.text,
-    fontWeight: '600',
-    fontSize: 13,
-    lineHeight: 14,
     flex: 1,
-    marginRight: Spacing.sm,
+    fontSize: 13,
+    lineHeight: 17,
+    fontWeight: '700',
+    color: Colors.light.textHeading,
   },
-  titleWithActions: {
-    marginRight: 80,
-  },
-  viewsText: {
-    ...Typography.body,
-    color: Colors.light.textSecondary,
-    fontSize: 10,
+  actionCircle: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#F5F7FA',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 4,
     marginTop: 0,
-    marginBottom: 4,
-    lineHeight: 11,
   },
   price: {
-    ...Typography.h2,
-    color: Colors.light.primary,
+    fontSize: 15,
+    lineHeight: 22.5,
     fontWeight: '700',
-    fontSize: 16,
-    marginBottom: 2,
-    lineHeight: 22,
+    color: MP.primary,
+    marginTop: 4,
   },
-  totalPrice: {
-    ...Typography.body,
-    color: Colors.light.primary,
-    fontSize: 12,
-    lineHeight: 16,
-    marginBottom: 2,
-  },
-  footerRow: {
+  locationRow: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
     alignItems: 'center',
-    flexShrink: 0,
+    gap: 4,
+    marginTop: 4,
+  },
+  locationText: {
+    flex: 1,
+    fontSize: 11,
+    lineHeight: 16.5,
+    fontWeight: '500',
+    color: MP.metaMuted,
+  },
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginTop: 6,
+    flexWrap: 'wrap',
+  },
+  metaItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
+  metaText: {
+    fontSize: 10,
+    lineHeight: 15,
+    fontWeight: '500',
+    color: MP.metaText,
   },
   timeText: {
-    ...Typography.caption,
-    color: Colors.light.textSecondary,
     fontSize: 10,
+    lineHeight: 15,
+    fontWeight: '500',
+    color: '#BBBBBB',
+  },
+  statusSpacer: {
+    flex: 1,
+    minWidth: 4,
+  },
+  statusPill: {
+    borderRadius: BorderRadius.round,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  statusText: {
+    fontSize: 10,
+    lineHeight: 15,
+    fontWeight: '600',
   },
 });
-

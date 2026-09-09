@@ -22,6 +22,8 @@ export interface FormSelectProps {
   options: string[];
   onSelect: (value: string) => void;
   containerStyle?: ViewStyle;
+  /** Optional leading emoji/icon shown inside the trigger */
+  leadingIcon?: string;
 }
 
 export const FormSelect: React.FC<FormSelectProps> = ({
@@ -32,6 +34,7 @@ export const FormSelect: React.FC<FormSelectProps> = ({
   options,
   onSelect,
   containerStyle,
+  leadingIcon,
 }) => {
   const [open, setOpen] = useState(false);
 
@@ -48,6 +51,7 @@ export const FormSelect: React.FC<FormSelectProps> = ({
         onPress={() => setOpen(true)}
         activeOpacity={0.7}
       >
+        {leadingIcon ? <Text style={styles.leadingIcon}>{leadingIcon}</Text> : null}
         <Text style={[styles.selectText, !value && styles.selectPlaceholder]} numberOfLines={1}>
           {value || placeholder}
         </Text>
@@ -92,10 +96,10 @@ const styles = StyleSheet.create({
   },
   label: {
     ...Typography.body,
-    color: Colors.light.text,
-    fontWeight: '500',
-    marginBottom: Spacing.xs,
-    fontSize: 14,
+    color: '#555555',
+    fontWeight: '600',
+    marginBottom: 6,
+    fontSize: 12,
   },
   required: {
     color: '#EF4444',
@@ -104,15 +108,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: BorderRadius.md,
+    borderColor: '#E0E0E0',
+    borderRadius: BorderRadius.lg,
     paddingHorizontal: Spacing.md,
     minHeight: 44,
+    backgroundColor: Colors.light.background,
   },
   selectText: {
     flex: 1,
     fontSize: 14,
     color: Colors.light.text,
+  },
+  leadingIcon: {
+    fontSize: 12,
+    marginRight: Spacing.xs,
   },
   selectPlaceholder: {
     color: Colors.light.textSecondary,

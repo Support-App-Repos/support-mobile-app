@@ -2,7 +2,7 @@
  * Store Hub Screen
  */
 
-import React from 'react';
+import React, { useRef, useCallback } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import {
   View,
@@ -10,12 +10,12 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  Image,
   ActivityIndicator,
+  Animated,
+  Pressable,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
-  BellIcon,
   Snackbar,
   ForwardIcon,
   StoreVerificationPendingIcon,
@@ -23,19 +23,26 @@ import {
   StoreHubDashboardIcon,
   StoreHubCreateIcon,
   StoreHubListingsIcon,
+  StoreHubBookingsIcon,
+  StoreWelcomeHeaderIcon,
 } from '../components/common';
 import { BottomNavigation } from '../components/navigation';
 import { Colors, Spacing, Typography, BorderRadius } from '../config/theme';
-import { useProfile, useStore, useBottomNavHandlers } from '../hooks';
+import { useStore, useBottomNavHandlers } from '../hooks';
 
-type HubRoute = 'CreateStore' | 'StoreProfile' | 'StoreDashboard' | 'ManageStoreListings';
+type HubRoute =
+  | 'CreateStore'
+  | 'StoreProfile'
+  | 'StoreDashboard'
+  | 'ManageStoreListings'
+  | 'StoreBookings';
 
 type HubItem = {
   id: string;
   title: string;
   subtitle: string;
   route: HubRoute;
-  Icon: React.FC<{ size?: number }>;
+  Icon: React.FC<{ size?: number; style?: any }>;
   requiresNoStore?: boolean;
   requiresStore?: boolean;
   requiresVerified?: boolean;
@@ -67,6 +74,14 @@ const HUB_ITEMS: HubItem[] = [
     requiresStore: true,
   },
   {
+    id: 'bookings',
+    title: 'View Bookings',
+    subtitle: 'Service and event bookings',
+    route: 'StoreBookings',
+    Icon: StoreHubBookingsIcon,
+    requiresStore: true,
+  },
+  {
     id: 'listings',
     title: 'Manage Listings',
     subtitle: 'View and edit your products',
@@ -77,8 +92,43 @@ const HUB_ITEMS: HubItem[] = [
   },
 ];
 
+const HubActionCard: React.FC<{
+  item: HubItem;
+  onPress: () => void;
+}> = ({ item, onPress }) => {
+  const scale = useRef(new Animated.Value(1)).current;
+
+  const animateTo = (value: number) => {
+    Animated.spring(scale, {
+      toValue: value,
+      useNativeDriver: true,
+      friction: 6,
+      tension: 160,
+    }).start();
+  };
+
+  return (
+    <Pressable
+      onPressIn={() => animateTo(0.97)}
+      onPressOut={() => animateTo(1)}
+      onPress={onPress}
+    >
+      <Animated.View style={[styles.hubCard, { transform: [{ scale }] }]}>
+        <View style={styles.hubIconWrap}>
+          <item.Icon size={48} />
+        </View>
+        <View style={styles.hubText}>
+          <Text style={styles.hubTitle}>{item.title}</Text>
+          <Text style={styles.hubSubtitle}>{item.subtitle}</Text>
+        </View>
+        <ForwardIcon size={18} color={Colors.light.textSecondary} />
+      </Animated.View>
+    </Pressable>
+  );
+};
+
 export const StoreScreen: React.FC<{ navigation?: any }> = ({ navigation }) => {
-  const { profileImageUrl } = useProfile();
+  const insets = useSafeAreaInsets();
   const { store, loading, refreshStore } = useStore();
   const {
     activeTab,
@@ -92,7 +142,7 @@ export const StoreScreen: React.FC<{ navigation?: any }> = ({ navigation }) => {
   } = useBottomNavHandlers(navigation, 'Store');
 
   useFocusEffect(
-    React.useCallback(() => {
+    useCallback(() => {
       setActiveTab('Store');
       refreshStore();
     }, [setActiveTab, refreshStore])
@@ -142,35 +192,16 @@ export const StoreScreen: React.FC<{ navigation?: any }> = ({ navigation }) => {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Store</Text>
-        <View style={styles.headerRight}>
-          <TouchableOpacity style={styles.iconButton} activeOpacity={0.7}>
-            <BellIcon size={24} color="#111827" />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.profileButton}
-            onPress={() => navigation?.navigate('Profile')}
-          >
-            <Image
-              source={{ uri: profileImageUrl || 'https://i.pravatar.cc/150?img=12' }}
-              style={styles.profileImage}
-            />
-          </TouchableOpacity>
-        </View>
+    <SafeAreaView style={styles.container} edges={['bottom']}>
+      <View style={[styles.welcomeBanner, { paddingTop: Math.max(insets.top, Spacing.md) + Spacing.sm }]}>
+        <View style={styles.welcomeCircleLeft} />
+        <View style={styles.welcomeCircleRight} />
+        <StoreWelcomeHeaderIcon size={56} />
+        <Text style={styles.welcomeBannerTitle}>Welcome to Your Store</Text>
+        <Text style={styles.welcomeBannerSubtitle}>Manage everything about your business</Text>
       </View>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        {!isPendingReview && (
-          <>
-            <Text style={styles.welcomeTitle}>Welcome to Store</Text>
-            <Text style={styles.welcomeSubtitle}>
-              Manage your marketplace business with ease
-            </Text>
-          </>
-        )}
-
         {loading ? (
           <ActivityIndicator size="large" color={Colors.light.primary} style={{ marginTop: 40 }} />
         ) : isPendingReview ? (
@@ -186,10 +217,9 @@ export const StoreScreen: React.FC<{ navigation?: any }> = ({ navigation }) => {
           <>
             {verificationBanner()}
             {visibleItems.map((item) => (
-              <TouchableOpacity
+              <HubActionCard
                 key={item.id}
-                style={styles.hubCard}
-                activeOpacity={0.7}
+                item={item}
                 onPress={() => {
                   if (item.route === 'StoreProfile' && store?.id) {
                     navigation?.navigate('StoreProfile', { storeId: store.id });
@@ -199,16 +229,7 @@ export const StoreScreen: React.FC<{ navigation?: any }> = ({ navigation }) => {
                     navigation?.navigate(item.route);
                   }
                 }}
-              >
-                <View style={styles.hubIconWrap}>
-                  {item.Icon ? <item.Icon size={44} /> : null}
-                </View>
-                <View style={styles.hubText}>
-                  <Text style={styles.hubTitle}>{item.title}</Text>
-                  <Text style={styles.hubSubtitle}>{item.subtitle}</Text>
-                </View>
-                <ForwardIcon size={22} color={Colors.light.primary} />
-              </TouchableOpacity>
+              />
             ))}
           </>
         )}
@@ -233,23 +254,49 @@ export const StoreScreen: React.FC<{ navigation?: any }> = ({ navigation }) => {
   );
 };
 
+const WELCOME_NAVY = '#0D475C';
+
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.light.background },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
+  welcomeBanner: {
+    backgroundColor: WELCOME_NAVY,
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.xl,
+    overflow: 'hidden',
   },
-  headerTitle: { ...Typography.h3, color: Colors.light.text },
-  headerRight: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
-  iconButton: { padding: Spacing.xs },
-  profileButton: { width: 36, height: 36, borderRadius: 18, overflow: 'hidden' },
-  profileImage: { width: 36, height: 36 },
+  welcomeCircleLeft: {
+    position: 'absolute',
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    top: 40,
+    left: -60,
+  },
+  welcomeCircleRight: {
+    position: 'absolute',
+    width: 160,
+    height: 160,
+    borderRadius: 80,
+    backgroundColor: 'rgba(255,255,255,0.07)',
+    top: -40,
+    right: -40,
+  },
+  welcomeBannerTitle: {
+    ...Typography.h2,
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 28,
+    lineHeight: 34,
+    marginTop: Spacing.md,
+  },
+  welcomeBannerSubtitle: {
+    ...Typography.body,
+    color: 'rgba(255,255,255,0.72)',
+    marginTop: Spacing.xs,
+    fontSize: 15,
+  },
   content: { padding: Spacing.md, paddingBottom: Spacing.xxl },
-  welcomeTitle: { ...Typography.h2, color: Colors.light.text, marginBottom: Spacing.xs },
-  welcomeSubtitle: { ...Typography.body, color: Colors.light.textSecondary, marginBottom: Spacing.lg },
   pendingReviewCard: {
     alignItems: 'center',
     marginTop: Spacing.xl,
@@ -277,19 +324,23 @@ const styles = StyleSheet.create({
   hubCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.light.background,
-    borderWidth: 1,
-    borderColor: Colors.light.border,
+    backgroundColor: '#FFFFFF',
     borderRadius: BorderRadius.lg,
-    padding: Spacing.md,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.md,
     marginBottom: Spacing.md,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 3,
   },
   hubIconWrap: {
     marginRight: Spacing.md,
   },
   hubText: { flex: 1 },
-  hubTitle: { ...Typography.body, fontWeight: '600', color: Colors.light.text },
-  hubSubtitle: { ...Typography.caption, color: Colors.light.textSecondary, marginTop: 2 },
+  hubTitle: { ...Typography.body, fontWeight: '700', color: Colors.light.text, fontSize: 16 },
+  hubSubtitle: { ...Typography.caption, color: Colors.light.textSecondary, marginTop: 3 },
   bannerRejected: {
     backgroundColor: '#FEE2E2',
     borderRadius: BorderRadius.md,

@@ -1,6 +1,6 @@
 /**
  * Event Listing Detail Screen
- * Displays full event listing details with event-specific design
+ * Figma: event detail (node 1054:4)
  */
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -20,23 +20,22 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   BackIcon,
-  SearchIcon,
-  ShareIcon,
   SaveIcon,
   ReportIcon,
   PhoneIcon,
-  CalendarIcon,
+  RatingIcon,
+  VisibilityIcon,
   DurationIcon,
-  LocationColorIcon,
-  MultiColoredUserIcon,
-  MultiUserIcon,
+  LocationIcon,
 } from '../components/common';
-import { Colors, Spacing, Typography, BorderRadius } from '../config/theme';
+import { Colors, Spacing, BorderRadius } from '../config/theme';
 import { listingService, profileService } from '../services';
-import { formatListingPrice } from '../utils/currency';
+import { formatListingPriceWithType } from '../utils/currency';
 import { ListingStoreProfileCTA } from '../components/listings';
 
 const { width } = Dimensions.get('window');
+const MP = Colors.light.marketplace;
+const HERO_HEIGHT = 240;
 
 type EventListingDetailScreenProps = {
   navigation?: any;
@@ -46,6 +45,65 @@ type EventListingDetailScreenProps = {
     };
   };
 };
+
+type DetailTile = { label: string; value: string; tall?: boolean };
+
+function formatShortTimePosted(raw?: string | Date | null): string {
+  if (!raw) return '';
+  if (raw instanceof Date) {
+    const diff = Date.now() - raw.getTime();
+    const days = Math.floor(diff / 86400000);
+    if (days < 1) return 'today';
+    if (days === 1) return '1d ago';
+    return `${days}d ago`;
+  }
+  const text = String(raw);
+  if (/^just now$/i.test(text.trim())) return 'now';
+  return text
+    .replace(/(\d+)\s+minutes?\s+ago/gi, '$1m ago')
+    .replace(/(\d+)\s+hours?\s+ago/gi, '$1h ago')
+    .replace(/(\d+)\s+days?\s+ago/gi, '$1d ago')
+    .replace(/(\d+)\s+weeks?\s+ago/gi, '$1w ago');
+}
+
+function formatViews(views?: number) {
+  if (views == null) return '0 views';
+  if (views >= 1000) return `${(views / 1000).toFixed(1)}K views`;
+  return `${views} views`;
+}
+
+function formatEventDateTime(eventDate?: string | Date | null, eventTime?: string | null): string {
+  if (!eventDate && !eventTime) return '—';
+  try {
+    const date = eventDate ? new Date(eventDate) : null;
+    if (date && !Number.isNaN(date.getTime())) {
+      const day = date.toLocaleDateString('en-US', {
+        weekday: 'short',
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+      });
+      const time =
+        eventTime?.trim() ||
+        date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+      return `${day} • ${time}`;
+    }
+  } catch {
+    // fall through
+  }
+  return [eventDate, eventTime].filter(Boolean).join(' • ') || '—';
+}
+
+function DetailGridCard({ label, value, tall }: DetailTile) {
+  return (
+    <View style={[styles.detailCard, tall && styles.detailCardTall]}>
+      <Text style={styles.detailLabel}>{label}</Text>
+      <Text style={styles.detailValue} numberOfLines={tall ? 3 : 2}>
+        {value}
+      </Text>
+    </View>
+  );
+}
 
 export const EventListingDetailScreen: React.FC<EventListingDetailScreenProps> = ({
   navigation,
@@ -62,14 +120,16 @@ export const EventListingDetailScreen: React.FC<EventListingDetailScreenProps> =
 
   const checkWishlistStatus = async () => {
     if (!listingId) return;
-    
     try {
       const response = await profileService.getWishlist();
       if (response.success) {
         const wishlistData = (response.data as any)?.data || response.data || [];
-        const isInWishlist = Array.isArray(wishlistData) && wishlistData.some(
-          (item: any) => item.id === listingId || item._id === listingId || item.listingId === listingId
-        );
+        const isInWishlist =
+          Array.isArray(wishlistData) &&
+          wishlistData.some(
+            (item: any) =>
+              item.id === listingId || item._id === listingId || item.listingId === listingId,
+          );
         setSaved(isInWishlist);
       }
     } catch (error) {
@@ -85,33 +145,27 @@ export const EventListingDetailScreen: React.FC<EventListingDetailScreenProps> =
 
   const fetchListingDetails = async () => {
     if (!listingId) return;
-
     try {
       setLoading(true);
       const response = await listingService.getListingById(listingId);
-      
       if (response.success) {
         const listingData = (response.data as any)?.data || response.data;
         setListing(listingData);
-        if (listingId) {
-          checkWishlistStatus();
-        }
+        checkWishlistStatus();
       } else {
-        Alert.alert('Error', 'Failed to load listing details');
+        Alert.alert('Error', 'Failed to load event details');
         navigation?.goBack();
       }
     } catch (error: any) {
-      console.error('Error fetching listing details:', error);
-      Alert.alert('Error', 'Failed to load listing details');
+      console.error('Error fetching event details:', error);
+      Alert.alert('Error', 'Failed to load event details');
       navigation?.goBack();
     } finally {
       setLoading(false);
     }
   };
 
-  const handleBack = () => {
-    navigation?.goBack();
-  };
+  const handleBack = () => navigation?.goBack();
 
   const handleViewStoreProfile = () => {
     if (listing?.store?.id) {
@@ -119,43 +173,25 @@ export const EventListingDetailScreen: React.FC<EventListingDetailScreenProps> =
     }
   };
 
-  const handleSearch = () => {
-    console.log('Search pressed');
-  };
-
-  const handleShare = async () => {
-    console.log('Share pressed');
-  };
-
   const handleSave = async () => {
     if (!listingId || saving) return;
-
     try {
       setSaving(true);
-      
       if (saved) {
         const response = await profileService.removeFromWishlist(listingId);
-        if (response.success) {
-          setSaved(false);
-        } else {
-          Alert.alert('Error', 'Failed to remove from wishlist');
-        }
+        if (response.success) setSaved(false);
+        else Alert.alert('Error', 'Failed to remove from wishlist');
       } else {
         const response = await profileService.addToWishlist(listingId);
-        if (response.success) {
-          setSaved(true);
-        } else {
+        if (response.success) setSaved(true);
+        else {
           const errorMessage = (response.data as any)?.message;
-          if (errorMessage?.includes('already in wishlist')) {
-            setSaved(true);
-          } else {
-            Alert.alert('Error', errorMessage || 'Failed to add to wishlist');
-          }
+          if (errorMessage?.includes('already in wishlist')) setSaved(true);
+          else Alert.alert('Error', errorMessage || 'Failed to add to wishlist');
         }
       }
     } catch (error: any) {
-      console.error('Error saving to wishlist:', error);
-      Alert.alert('Error', error.message || 'Failed to update wishlist. Please try again.');
+      Alert.alert('Error', error.message || 'Failed to update wishlist.');
     } finally {
       setSaving(false);
     }
@@ -164,63 +200,72 @@ export const EventListingDetailScreen: React.FC<EventListingDetailScreenProps> =
   const handleReport = () => {
     Alert.alert('Report Listing', 'Are you sure you want to report this listing?', [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Report', style: 'destructive', onPress: () => {
-        console.log('Report listing:', listingId);
-      }},
+      {
+        text: 'Report',
+        style: 'destructive',
+        onPress: () => console.log('Report listing:', listingId),
+      },
     ]);
   };
 
   const handlePhoneCall = () => {
-    const phoneNumber = listing?.organizerContact;
-    if (phoneNumber) {
-      Linking.openURL(`tel:${phoneNumber}`);
-    } else {
-      Alert.alert('Error', 'Phone number not available');
+    const phoneNumber =
+      listing?.organizerContact ||
+      listing?.store?.phone ||
+      listing?.contactPhone;
+    if (!phoneNumber) {
+      Alert.alert('Unavailable', 'No phone number is available for this event.');
+      return;
     }
+    Linking.openURL(`tel:${phoneNumber}`);
   };
 
   const handleBookNow = () => {
-    // TODO: Navigate to booking screen
-    Alert.alert('Book Now', 'Booking functionality coming soon');
-  };
+    if (!listingId || !listing) return;
 
-  const formatViews = (views?: number) => {
-    if (!views) return '0 views';
-    if (views >= 100000) return `${(views / 1000).toFixed(0)}K+ views`;
-    if (views >= 1000) return `${(views / 1000).toFixed(1)}K views`;
-    return `${views} views`;
-  };
+    const photoUrl =
+      listing.photos?.find((p: any) => p.isPrimary)?.photoUrl ||
+      listing.photos?.[0]?.photoUrl ||
+      listing.photos?.[0]?.photo_url ||
+      (typeof listing.photos?.[0] === 'string' ? listing.photos[0] : null) ||
+      listing.image ||
+      null;
 
-  const formatPrice = (price?: number) => formatListingPrice(price, listing?.currency);
-
-  const formatDate = (dateString?: string) => {
-    if (!dateString) return '';
-    try {
-      const date = new Date(dateString);
-      const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-      const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-      const dayName = days[date.getDay()];
-      const day = date.getDate();
-      const month = months[date.getMonth()];
-      const year = date.getFullYear();
-      return `${dayName} ${day} ${month}, ${year}`;
-    } catch (e) {
-      return dateString;
+    let eventDate: string | null = null;
+    if (listing.eventDate) {
+      const d = new Date(listing.eventDate);
+      if (!Number.isNaN(d.getTime())) {
+        eventDate = d.toISOString().slice(0, 10);
+      } else if (typeof listing.eventDate === 'string') {
+        eventDate = listing.eventDate.slice(0, 10);
+      }
     }
-  };
 
-  const getCapacityProgress = () => {
-    const current = listing?.currentAttendees || listing?.attendeesCount || 0;
-    const max = listing?.maxCapacity || listing?.capacity || 0;
-    if (max === 0) return 0;
-    return Math.min((current / max) * 100, 100);
+    const locationLine =
+      [listing.venue, listing.location, listing.city].filter(Boolean).join(', ') || null;
+
+    navigation?.navigate('EventBookTickets', {
+      listingId,
+      storeId: listing.store?.id || listing.storeId || null,
+      eventTitle: listing.title || 'Event',
+      eventPrice:
+        listing.price != null && listing.price !== '' && !Number.isNaN(Number(listing.price))
+          ? Number(listing.price)
+          : null,
+      currency: listing.currency ?? null,
+      priceType: listing.priceType ?? null,
+      eventDate,
+      eventTime: listing.eventTime ?? null,
+      location: locationLine,
+      eventImageUrl: photoUrl,
+    });
   };
 
   if (loading) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={Colors.light.primary} />
+          <ActivityIndicator size="large" color={MP.primary} />
           <Text style={styles.loadingText}>Loading event...</Text>
         </View>
       </SafeAreaView>
@@ -232,308 +277,225 @@ export const EventListingDetailScreen: React.FC<EventListingDetailScreenProps> =
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>Event not found</Text>
-          <TouchableOpacity style={styles.backButton} onPress={handleBack}>
-            <Text style={styles.backButtonText}>Go Back</Text>
+          <TouchableOpacity style={styles.errorBack} onPress={handleBack}>
+            <Text style={styles.errorBackText}>Go Back</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
     );
   }
 
-  // Get all photos for the slider
-  const allPhotos = listing.photos?.map((photo: any) => photo.photoUrl || photo.photo_url || photo) || 
-                    (listing.image ? [listing.image] : []);
+  const allPhotos =
+    listing.photos?.map((photo: any) => photo.photoUrl || photo.photo_url || photo) ||
+    (listing.image ? [listing.image] : []);
 
-  // Get additional photos (excluding the first one which is the main image)
-  const additionalPhotos = allPhotos.length > 1 ? allPhotos.slice(1) : [];
+  const locationLine =
+    [listing.location, listing.city].filter(Boolean).join(', ') ||
+    listing.venue ||
+    'Location TBD';
 
-  // Get inclusions from description or separate field
-  const inclusions = listing.inclusions || listing.whatsIncluded || [];
+  const ratingText =
+    listing.ratingAverage != null && !Number.isNaN(listing.ratingAverage)
+      ? Number(listing.ratingAverage).toFixed(1)
+      : listing.reviewsCount > 0
+        ? String(listing.reviewsCount)
+        : '—';
+
+  const timePosted = listing.publishedAt
+    ? formatShortTimePosted(new Date(listing.publishedAt))
+    : formatShortTimePosted(listing.timePosted);
+
+  const capacityValue = listing.maxCapacity
+    ? `${listing.maxCapacity} guests`
+    : listing.capacity
+      ? `${listing.capacity} guests`
+      : '—';
+
+  const detailTiles: DetailTile[] = [
+    {
+      label: 'Event Type',
+      value: listing.eventType?.name || listing.categoryType || '—',
+    },
+    {
+      label: 'Date & Time',
+      value: formatEventDateTime(listing.eventDate, listing.eventTime),
+      tall: true,
+    },
+    {
+      label: 'Duration',
+      value: listing.duration || '—',
+    },
+    {
+      label: 'Capacity',
+      value: capacityValue,
+    },
+  ];
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.headerButton}
-          onPress={handleBack}
-          activeOpacity={0.7}
-        >
-          <BackIcon size={24} color="#030303" />
-        </TouchableOpacity>
-        {/* <View style={styles.headerRight}>
-          <TouchableOpacity
-            style={styles.headerIconButton}
-            onPress={handleSearch}
-            activeOpacity={0.7}
-          >
-            <SearchIcon size={14} color="#FFFFFF" />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.headerIconButton}
-            onPress={handleShare}
-            activeOpacity={0.7}
-          >
-            <ShareIcon size={14} color="#FFFFFF" />
-          </TouchableOpacity>
-        </View> */}
-      </View>
-
       <ScrollView
         style={styles.scrollView}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Image Slider */}
-        {allPhotos.length > 0 && (
-          <View style={styles.imageSliderContainer}>
-            <FlatList
-              ref={flatListRef}
-              data={allPhotos}
-              horizontal
-              pagingEnabled
-              showsHorizontalScrollIndicator={false}
-              keyExtractor={(item, index) => `photo-${index}`}
-              onMomentumScrollEnd={(event) => {
-                const index = Math.round(
-                  event.nativeEvent.contentOffset.x / width
-                );
-                setCurrentImageIndex(index);
-              }}
-              renderItem={({ item }) => (
-                <Image
-                  source={{ uri: item }}
-                  style={styles.heroImage}
-                  resizeMode="cover"
-                />
+        <View style={styles.heroWrap}>
+          {allPhotos.length > 0 ? (
+            <>
+              <FlatList
+                ref={flatListRef}
+                data={allPhotos}
+                horizontal
+                pagingEnabled
+                showsHorizontalScrollIndicator={false}
+                keyExtractor={(_, index) => `photo-${index}`}
+                onMomentumScrollEnd={(event) => {
+                  const index = Math.round(event.nativeEvent.contentOffset.x / width);
+                  setCurrentImageIndex(index);
+                }}
+                renderItem={({ item }) => (
+                  <Image source={{ uri: item }} style={styles.heroImage} resizeMode="cover" />
+                )}
+              />
+              {allPhotos.length > 1 && (
+                <View style={styles.pagination}>
+                  {allPhotos.map((_: string, index: number) => (
+                    <View
+                      key={index}
+                      style={[
+                        styles.paginationDot,
+                        index === currentImageIndex && styles.paginationDotActive,
+                      ]}
+                    />
+                  ))}
+                </View>
               )}
-            />
-            {/* Pagination Dots */}
-            {allPhotos.length > 1 && (
-              <View style={styles.paginationContainer}>
-                {allPhotos.map((_: any, index: number) => (
-                  <View
-                    key={index}
-                    style={[
-                      styles.paginationDot,
-                      index === currentImageIndex && styles.paginationDotActive,
-                    ]}
-                  />
-                ))}
-              </View>
-            )}
-          </View>
-        )}
+            </>
+          ) : (
+            <View style={styles.heroPlaceholder} />
+          )}
 
-        {/* Title and Views */}
-        <View style={styles.titleSection}>
-          <Text style={styles.title}>{listing.title || 'Event Title'}</Text>
-          <Text style={styles.viewsText}>
-            {formatViews(listing.viewsCount || listing.views)}
-          </Text>
+          <View style={styles.heroGradient} pointerEvents="none" />
+
+          <TouchableOpacity
+            style={styles.heroIconBtn}
+            onPress={handleBack}
+            activeOpacity={0.85}
+          >
+            <BackIcon size={18} color={MP.titleText} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.heroIconBtn, styles.heroIconBtnRight]}
+            onPress={handleSave}
+            activeOpacity={0.85}
+            disabled={saving}
+          >
+            {saving ? (
+              <ActivityIndicator size="small" color={saved ? MP.report : MP.primary} />
+            ) : (
+              <SaveIcon size={14} color={saved ? MP.report : MP.titleText} filled={saved} />
+            )}
+          </TouchableOpacity>
+
+          <View style={styles.categoryBadge}>
+            <Text style={styles.categoryBadgeText}>Event</Text>
+          </View>
         </View>
 
-        <View style={styles.storeCtaWrap}>
+        <View style={styles.body}>
+          <View style={styles.titleRow}>
+            <Text style={styles.title} numberOfLines={2}>
+              {listing.title || 'Event'}
+            </Text>
+            <Text style={styles.price}>
+              {formatListingPriceWithType(listing.price, listing.currency, listing.priceType)}
+            </Text>
+          </View>
+
+          <View style={styles.statsRow}>
+            <View style={styles.statItem}>
+              <RatingIcon size={12} color="#FFB904" />
+              <Text style={styles.statText}>{ratingText}</Text>
+            </View>
+            <View style={styles.statItem}>
+              <VisibilityIcon size={12} color={MP.metaText} />
+              <Text style={styles.statText}>
+                {formatViews(listing.viewsCount ?? listing.views)}
+              </Text>
+            </View>
+            {timePosted ? (
+              <View style={styles.statItem}>
+                <DurationIcon size={12} color={MP.metaText} />
+                <Text style={styles.statText}>{timePosted}</Text>
+              </View>
+            ) : null}
+          </View>
+
+          <View style={styles.locationRow}>
+            <LocationIcon size={13} color={MP.chipInactiveText} />
+            <Text style={styles.locationText}>{locationLine}</Text>
+          </View>
+
+          <View style={styles.divider} />
+
           <ListingStoreProfileCTA
             store={listing.store}
             onPress={handleViewStoreProfile}
+            variant="marketplace"
           />
-        </View>
 
-        {/* Price and Actions */}
-        <View style={styles.priceSection}>
-          <Text style={styles.price}>
-            {formatPrice(listing.price)}
-          </Text>
-          <View style={styles.actionButtons}>
+          <View style={styles.actionRow}>
             <TouchableOpacity
-              style={styles.actionButton}
+              style={styles.actionLink}
               onPress={handleSave}
               activeOpacity={0.7}
               disabled={saving}
             >
-              {saving ? (
-                <ActivityIndicator size="small" color={saved ? '#EF4444' : '#1B1B1B'} />
-              ) : (
-                <SaveIcon 
-                  size={14} 
-                  color={saved ? '#EF4444' : '#1B1B1B'} 
-                  filled={saved}
-                />
-              )}
-              <Text style={[styles.actionButtonText, saved && styles.actionButtonTextSaved]}>
-                Save
-              </Text>
+              <SaveIcon size={13} color={MP.primary} filled={saved} />
+              <Text style={styles.saveText}>Save</Text>
             </TouchableOpacity>
-            <Text style={styles.actionSeparator}>|</Text>
-            <TouchableOpacity
-              style={styles.actionButton}
-              onPress={handleReport}
-              activeOpacity={0.7}
-            >
-              <ReportIcon size={12} color="#1B1B1B" />
-              <Text style={styles.actionButtonText}>Report</Text>
+            <TouchableOpacity style={styles.actionLink} onPress={handleReport} activeOpacity={0.7}>
+              <ReportIcon size={13} color={MP.report} />
+              <Text style={styles.reportText}>Report</Text>
             </TouchableOpacity>
           </View>
-        </View>
 
-        {/* Event Details Section (redesigned) */}
-        <Text style={[styles.sectionTitle, styles.eventDetailsHeading]}>Event Details</Text>
-        <View style={styles.eventDetailsCard}>
-          <Text style={styles.eventDetailsTitle}>Event Type</Text>
-          <Text style={styles.eventTypeValue}>
-            {listing.eventType?.name || listing.eventType || '—'}
-          </Text>
+          <View style={styles.divider} />
 
-          {/* Divider removed to match property info style */}
-
-          {/* Date & Time */}
-          {(listing.eventDate || listing.date) && (
-            <View style={styles.detailBlock}>
-              <View style={styles.detailHeaderRow}>
-                <View style={styles.detailIconCircle}>
-                  <CalendarIcon size={18} color="#00CAD4" />
-                </View>
-                <Text style={styles.detailHeaderText}>Date & Time</Text>
-              </View>
-              <Text style={styles.detailSubText}>
-                {formatDate(listing.eventDate || listing.date)}
-                {listing.eventTime ? ` ${listing.eventTime}` : ''}
-              </Text>
+          {listing.description ? (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Description</Text>
+              <Text style={styles.descriptionText}>{listing.description}</Text>
             </View>
-          )}
+          ) : null}
 
-          {/* Duration */}
-          {!!listing.duration && (
-            <View style={styles.detailBlock}>
-              <View style={styles.detailHeaderRow}>
-                <View style={styles.detailIconCircle}>
-                  <DurationIcon size={18} color="#00CAD4" />
-                </View>
-                <Text style={styles.detailHeaderText}>Duration</Text>
-              </View>
-              <Text style={styles.detailSubText}>
-                {listing.eventTime ? `${listing.eventTime} ` : ''}
-                ({listing.duration})
-              </Text>
-            </View>
-          )}
+          {listing.description ? <View style={styles.divider} /> : null}
 
-          {/* Location */}
-          {!!listing.location && (
-            <View style={styles.detailBlock}>
-              <View style={styles.detailHeaderRow}>
-                <View style={styles.detailIconCircle}>
-                  <LocationColorIcon size={18} color="#00CAD4" />
-                </View>
-                <Text style={styles.detailHeaderText}>Location</Text>
-              </View>
-              <Text style={styles.detailSubText}>{listing.location}</Text>
-            </View>
-          )}
-
-          {/* Capacity */}
-          {(listing.maxCapacity || listing.capacity) && (
-            <View style={styles.detailBlock}>
-              <View style={styles.detailHeaderRow}>
-                <View style={styles.detailIconCircle}>
-                  <MultiColoredUserIcon size={18} color="#00CAD4" />
-                </View>
-                <Text style={styles.detailHeaderText}>Capacity</Text>
-              </View>
-              <Text style={styles.detailSubText}>
-                {listing.currentAttendees || listing.attendeesCount || 0} /{' '}
-                {listing.maxCapacity || listing.capacity} attendees
-              </Text>
-              <View style={styles.progressBarContainerLg}>
-                <View style={[styles.progressBarLg, { width: `${getCapacityProgress()}%` }]} />
-              </View>
-            </View>
-          )}
-        </View>
-
-        {/* About this event */}
-        {listing.description && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>About this event</Text>
-            <Text style={styles.descriptionText}>{listing.description}</Text>
-          </View>
-        )}
-
-        {/* What's included */}
-        {/* {inclusions.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>What's included</Text>
-            {inclusions.map((item: string, index: number) => (
-              <View key={index} style={styles.inclusionItem}>
-                <View style={styles.bulletPoint} />
-                <Text style={styles.inclusionText}>{item}</Text>
-              </View>
-            ))}
-          </View>
-        )} */}
-
-        {/* More Photos */}
-        {/* {additionalPhotos.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>More Photos</Text>
-            <View style={styles.photosGrid}>
-              {additionalPhotos.slice(0, 4).map((photo: string, index: number) => (
-                <Image
-                  key={index}
-                  source={{ uri: photo }}
-                  style={styles.photoThumbnail}
-                  resizeMode="cover"
+            <Text style={styles.sectionTitle}>Details</Text>
+            <View style={styles.detailGrid}>
+              {detailTiles.map((tile) => (
+                <DetailGridCard
+                  key={tile.label}
+                  label={tile.label}
+                  value={tile.value}
+                  tall={tile.tall}
                 />
               ))}
             </View>
           </View>
-        )} */}
 
-         {/* Hosted By */}
-         {(listing.user || listing.organizerName) && (
-           <View style={styles.section}>
-             <Text style={styles.sectionTitle}>Hosted By</Text>
-             <View style={styles.hostRow}>
-              <View style={styles.hostIconContainer}>
-                 <MultiUserIcon size={20} color="#040404" />
-               </View>
-               <View style={styles.hostInfoContainer}>
-                 <Text style={styles.hostName}>
-                   {listing.organizerName}
-                 </Text>
-                 {listing.user?._count?.listings && (
-                   <Text style={styles.hostInfo}>
-                     {listing.user._count.listings} bookings
-                   </Text>
-                 )}
-               </View>
-             </View>
-           </View>
-         )}
-
-        {/* Spacer for bottom action bar */}
-        <View style={styles.bottomSpacer} />
+          <View style={styles.bottomSpacer} />
+        </View>
       </ScrollView>
 
-      {/* Bottom Action Bar */}
-      <View style={styles.bottomActionBar}>
-        <TouchableOpacity
-          style={styles.bottomBtn}
-          onPress={handlePhoneCall}
-          activeOpacity={0.8}
-        >
-          <View style={styles.bottomBtnRow}>
-            <PhoneIcon size={20} color="#FFFFFF" />
-            <Text style={styles.bottomBtnText}>Call</Text>
-          </View>
+      <View style={styles.bottomBar}>
+        <TouchableOpacity style={styles.callButton} onPress={handlePhoneCall} activeOpacity={0.85}>
+          <PhoneIcon size={16} color={MP.primary} />
+          <Text style={styles.callButtonText}>Call</Text>
         </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.bottomBtn}
-          onPress={handleBookNow}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.bottomBtnText}>Book now</Text>
+        <TouchableOpacity style={styles.bookButton} onPress={handleBookNow} activeOpacity={0.85}>
+          <Text style={styles.bookButtonText}>Book Now</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -543,7 +505,13 @@ export const EventListingDetailScreen: React.FC<EventListingDetailScreenProps> =
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.light.background,
+    backgroundColor: MP.screenSurface,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: Spacing.md,
   },
   loadingContainer: {
     flex: 1,
@@ -551,8 +519,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   loadingText: {
-    ...Typography.body,
-    color: Colors.light.textSecondary,
+    fontSize: 14,
+    color: MP.chipInactiveText,
     marginTop: Spacing.md,
   },
   errorContainer: {
@@ -562,313 +530,276 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
   },
   errorText: {
-    ...Typography.h3,
-    color: Colors.light.text,
+    fontSize: 18,
+    fontWeight: '600',
+    color: MP.titleText,
     marginBottom: Spacing.md,
   },
-  backButton: {
+  errorBack: {
     padding: Spacing.md,
   },
-  backButtonText: {
-    ...Typography.body,
-    color: Colors.light.primary,
+  errorBackText: {
+    fontSize: 16,
+    color: MP.primary,
+    fontWeight: '600',
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    backgroundColor: Colors.light.background,
-    zIndex: 10,
-  },
-  headerButton: {
-    padding: Spacing.xs,
-  },
-  headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-  },
-  headerIconButton: {
-    width: 24,
-    height: 24,
-    borderRadius: BorderRadius.round,
-    backgroundColor: Colors.light.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  scrollView: {
-    flex: 1,
-  },
-  content: {
-    paddingBottom: Spacing.xl,
-  },
-  imageSliderContainer: {
-    position: 'relative',
+  heroWrap: {
     width: '100%',
-    height: 300,
+    height: HERO_HEIGHT,
+    backgroundColor: MP.screenBg,
+    position: 'relative',
   },
   heroImage: {
-    width: width,
-    height: 300,
-    backgroundColor: Colors.light.surface,
+    width,
+    height: HERO_HEIGHT,
   },
-  paginationContainer: {
+  heroPlaceholder: {
+    width: '100%',
+    height: HERO_HEIGHT,
+    backgroundColor: MP.screenBg,
+  },
+  heroGradient: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.12)',
+  },
+  heroIconBtn: {
     position: 'absolute',
-    bottom: Spacing.md,
+    top: 16,
+    left: 16,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  heroIconBtnRight: {
+    left: undefined,
+    right: 16,
+  },
+  categoryBadge: {
+    position: 'absolute',
+    left: 16,
+    bottom: 16,
+    backgroundColor: MP.eventBadge,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: BorderRadius.round,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  categoryBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    lineHeight: 16.5,
+  },
+  pagination: {
+    position: 'absolute',
+    bottom: 12,
     left: 0,
     right: 0,
     flexDirection: 'row',
     justifyContent: 'center',
-    alignItems: 'center',
-    gap: Spacing.xs,
+    gap: 6,
   },
   paginationDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: 'rgba(255, 255, 255, 0.5)',
-  },
-  paginationDotActive: {
-    backgroundColor: '#FFFFFF',
-    width: 24,
-  },
-  titleSection: {
-    paddingHorizontal: Spacing.md,
-    paddingTop: Spacing.md,
-    paddingBottom: Spacing.xs,
-  },
-  storeCtaWrap: {
-    paddingHorizontal: Spacing.md,
-  },
-  title: {
-    ...Typography.h1,
-    color: Colors.light.text,
-    fontWeight: '700',
-    fontSize: 24,
-    marginBottom: Spacing.xs,
-  },
-  viewsText: {
-    ...Typography.body,
-    color: Colors.light.textSecondary,
-    fontSize: 14,
-  },
-  priceSection: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing.md,
-    paddingBottom: Spacing.md,
-  },
-  price: {
-    ...Typography.h2,
-    color: Colors.light.primary,
-    fontWeight: '700',
-    fontSize: 28,
-  },
-  actionButtons: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-  },
-  actionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.xs,
-  },
-  actionButtonText: {
-    ...Typography.body,
-    color: Colors.light.text,
-    fontSize: 14,
-  },
-  actionButtonTextSaved: {
-    color: '#EF4444',
-  },
-  actionSeparator: {
-    color: Colors.light.textSecondary,
-    fontSize: 14,
-  },
-  eventDetailsCard: {
-    marginHorizontal: Spacing.md,
-    marginTop: Spacing.sm,
-    backgroundColor: '#FFFFFF',
-    borderRadius: BorderRadius.lg,
-    // No border lines (match property info style)
-    overflow: 'hidden',
-  },
-  eventDetailsTitle: {
-    ...Typography.h3,
-    fontSize: 18,
-    fontWeight: '700',
-    color: Colors.light.text,
-    paddingHorizontal: Spacing.md,
-    paddingTop: Spacing.md,
-    paddingBottom: Spacing.xs,
-  },
-  eventTypeValue: {
-    ...Typography.body,
-    color: Colors.light.text,
-    fontSize: 14,
-    paddingHorizontal: Spacing.md,
-    paddingBottom: Spacing.md,
-  },
-  detailBlock: {
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.md,
-  },
-  detailHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-    marginBottom: Spacing.xs,
-  },
-  detailIconCircle: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: 'rgba(0, 202, 212, 0.12)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  detailHeaderText: {
-    ...Typography.body,
-    color: Colors.light.text,
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  detailSubText: {
-    ...Typography.body,
-    color: Colors.light.textSecondary,
-    fontSize: 14,
-    marginLeft: 38,
-  },
-  progressBarContainerLg: {
-    height: 8,
-    backgroundColor: '#E5E7EB',
-    borderRadius: 4,
-    marginTop: Spacing.sm,
-    overflow: 'hidden',
-    marginLeft: 38,
-  },
-  progressBarLg: {
-    height: '100%',
-    backgroundColor: '#00CAD4',
-    borderRadius: 4,
-  },
-  hostIconContainer: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#F3F4F6',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 2,
-  },
-  section: {
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.md,
-  },
-  sectionTitle: {
-    ...Typography.h3,
-    color: Colors.light.text,
-    fontWeight: '600',
-    fontSize: 18,
-    marginBottom: Spacing.md,
-  },
-  eventDetailsHeading: {
-    paddingHorizontal: Spacing.md,
-    marginTop: Spacing.sm,
-    marginBottom: Spacing.sm,
-  },
-  // (old event details styles removed)
-  descriptionText: {
-    ...Typography.body,
-    color: Colors.light.textSecondary,
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  inclusionItem: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: Spacing.sm,
-    gap: Spacing.sm,
-  },
-  bulletPoint: {
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: Colors.light.primary,
-    marginTop: 6,
+    backgroundColor: 'rgba(255,255,255,0.5)',
   },
-  inclusionText: {
-    ...Typography.body,
-    color: Colors.light.textSecondary,
-    fontSize: 14,
+  paginationDotActive: {
+    width: 18,
+    backgroundColor: '#FFFFFF',
+  },
+  body: {
+    paddingHorizontal: Spacing.md,
+    paddingTop: Spacing.md,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  title: {
+    flex: 1,
+    fontSize: 20,
+    lineHeight: 26,
+    fontWeight: '700',
+    color: MP.titleText,
+  },
+  price: {
+    fontSize: 20,
+    lineHeight: 30,
+    fontWeight: '800',
+    color: MP.primary,
+  },
+  statsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginTop: 8,
+  },
+  statItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  statText: {
+    fontSize: 11,
+    lineHeight: 16.5,
+    color: MP.metaText,
+  },
+  locationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 8,
+  },
+  locationText: {
+    fontSize: 13,
+    lineHeight: 19.5,
+    color: MP.chipInactiveText,
     flex: 1,
   },
-  photosGrid: {
+  divider: {
+    height: 1,
+    backgroundColor: MP.divider,
+    marginVertical: 16,
+  },
+  actionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+    marginTop: 12,
+  },
+  actionLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  saveText: {
+    fontSize: 12,
+    lineHeight: 18,
+    fontWeight: '500',
+    color: MP.primary,
+  },
+  reportText: {
+    fontSize: 12,
+    lineHeight: 18,
+    fontWeight: '500',
+    color: MP.report,
+  },
+  section: {
+    marginBottom: 4,
+  },
+  sectionTitle: {
+    fontSize: 15,
+    lineHeight: 22.5,
+    fontWeight: '700',
+    color: MP.titleText,
+    marginBottom: 8,
+  },
+  descriptionText: {
+    fontSize: 13,
+    lineHeight: 20.8,
+    color: MP.descriptionText,
+  },
+  detailGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: Spacing.sm,
+    gap: 12,
+    marginTop: 4,
   },
-  photoThumbnail: {
-    width: (width - Spacing.md * 2 - Spacing.sm) / 2,
-    height: 120,
-    borderRadius: BorderRadius.md,
-    backgroundColor: Colors.light.surface,
+  detailCard: {
+    width: (width - Spacing.md * 2 - 12) / 2,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 12,
+    minHeight: 62,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 2,
+    elevation: 1,
   },
-   hostRow: {
-     flexDirection: 'row',
-     alignItems: 'flex-start',
-     gap: Spacing.sm,
-   },
-   hostInfoContainer: {
-     flex: 1,
-   },
-   hostName: {
-     ...Typography.body,
-     color: Colors.light.text,
-     fontSize: 16,
-     fontWeight: '600',
-     marginBottom: Spacing.xs,
-   },
-   hostInfo: {
-     ...Typography.body,
-     color: Colors.light.textSecondary,
-     fontSize: 14,
-   },
+  detailCardTall: {
+    minHeight: 82,
+  },
+  detailLabel: {
+    fontSize: 10,
+    lineHeight: 15,
+    fontWeight: '500',
+    color: MP.metaMuted,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+    marginBottom: 4,
+  },
+  detailValue: {
+    fontSize: 13,
+    lineHeight: 19.5,
+    fontWeight: '600',
+    color: MP.titleText,
+  },
   bottomSpacer: {
     height: 100,
   },
-  bottomActionBar: {
+  bottomBar: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'stretch',
+    gap: 12,
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.md,
-    gap: Spacing.md,
-    backgroundColor: Colors.light.background,
-    borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
+    paddingTop: 13,
+    paddingBottom: 24,
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 1.18,
+    borderTopColor: MP.bottomBarBorder,
   },
-  bottomBtn: {
+  callButton: {
     flex: 1,
-    height: 52,
-    borderRadius: BorderRadius.md,
-    backgroundColor: Colors.light.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  bottomBtnRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.sm,
+    justifyContent: 'center',
+    gap: 8,
+    borderRadius: 14,
+    borderWidth: 1.18,
+    borderColor: MP.primary,
+    paddingVertical: 15,
+    backgroundColor: '#FFFFFF',
   },
-  bottomBtnText: {
-    ...Typography.body,
-    color: '#FFFFFF',
-    fontSize: 16,
+  callButtonText: {
+    fontSize: 14,
+    lineHeight: 21,
     fontWeight: '600',
+    color: MP.primary,
+  },
+  bookButton: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 14,
+    paddingVertical: 14,
+    backgroundColor: MP.primary,
+    shadowColor: MP.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  bookButtonText: {
+    fontSize: 14,
+    lineHeight: 21,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
 });
-
