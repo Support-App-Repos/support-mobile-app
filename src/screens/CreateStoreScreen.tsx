@@ -159,7 +159,11 @@ export const CreateStoreScreen: React.FC<{ navigation?: any; route?: any }> = ({
       await refreshStore();
       setStep(1);
     } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to save store');
+      const message =
+        err?.response?.data?.message ||
+        err?.message ||
+        'Failed to save store';
+      Alert.alert('Error', message);
     } finally {
       setSaving(false);
     }

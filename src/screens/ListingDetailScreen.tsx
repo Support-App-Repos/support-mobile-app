@@ -1,6 +1,6 @@
 /**
- * Listing Detail Screen
- * Displays full listing details with images and contact options
+ * Product Listing Detail Screen
+ * Figma: product detail (node 1054:129)
  */
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -20,18 +20,22 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   BackIcon,
-  SearchIcon,
-  ShareIcon,
   SaveIcon,
   ReportIcon,
   PhoneIcon,
+  RatingIcon,
+  VisibilityIcon,
+  DurationIcon,
+  LocationIcon,
 } from '../components/common';
-import { Colors, Spacing, Typography, BorderRadius } from '../config/theme';
+import { Colors, Spacing, BorderRadius } from '../config/theme';
 import { listingService, profileService } from '../services';
 import { formatListingPrice } from '../utils/currency';
 import { ListingStoreProfileCTA } from '../components/listings';
 
 const { width } = Dimensions.get('window');
+const MP = Colors.light.marketplace;
+const HERO_HEIGHT = 240;
 
 type ListingDetailScreenProps = {
   navigation?: any;
@@ -41,6 +45,43 @@ type ListingDetailScreenProps = {
     };
   };
 };
+
+function formatShortTimePosted(raw?: string | Date | null): string {
+  if (!raw) return '';
+  if (raw instanceof Date) {
+    const diff = Date.now() - raw.getTime();
+    const days = Math.floor(diff / 86400000);
+    if (days < 1) return 'today';
+    if (days === 1) return '1d ago';
+    return `${days}d ago`;
+  }
+  const text = String(raw);
+  if (/^just now$/i.test(text.trim())) return 'now';
+  return text
+    .replace(/(\d+)\s+minutes?\s+ago/gi, '$1m ago')
+    .replace(/(\d+)\s+hours?\s+ago/gi, '$1h ago')
+    .replace(/(\d+)\s+days?\s+ago/gi, '$1d ago')
+    .replace(/(\d+)\s+weeks?\s+ago/gi, '$1w ago');
+}
+
+function formatViews(views?: number) {
+  if (views == null) return '0 views';
+  if (views >= 1000) return `${(views / 1000).toFixed(1)}K views`;
+  return `${views} views`;
+}
+
+type DetailTile = { label: string; value: string };
+
+function DetailGridCard({ label, value }: DetailTile) {
+  return (
+    <View style={styles.detailCard}>
+      <Text style={styles.detailLabel}>{label}</Text>
+      <Text style={styles.detailValue} numberOfLines={2}>
+        {value}
+      </Text>
+    </View>
+  );
+}
 
 export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
   navigation,
@@ -57,18 +98,19 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
 
   const checkWishlistStatus = async () => {
     if (!listingId) return;
-    
     try {
       const response = await profileService.getWishlist();
       if (response.success) {
         const wishlistData = (response.data as any)?.data || response.data || [];
-        const isInWishlist = Array.isArray(wishlistData) && wishlistData.some(
-          (item: any) => item.id === listingId || item._id === listingId
-        );
+        const isInWishlist =
+          Array.isArray(wishlistData) &&
+          wishlistData.some(
+            (item: any) =>
+              item.id === listingId || item._id === listingId || item.listingId === listingId,
+          );
         setSaved(isInWishlist);
       }
     } catch (error) {
-      // Silently fail - user might not be logged in or wishlist check failed
       console.error('Error checking wishlist status:', error);
     }
   };
@@ -81,21 +123,13 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
 
   const fetchListingDetails = async () => {
     if (!listingId) return;
-
     try {
       setLoading(true);
       const response = await listingService.getListingById(listingId);
-      
       if (response.success) {
         const listingData = (response.data as any)?.data || response.data;
-        
-        // Navigation logic has been moved to ListingCard component
-        // This screen now only handles Product listings or fallback
         setListing(listingData);
-        // Check wishlist status after listing is loaded
-        if (listingId) {
-          checkWishlistStatus();
-        }
+        checkWishlistStatus();
       } else {
         Alert.alert('Error', 'Failed to load listing details');
         navigation?.goBack();
@@ -109,9 +143,7 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
     }
   };
 
-  const handleBack = () => {
-    navigation?.goBack();
-  };
+  const handleBack = () => navigation?.goBack();
 
   const handleViewStoreProfile = () => {
     if (listing?.store?.id) {
@@ -119,47 +151,25 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
     }
   };
 
-  const handleSearch = () => {
-    // TODO: Implement search functionality
-    console.log('Search pressed');
-  };
-
-  const handleShare = async () => {
-    // TODO: Implement share functionality
-    console.log('Share pressed');
-  };
-
   const handleSave = async () => {
     if (!listingId || saving) return;
-
     try {
       setSaving(true);
-      
       if (saved) {
-        // Remove from wishlist
         const response = await profileService.removeFromWishlist(listingId);
-        if (response.success) {
-          setSaved(false);
-        } else {
-          Alert.alert('Error', 'Failed to remove from wishlist');
-        }
+        if (response.success) setSaved(false);
+        else Alert.alert('Error', 'Failed to remove from wishlist');
       } else {
-        // Add to wishlist
         const response = await profileService.addToWishlist(listingId);
-        if (response.success) {
-          setSaved(true);
-        } else {
+        if (response.success) setSaved(true);
+        else {
           const errorMessage = (response.data as any)?.message;
-          if (errorMessage?.includes('already in wishlist')) {
-            setSaved(true);
-          } else {
-            Alert.alert('Error', errorMessage || 'Failed to add to wishlist');
-          }
+          if (errorMessage?.includes('already in wishlist')) setSaved(true);
+          else Alert.alert('Error', errorMessage || 'Failed to add to wishlist');
         }
       }
     } catch (error: any) {
-      console.error('Error saving to wishlist:', error);
-      Alert.alert('Error', error.message || 'Failed to update wishlist. Please try again.');
+      Alert.alert('Error', error.message || 'Failed to update wishlist.');
     } finally {
       setSaving(false);
     }
@@ -168,38 +178,35 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
   const handleReport = () => {
     Alert.alert('Report Listing', 'Are you sure you want to report this listing?', [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Report', style: 'destructive', onPress: () => {
-        // TODO: Implement report functionality
-        console.log('Report listing:', listingId);
-      }},
+      {
+        text: 'Report',
+        style: 'destructive',
+        onPress: () => console.log('Report listing:', listingId),
+      },
     ]);
   };
 
   const handlePhoneCall = () => {
-    // TODO: Get phone number from listing or user data
-    const phoneNumber = listing?.organizerContact;
+    const phoneNumber =
+      listing?.organizerContact ||
+      listing?.store?.phone ||
+      listing?.contactPhone;
+    if (!phoneNumber) {
+      Alert.alert('Unavailable', 'No phone number is available for this listing.');
+      return;
+    }
     Linking.openURL(`tel:${phoneNumber}`);
   };
 
-  const handleContactDealer = () => {
-    // TODO: Navigate to contact/message screen or open phone
+  const handleBuyNow = () => {
     handlePhoneCall();
   };
-
-  const formatViews = (views?: number) => {
-    if (!views) return '0 views';
-    if (views >= 100000) return `${(views / 1000).toFixed(0)}K+ views`;
-    if (views >= 1000) return `${(views / 1000).toFixed(1)}K views`;
-    return `${views} views`;
-  };
-
-  const formatPrice = (price?: number) => formatListingPrice(price, listing?.currency);
 
   if (loading) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={Colors.light.primary} />
+          <ActivityIndicator size="large" color={MP.primary} />
           <Text style={styles.loadingText}>Loading listing...</Text>
         </View>
       </SafeAreaView>
@@ -211,328 +218,210 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>Listing not found</Text>
-          <TouchableOpacity style={styles.backButton} onPress={handleBack}>
-            <Text style={styles.backButtonText}>Go Back</Text>
+          <TouchableOpacity style={styles.errorBack} onPress={handleBack}>
+            <Text style={styles.errorBackText}>Go Back</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
     );
   }
 
-  // Get all photos for the slider
-  const allPhotos = listing.photos?.map((photo: any) => photo.photoUrl || photo) || 
-                    (listing.image ? [listing.image] : []);
+  const allPhotos =
+    listing.photos?.map((photo: any) => photo.photoUrl || photo.photo_url || photo) ||
+    (listing.image ? [listing.image] : []);
+
+  const locationLine = [listing.location, listing.city].filter(Boolean).join(', ') || 'Location TBD';
+  const ratingText =
+    listing.ratingAverage != null && !Number.isNaN(listing.ratingAverage)
+      ? Number(listing.ratingAverage).toFixed(1)
+      : listing.reviewsCount > 0
+        ? String(listing.reviewsCount)
+        : '—';
+
+  const timePosted = listing.publishedAt
+    ? formatShortTimePosted(new Date(listing.publishedAt))
+    : formatShortTimePosted(listing.timePosted);
+
+  const detailTiles: DetailTile[] = [
+    { label: 'Condition', value: listing.condition || listing.productCondition || '—' },
+    {
+      label: 'Category',
+      value:
+        listing.productCategory ||
+        listing.category?.name ||
+        (typeof listing.category === 'string' ? listing.category : '—'),
+    },
+    { label: 'Brand', value: listing.brand || listing.productBrand || '—' },
+    { label: 'Warranty', value: listing.warranty || listing.productWarranty || '—' },
+  ];
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.headerButton}
-          onPress={handleBack}
-          activeOpacity={0.7}
-        >
-          <BackIcon size={24} color="#030303" />
-        </TouchableOpacity>
-        {/* <View style={styles.headerRight}>
-          <TouchableOpacity
-            style={styles.headerIconButton}
-            onPress={handleSearch}
-            activeOpacity={0.7}
-          >
-            <SearchIcon size={14} color="#FFFFFF" />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.headerIconButton}
-            onPress={handleShare}
-            activeOpacity={0.7}
-          >
-            <ShareIcon size={14} color="#FFFFFF" />
-          </TouchableOpacity>
-        </View> */}
-      </View>
-
       <ScrollView
         style={styles.scrollView}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Image Slider */}
-        {allPhotos.length > 0 && (
-          <View style={styles.imageSliderContainer}>
-            <FlatList
-              ref={flatListRef}
-              data={allPhotos}
-              horizontal
-              pagingEnabled
-              showsHorizontalScrollIndicator={false}
-              keyExtractor={(item, index) => `photo-${index}`}
-              onMomentumScrollEnd={(event) => {
-                const index = Math.round(
-                  event.nativeEvent.contentOffset.x / width
-                );
-                setCurrentImageIndex(index);
-              }}
-              renderItem={({ item }) => (
-                <Image
-                  source={{ uri: item }}
-                  style={styles.heroImage}
-                  resizeMode="cover"
-                />
-              )}
-            />
-            {/* Pagination Dots */}
-            {allPhotos.length > 1 && (
-              <View style={styles.paginationContainer}>
-                {allPhotos.map((_: any, index: number) => (
-                  <View
-                    key={index}
-                    style={[
-                      styles.paginationDot,
-                      index === currentImageIndex && styles.paginationDotActive,
-                    ]}
-                  />
-                ))}
-              </View>
-            )}
-          </View>
-        )}
-
-        {/* Title and Views */}
-        <View style={styles.titleSection}>
-          <Text style={styles.title}>{listing.title || 'Listing Title'}</Text>
-          <View style={styles.viewsAndActionsRow}>
-            <Text style={styles.viewsText}>
-              {formatViews(listing.viewsCount || listing.views)}
-            </Text>
-            <View style={styles.actionIconsContainer}>
-              <TouchableOpacity
-                style={styles.actionIconButton}
-                onPress={handleSave}
-                activeOpacity={0.7}
-                disabled={saving}
-              >
-                {saving ? (
-                  <ActivityIndicator size="small" color={saved ? '#EF4444' : '#1B1B1B'} />
-                ) : (
-                  <SaveIcon 
-                    size={14} 
-                    color={saved ? '#EF4444' : '#1B1B1B'} 
-                    filled={saved}
-                  />
+        {/* Hero image */}
+        <View style={styles.heroWrap}>
+          {allPhotos.length > 0 ? (
+            <>
+              <FlatList
+                ref={flatListRef}
+                data={allPhotos}
+                horizontal
+                pagingEnabled
+                showsHorizontalScrollIndicator={false}
+                keyExtractor={(_, index) => `photo-${index}`}
+                onMomentumScrollEnd={(event) => {
+                  const index = Math.round(event.nativeEvent.contentOffset.x / width);
+                  setCurrentImageIndex(index);
+                }}
+                renderItem={({ item }) => (
+                  <Image source={{ uri: item }} style={styles.heroImage} resizeMode="cover" />
                 )}
-                <Text style={styles.actionIconLabel}>Save</Text>
-              </TouchableOpacity>
-              <Text>|</Text>
-              <TouchableOpacity
-                style={styles.actionIconButton}
-                onPress={handleReport}
-                activeOpacity={0.7}
-              >
-                <ReportIcon size={12} color="#1B1B1B" />
-                <Text style={styles.actionIconLabel}>Report</Text>
-              </TouchableOpacity>
-            </View>
+              />
+              {allPhotos.length > 1 && (
+                <View style={styles.pagination}>
+                  {allPhotos.map((_: string, index: number) => (
+                    <View
+                      key={index}
+                      style={[
+                        styles.paginationDot,
+                        index === currentImageIndex && styles.paginationDotActive,
+                      ]}
+                    />
+                  ))}
+                </View>
+              )}
+            </>
+          ) : (
+            <View style={styles.heroPlaceholder} />
+          )}
+
+          <View style={styles.heroGradient} pointerEvents="none" />
+
+          <TouchableOpacity
+            style={styles.heroIconBtn}
+            onPress={handleBack}
+            activeOpacity={0.85}
+          >
+            <BackIcon size={18} color={MP.titleText} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.heroIconBtn, styles.heroIconBtnRight]}
+            onPress={handleSave}
+            activeOpacity={0.85}
+            disabled={saving}
+          >
+            {saving ? (
+              <ActivityIndicator size="small" color={saved ? MP.report : MP.primary} />
+            ) : (
+              <SaveIcon size={14} color={saved ? MP.report : MP.titleText} filled={saved} />
+            )}
+          </TouchableOpacity>
+
+          <View style={styles.categoryBadge}>
+            <Text style={styles.categoryBadgeText}>Product</Text>
           </View>
         </View>
 
-        <View style={styles.storeCtaWrap}>
+        <View style={styles.body}>
+          {/* Title + price */}
+          <View style={styles.titleRow}>
+            <Text style={styles.title} numberOfLines={2}>
+              {listing.title || 'Product'}
+            </Text>
+            <Text style={styles.price}>{formatListingPrice(listing.price, listing.currency)}</Text>
+          </View>
+
+          {/* Stats */}
+          <View style={styles.statsRow}>
+            <View style={styles.statItem}>
+              <RatingIcon size={12} color="#FFB904" />
+              <Text style={styles.statText}>{ratingText}</Text>
+            </View>
+            <View style={styles.statItem}>
+              <VisibilityIcon size={12} color={MP.metaText} />
+              <Text style={styles.statText}>
+                {formatViews(listing.viewsCount ?? listing.views)}
+              </Text>
+            </View>
+            {timePosted ? (
+              <View style={styles.statItem}>
+                <DurationIcon size={12} color={MP.metaText} />
+                <Text style={styles.statText}>{timePosted}</Text>
+              </View>
+            ) : null}
+          </View>
+
+          {/* Location */}
+          <View style={styles.locationRow}>
+            <LocationIcon size={13} color={MP.chipInactiveText} />
+            <Text style={styles.locationText}>{locationLine}</Text>
+          </View>
+
+          <View style={styles.divider} />
+
+          {/* Store */}
           <ListingStoreProfileCTA
             store={listing.store}
             onPress={handleViewStoreProfile}
+            variant="marketplace"
           />
-        </View>
 
-        {/* Price */}
-        <Text style={styles.price}>
-          {formatPrice(listing.price)}
-        </Text>
+          {/* Save / Report */}
+          <View style={styles.actionRow}>
+            <TouchableOpacity
+              style={styles.actionLink}
+              onPress={handleSave}
+              activeOpacity={0.7}
+              disabled={saving}
+            >
+              <SaveIcon size={13} color={MP.primary} filled={saved} />
+              <Text style={styles.saveText}>Save</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.actionLink} onPress={handleReport} activeOpacity={0.7}>
+              <ReportIcon size={13} color={MP.report} />
+              <Text style={styles.reportText}>Report</Text>
+            </TouchableOpacity>
+          </View>
 
+          <View style={styles.divider} />
 
-        {/* All Listing Information Based on Category */}
-        <View style={styles.allInfoSection}>
           {/* Description */}
-          {listing.description && (
-            <View style={styles.infoSection}>
-              <Text style={styles.infoLabel}>Description</Text>
-              <Text style={styles.infoValue}>{listing.description}</Text>
+          {listing.description ? (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Description</Text>
+              <Text style={styles.descriptionText}>{listing.description}</Text>
             </View>
-          )}
+          ) : null}
 
-          {/* Common Fields */}
-          {listing.location && (
-            <View style={styles.infoSection}>
-              <Text style={styles.infoLabel}>Location</Text>
-              <Text style={styles.infoValue}>{listing.location}</Text>
+          {listing.description ? <View style={styles.divider} /> : null}
+
+          {/* Details grid */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Details</Text>
+            <View style={styles.detailGrid}>
+              {detailTiles.map((tile) => (
+                <DetailGridCard key={tile.label} label={tile.label} value={tile.value} />
+              ))}
             </View>
-          )}
+          </View>
 
-          {listing.city && (
-            <View style={styles.infoSection}>
-              <Text style={styles.infoLabel}>City</Text>
-              <Text style={styles.infoValue}>{listing.city}</Text>
-            </View>
-          )}
-
-          {/* Event-Specific Fields */}
-          {listing.category?.slug?.toLowerCase().includes('event') && (
-            <>
-              {listing.venue && (
-                <View style={styles.infoSection}>
-                  <Text style={styles.infoLabel}>Venue</Text>
-                  <Text style={styles.infoValue}>{listing.venue}</Text>
-                </View>
-              )}
-              {listing.eventDate && (
-                <View style={styles.infoSection}>
-                  <Text style={styles.infoLabel}>Event Date</Text>
-                  <Text style={styles.infoValue}>
-                    {new Date(listing.eventDate).toLocaleDateString()}
-                  </Text>
-                </View>
-              )}
-              {listing.eventTime && (
-                <View style={styles.infoSection}>
-                  <Text style={styles.infoLabel}>Event Time</Text>
-                  <Text style={styles.infoValue}>{listing.eventTime}</Text>
-                </View>
-              )}
-              {listing.duration && (
-                <View style={styles.infoSection}>
-                  <Text style={styles.infoLabel}>Duration</Text>
-                  <Text style={styles.infoValue}>{listing.duration}</Text>
-                </View>
-              )}
-              {listing.maxCapacity && (
-                <View style={styles.infoSection}>
-                  <Text style={styles.infoLabel}>Max Capacity</Text>
-                  <Text style={styles.infoValue}>{listing.maxCapacity} people</Text>
-                </View>
-              )}
-              {listing.organizerName && (
-                <View style={styles.infoSection}>
-                  <Text style={styles.infoLabel}>Organizer Name</Text>
-                  <Text style={styles.infoValue}>{listing.organizerName}</Text>
-                </View>
-              )}
-              {listing.organizerContact && (
-                <View style={styles.infoSection}>
-                  <Text style={styles.infoLabel}>Organizer Contact</Text>
-                  <Text style={styles.infoValue}>{listing.organizerContact}</Text>
-                </View>
-              )}
-              {listing.organizerEmail && (
-                <View style={styles.infoSection}>
-                  <Text style={styles.infoLabel}>Organizer Email</Text>
-                  <Text style={styles.infoValue}>{listing.organizerEmail}</Text>
-                </View>
-              )}
-              {listing.tags && (
-                <View style={styles.infoSection}>
-                  <Text style={styles.infoLabel}>Tags</Text>
-                  <Text style={styles.infoValue}>{listing.tags}</Text>
-                </View>
-              )}
-              {listing.eventType && (
-                <View style={styles.infoSection}>
-                  <Text style={styles.infoLabel}>Event Type</Text>
-                  <Text style={styles.infoValue}>{listing.eventType.name}</Text>
-                </View>
-              )}
-            </>
-          )}
-
-          {/* Property-Specific Fields */}
-          {listing.category?.slug?.toLowerCase().includes('propert') && (
-            <>
-              {listing.bedrooms && (
-                <View style={styles.infoSection}>
-                  <Text style={styles.infoLabel}>Bedrooms</Text>
-                  <Text style={styles.infoValue}>{listing.bedrooms}</Text>
-                </View>
-              )}
-              {listing.bathrooms && (
-                <View style={styles.infoSection}>
-                  <Text style={styles.infoLabel}>Bathrooms</Text>
-                  <Text style={styles.infoValue}>{listing.bathrooms}</Text>
-                </View>
-              )}
-              {listing.squareFeet && (
-                <View style={styles.infoSection}>
-                  <Text style={styles.infoLabel}>Square Feet</Text>
-                  <Text style={styles.infoValue}>
-                    {listing.squareFeet.toLocaleString()} sq ft
-                  </Text>
-                </View>
-              )}
-              {listing.yearBuilt && (
-                <View style={styles.infoSection}>
-                  <Text style={styles.infoLabel}>Year Built</Text>
-                  <Text style={styles.infoValue}>{listing.yearBuilt}</Text>
-                </View>
-              )}
-            </>
-          )}
-
-          {/* Service-Specific Fields */}
-          {listing.category?.slug?.toLowerCase().includes('service') && (
-            <>
-              {listing.businessName && (
-                <View style={styles.infoSection}>
-                  <Text style={styles.infoLabel}>Business Name</Text>
-                  <Text style={styles.infoValue}>{listing.businessName}</Text>
-                </View>
-              )}
-              {listing.specialization && (
-                <View style={styles.infoSection}>
-                  <Text style={styles.infoLabel}>Specialization</Text>
-                  <Text style={styles.infoValue}>{listing.specialization}</Text>
-                </View>
-              )}
-              {listing.yearsOfExperience && (
-                <View style={styles.infoSection}>
-                  <Text style={styles.infoLabel}>Years of Experience</Text>
-                  <Text style={styles.infoValue}>
-                    {listing.yearsOfExperience} {listing.yearsOfExperience === 1 ? 'year' : 'years'}
-                  </Text>
-                </View>
-              )}
-              {listing.serviceType && (
-                <View style={styles.infoSection}>
-                  <Text style={styles.infoLabel}>Service Type</Text>
-                  <Text style={styles.infoValue}>{listing.serviceType.name}</Text>
-                </View>
-              )}
-            </>
-          )}
-
-          {/* Product-Specific Fields */}
-          {listing.category?.slug?.toLowerCase().includes('product') && (
-            <>
-              {/* Products mainly use common fields (title, description, price, location) */}
-            </>
-          )}
+          <View style={styles.bottomSpacer} />
         </View>
-
-        {/* Spacer for bottom action bar */}
-        <View style={styles.bottomSpacer} />
       </ScrollView>
 
-      {/* Bottom Action Bar */}
-      <View style={styles.bottomActionBar}>
-        <TouchableOpacity
-          style={styles.phoneButton}
-          onPress={handlePhoneCall}
-          activeOpacity={0.8}
-        >
-          <PhoneIcon size={24} color="#FFFFFF" />
+      {/* Bottom actions */}
+      <View style={styles.bottomBar}>
+        <TouchableOpacity style={styles.callButton} onPress={handlePhoneCall} activeOpacity={0.85}>
+          <PhoneIcon size={16} color={MP.primary} />
+          <Text style={styles.callButtonText}>Call</Text>
         </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.contactButton}
-          onPress={handleContactDealer}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.contactButtonText}>Contact Dealer</Text>
+        <TouchableOpacity style={styles.buyButton} onPress={handleBuyNow} activeOpacity={0.85}>
+          <Text style={styles.buyButtonText}>Buy Now</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -542,7 +431,13 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.light.background,
+    backgroundColor: MP.screenSurface,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: Spacing.md,
   },
   loadingContainer: {
     flex: 1,
@@ -550,8 +445,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   loadingText: {
-    ...Typography.body,
-    color: Colors.light.textSecondary,
+    fontSize: 14,
+    color: MP.chipInactiveText,
     marginTop: Spacing.md,
   },
   errorContainer: {
@@ -561,214 +456,272 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
   },
   errorText: {
-    ...Typography.h3,
-    color: Colors.light.text,
+    fontSize: 18,
+    fontWeight: '600',
+    color: MP.titleText,
     marginBottom: Spacing.md,
   },
-  backButton: {
+  errorBack: {
     padding: Spacing.md,
   },
-  backButtonText: {
-    ...Typography.body,
-    color: Colors.light.primary,
+  errorBackText: {
+    fontSize: 16,
+    color: MP.primary,
+    fontWeight: '600',
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    backgroundColor: Colors.light.background,
-    zIndex: 10,
-  },
-  headerButton: {
-    padding: Spacing.xs,
-  },
-  headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-  },
-  headerIconButton: {
-    width: 24,
-    height: 24,
-    borderRadius: BorderRadius.round,
-    backgroundColor: Colors.light.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  scrollView: {
-    flex: 1,
-  },
-  content: {
-    paddingBottom: Spacing.xl,
-  },
-  imageSliderContainer: {
-    position: 'relative',
+  heroWrap: {
     width: '100%',
-    height: 300,
+    height: HERO_HEIGHT,
+    backgroundColor: MP.screenBg,
+    position: 'relative',
   },
   heroImage: {
-    width: width,
-    height: 300,
-    backgroundColor: Colors.light.surface,
+    width,
+    height: HERO_HEIGHT,
   },
-  paginationContainer: {
+  heroPlaceholder: {
+    width: '100%',
+    height: HERO_HEIGHT,
+    backgroundColor: MP.screenBg,
+  },
+  heroGradient: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.12)',
+  },
+  heroIconBtn: {
     position: 'absolute',
-    bottom: Spacing.md,
+    top: 16,
+    left: 16,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  heroIconBtnRight: {
+    left: undefined,
+    right: 16,
+  },
+  categoryBadge: {
+    position: 'absolute',
+    left: 16,
+    bottom: 16,
+    backgroundColor: MP.detailProductBadge,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: BorderRadius.round,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  categoryBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    lineHeight: 16.5,
+  },
+  pagination: {
+    position: 'absolute',
+    bottom: 12,
     left: 0,
     right: 0,
     flexDirection: 'row',
     justifyContent: 'center',
-    alignItems: 'center',
-    gap: Spacing.xs,
+    gap: 6,
   },
   paginationDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: 'rgba(13, 71, 92, 0.3)', // Primary color with opacity
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: 'rgba(255,255,255,0.5)',
   },
   paginationDotActive: {
-    backgroundColor: Colors.light.primary,
-    width: 24,
+    width: 18,
+    backgroundColor: '#FFFFFF',
   },
-  titleSection: {
+  body: {
     paddingHorizontal: Spacing.md,
     paddingTop: Spacing.md,
-    paddingBottom: Spacing.xs,
   },
-  storeCtaWrap: {
-    paddingHorizontal: Spacing.md,
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 8,
   },
   title: {
-    ...Typography.h1,
-    color: Colors.light.text,
+    flex: 1,
+    fontSize: 20,
+    lineHeight: 26,
     fontWeight: '700',
-    fontSize: 24,
-    marginBottom: Spacing.xs,
-  },
-  viewsAndActionsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  viewsText: {
-    ...Typography.body,
-    color: Colors.light.textSecondary,
-    fontSize: 14,
+    color: MP.titleText,
   },
   price: {
-    ...Typography.h2,
-    color: Colors.light.primary,
+    fontSize: 20,
+    lineHeight: 30,
+    fontWeight: '800',
+    color: MP.primary,
+  },
+  statsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginTop: 8,
+  },
+  statItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  statText: {
+    fontSize: 11,
+    lineHeight: 16.5,
+    color: MP.metaText,
+  },
+  locationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 8,
+  },
+  locationText: {
+    fontSize: 13,
+    lineHeight: 19.5,
+    color: MP.chipInactiveText,
+    flex: 1,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: MP.divider,
+    marginVertical: 16,
+  },
+  actionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+    marginTop: 12,
+  },
+  actionLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  saveText: {
+    fontSize: 12,
+    lineHeight: 18,
+    fontWeight: '500',
+    color: MP.primary,
+  },
+  reportText: {
+    fontSize: 12,
+    lineHeight: 18,
+    fontWeight: '500',
+    color: MP.report,
+  },
+  section: {
+    marginBottom: 4,
+  },
+  sectionTitle: {
+    fontSize: 15,
+    lineHeight: 22.5,
     fontWeight: '700',
-    fontSize: 28,
-    paddingHorizontal: Spacing.md,
-    marginBottom: Spacing.md,
-  },
-  detailsSection: {
-    paddingHorizontal: Spacing.md,
-    marginBottom: Spacing.sm,
-  },
-  detailItem: {
-    ...Typography.body,
-    color: Colors.light.text,
-    fontSize: 16,
-    marginBottom: Spacing.xs,
-  },
-  allInfoSection: {
-    paddingHorizontal: Spacing.md,
-    paddingBottom: Spacing.lg,
-  },
-  actionIconsContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-  },
-  actionIconButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.xs,
-  },
-  actionIconLabel: {
-    ...Typography.body,
-    color: Colors.light.text,
-    fontSize: 14,
-  },
-  gallerySection: {
-    paddingHorizontal: Spacing.md,
-    marginBottom: Spacing.lg,
-  },
-  galleryImage: {
-    width: '100%',
-    height: 250,
-    borderRadius: BorderRadius.md,
-    marginBottom: Spacing.md,
-    backgroundColor: Colors.light.surface,
-  },
-  descriptionSection: {
-    paddingHorizontal: Spacing.md,
-    marginBottom: Spacing.lg,
-  },
-  descriptionTitle: {
-    ...Typography.h3,
-    color: Colors.light.text,
-    fontWeight: '600',
-    fontSize: 18,
-    marginBottom: Spacing.sm,
+    color: MP.titleText,
+    marginBottom: 8,
   },
   descriptionText: {
-    ...Typography.body,
-    color: Colors.light.textSecondary,
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: 13,
+    lineHeight: 20.8,
+    color: MP.descriptionText,
   },
-  infoSection: {
-    paddingHorizontal: Spacing.md,
-    marginBottom: Spacing.md,
+  detailGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    marginTop: 4,
   },
-  infoLabel: {
-    ...Typography.body,
-    color: Colors.light.textSecondary,
-    fontSize: 12,
-    marginBottom: Spacing.xs,
+  detailCard: {
+    width: (width - Spacing.md * 2 - 12) / 2,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 2,
+    elevation: 1,
   },
-  infoValue: {
-    ...Typography.body,
-    color: Colors.light.text,
-    fontSize: 16,
+  detailLabel: {
+    fontSize: 10,
+    lineHeight: 15,
+    fontWeight: '500',
+    color: MP.metaMuted,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+    marginBottom: 4,
+  },
+  detailValue: {
+    fontSize: 13,
+    lineHeight: 19.5,
+    fontWeight: '600',
+    color: MP.titleText,
   },
   bottomSpacer: {
     height: 100,
   },
-  bottomActionBar: {
+  bottomBar: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    gap: 12,
+    paddingHorizontal: Spacing.md,
+    paddingTop: 13,
+    paddingBottom: 24,
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 1.18,
+    borderTopColor: MP.bottomBarBorder,
+  },
+  callButton: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.md,
-    gap: Spacing.md,
-  },
-  phoneButton: {
-    width: 50,
-    height: 50,
-    borderRadius: BorderRadius.md,
-    backgroundColor: Colors.light.primary,
     justifyContent: 'center',
-    alignItems: 'center',
+    gap: 8,
+    borderRadius: 14,
+    borderWidth: 1.18,
+    borderColor: MP.primary,
+    paddingVertical: 15,
+    backgroundColor: '#FFFFFF',
   },
-  contactButton: {
-    flex: 1,
-    height: 50,
-    borderRadius: BorderRadius.md,
-    backgroundColor: Colors.light.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  contactButtonText: {
-    ...Typography.body,
-    color: '#FFFFFF',
-    fontSize: 16,
+  callButtonText: {
+    fontSize: 14,
+    lineHeight: 21,
     fontWeight: '600',
+    color: MP.primary,
+  },
+  buyButton: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 14,
+    paddingVertical: 14,
+    backgroundColor: MP.primary,
+    shadowColor: MP.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  buyButtonText: {
+    fontSize: 14,
+    lineHeight: 21,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
 });
-

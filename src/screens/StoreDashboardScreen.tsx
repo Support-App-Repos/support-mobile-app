@@ -1,5 +1,5 @@
 /**
- * Store Dashboard Screen
+ * Store Dashboard Screen — matches Figma store dashboard
  */
 
 import React, { useState, useCallback } from 'react';
@@ -12,27 +12,28 @@ import {
   Pressable,
   ScrollView,
   ActivityIndicator,
-  Platform,
   Image,
-  ImageBackground,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   BackIcon,
   Snackbar,
+  SettingsIcon,
+  RatingIcon,
   StoreDashboardListingsIcon,
   StoreDashboardActiveIcon,
   StoreDashboardMessagesIcon,
   StoreDashboardViewsIcon,
   StoreQuickActionAddIcon,
   StoreQuickActionEditIcon,
-  StoreQuickActionAnalyticsIcon,
 } from '../components/common';
 import { BottomNavigation } from '../components/navigation';
 import { Colors, Spacing, Typography, BorderRadius } from '../config/theme';
 import { storeService } from '../services';
-import { useStore, useBottomNavHandlers, useProfile } from '../hooks';
+import { useStore, useBottomNavHandlers } from '../hooks';
 import type { StoreDashboard } from '../types';
+
+const HEADER_NAVY = '#0D475C';
 
 const getInitials = (name: string) =>
   name
@@ -42,9 +43,25 @@ const getInitials = (name: string) =>
     .slice(0, 2)
     .toUpperCase();
 
+const formatReviewName = (fullName?: string) => {
+  if (!fullName?.trim()) return 'User';
+  const parts = fullName.trim().split(/\s+/);
+  if (parts.length === 1) return parts[0];
+  return `${parts[0]} ${parts[parts.length - 1][0]}.`;
+};
+
+type StatConfig = {
+  label: string;
+  value: number;
+  Icon: React.FC<{ size?: number; color?: string }>;
+  iconColor: string;
+  iconBg: string;
+  valueColor: string;
+};
+
 export const StoreDashboardScreen: React.FC<{ navigation?: any }> = ({ navigation }) => {
+  const insets = useSafeAreaInsets();
   const { store } = useStore();
-  const { profileImageUrl } = useProfile();
   const [dashboard, setDashboard] = useState<StoreDashboard | null>(null);
   const [loading, setLoading] = useState(true);
   const {
@@ -80,142 +97,175 @@ export const StoreDashboardScreen: React.FC<{ navigation?: any }> = ({ navigatio
 
   const stats = dashboard?.stats;
   const storeData = dashboard?.store || store;
-  const coverImageUrl = storeData?.coverImageUrl;
+  const recentReviews = dashboard?.recentReviews || [];
 
-  const storeCardBody = (
-    <>
-      <View style={styles.storeInfo}>
-        <Text style={styles.storeName}>{storeData?.name}</Text>
-        <View style={styles.badges}>
-          {storeData?.isVerified && (
-            <View style={styles.badgeVerified}>
-              <StoreDashboardActiveIcon size={14} color="#FFFFFF" />
-              <Text style={styles.badgeVerifiedText}>Verified</Text>
-            </View>
-          )}
-          <View style={styles.badgeActive}>
-            <Text style={styles.badgeActiveText}>Active</Text>
-          </View>
-        </View>
-      </View>
-      <View style={styles.avatar}>
-        {storeData?.logoUrl ? (
-          <Image source={{ uri: storeData.logoUrl }} style={styles.avatarImage} />
-        ) : (
-          <Text style={styles.avatarText}>{getInitials(storeData?.name || 'S')}</Text>
-        )}
-      </View>
-    </>
-  );
+  const statItems: StatConfig[] = [
+    {
+      label: 'Total Listings',
+      value: stats?.totalListings ?? 0,
+      Icon: StoreDashboardListingsIcon,
+      iconColor: '#0D475C',
+      iconBg: '#E8EEF2',
+      valueColor: '#0D475C',
+    },
+    {
+      label: 'Active',
+      value: stats?.activeListings ?? 0,
+      Icon: StoreDashboardActiveIcon,
+      iconColor: '#22C55E',
+      iconBg: '#E8F8EF',
+      valueColor: '#22C55E',
+    },
+    {
+      label: 'Messages',
+      value: stats?.messages ?? 0,
+      Icon: StoreDashboardMessagesIcon,
+      iconColor: '#A855F7',
+      iconBg: '#F3E8FF',
+      valueColor: '#0D475C',
+    },
+    {
+      label: 'Views',
+      value: stats?.views ?? 0,
+      Icon: StoreDashboardViewsIcon,
+      iconColor: '#EC4899',
+      iconBg: '#FCE7F3',
+      valueColor: '#0D475C',
+    },
+  ];
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.header}>
+    <SafeAreaView style={styles.container} edges={['bottom']}>
+      <View style={[styles.header, { paddingTop: Math.max(insets.top, Spacing.sm) }]}>
         <TouchableOpacity
-          style={styles.backButton}
+          style={styles.headerCircleBtn}
           onPress={() => navigation?.goBack()}
           activeOpacity={0.7}
         >
-          <BackIcon size={24} color="#030303" />
+          <BackIcon size={20} color="#FFFFFF" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>My Store</Text>
+        <Text style={styles.headerTitle}>Store Dashboard</Text>
         <TouchableOpacity
-          style={styles.profileButton}
+          style={styles.headerCircleBtn}
           activeOpacity={0.7}
-          onPress={() => navigation?.navigate('Profile')}
+          onPress={() => navigation?.navigate('CreateStore', { edit: true })}
         >
-          <Image
-            source={{ uri: profileImageUrl || 'https://i.pravatar.cc/150?img=12' }}
-            style={styles.profileImage}
-          />
+          <SettingsIcon size={20} color="#FFFFFF" />
         </TouchableOpacity>
       </View>
 
       {loading ? (
         <ActivityIndicator size="large" color={Colors.light.primary} style={{ marginTop: 40 }} />
       ) : (
-        <ScrollView contentContainerStyle={styles.content}>
-          {coverImageUrl ? (
-            <ImageBackground
-              source={{ uri: coverImageUrl }}
-              style={styles.storeCard}
-              imageStyle={styles.storeCardCoverImage}
-            >
-              <View style={styles.storeCardOverlay} />
-              <View style={styles.storeCardContent}>{storeCardBody}</View>
-            </ImageBackground>
-          ) : (
-            <View style={[styles.storeCard, styles.storeCardSolid]}>
-              <View style={styles.storeCardContent}>{storeCardBody}</View>
+        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+          <View style={styles.storeCard}>
+            <View style={styles.avatar}>
+              {storeData?.logoUrl ? (
+                <Image source={{ uri: storeData.logoUrl }} style={styles.avatarImage} />
+              ) : (
+                <Text style={styles.avatarText}>{getInitials(storeData?.name || 'S')}</Text>
+              )}
             </View>
-          )}
+            <View style={styles.storeInfo}>
+              <Text style={styles.storeName} numberOfLines={1}>
+                {storeData?.name || 'Your Store'}
+              </Text>
+              <View style={styles.badges}>
+                {storeData?.isVerified && (
+                  <View style={styles.badge}>
+                    <StoreDashboardActiveIcon size={12} color="#16A34A" />
+                    <Text style={styles.badgeText}>Verified</Text>
+                  </View>
+                )}
+                <View style={styles.badge}>
+                  <View style={styles.activeDot} />
+                  <Text style={styles.badgeText}>Active</Text>
+                </View>
+              </View>
+            </View>
+          </View>
 
           <View style={styles.statsGrid}>
-            {[
-              { label: 'Total Listings', value: stats?.totalListings ?? 0, Icon: StoreDashboardListingsIcon },
-              { label: 'Active', value: stats?.activeListings ?? 0, Icon: StoreDashboardActiveIcon },
-              { label: 'Messages', value: stats?.messages ?? 0, Icon: StoreDashboardMessagesIcon },
-              { label: 'Views', value: stats?.views ?? 0, Icon: StoreDashboardViewsIcon },
-            ].map((s) => (
+            {statItems.map((s) => (
               <View key={s.label} style={styles.statCard}>
-                <s.Icon size={34} color="#A6A6A6" style={styles.statIcon} />
-                <Text style={styles.statValue}>{s.value}</Text>
-                <Text style={styles.statLabel}>{s.label}</Text>
+                <View style={styles.statTopRow}>
+                  <Text style={styles.statLabel}>{s.label}</Text>
+                  <View style={[styles.statIconWrap, { backgroundColor: s.iconBg }]}>
+                    <s.Icon size={18} color={s.iconColor} />
+                  </View>
+                </View>
+                <Text style={[styles.statValue, { color: s.valueColor }]}>{s.value}</Text>
               </View>
             ))}
           </View>
 
-          <Text style={styles.sectionTitle}>Recent Reviews</Text>
-          {(dashboard?.recentReviews || []).length === 0 ? (
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Recent Reviews</Text>
+            <TouchableOpacity
+              onPress={() => setSnackbarVisible(true)}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Text style={styles.seeAll}>See All</Text>
+            </TouchableOpacity>
+          </View>
+
+          {recentReviews.length === 0 ? (
             <Text style={styles.emptyReviews}>No reviews yet</Text>
           ) : (
-            dashboard?.recentReviews.map((review) => (
+            recentReviews.slice(0, 3).map((review) => (
               <View key={review.id} style={styles.reviewCard}>
                 <View style={styles.reviewAvatar}>
-                  <Text style={styles.reviewInitials}>
-                    {getInitials(review.user?.fullName || 'U')}
-                  </Text>
+                  {review.user?.profileImageUrl ? (
+                    <Image
+                      source={{ uri: review.user.profileImageUrl }}
+                      style={styles.reviewAvatarImage}
+                    />
+                  ) : (
+                    <Text style={styles.reviewInitials}>
+                      {getInitials(review.user?.fullName || 'U')}
+                    </Text>
+                  )}
                 </View>
                 <View style={styles.reviewBody}>
-                  <Text style={styles.reviewName}>{review.user?.fullName}</Text>
-                  <Text style={styles.reviewStars}>{'★'.repeat(review.rating)}</Text>
-                  <Text style={styles.reviewComment} numberOfLines={2}>{review.comment}</Text>
+                  <View style={styles.reviewTopRow}>
+                    <Text style={styles.reviewName} numberOfLines={1}>
+                      {formatReviewName(review.user?.fullName)}
+                    </Text>
+                    <View style={styles.starsRow}>
+                      {Array.from({ length: Math.min(5, Math.max(0, review.rating)) }).map(
+                        (_, i) => (
+                          <RatingIcon key={i} size={12} color="#FBBF24" />
+                        )
+                      )}
+                    </View>
+                  </View>
+                  <Text style={styles.reviewComment} numberOfLines={2}>
+                    {review.comment}
+                  </Text>
                 </View>
               </View>
             ))
           )}
 
-          <Text style={styles.sectionTitle}>Quick Actions</Text>
+          <Text style={[styles.sectionTitle, { marginTop: Spacing.md }]}>Quick Actions</Text>
           <View style={styles.actionsRow}>
             <Pressable
               style={styles.actionItem}
-              android_ripple={{ color: 'transparent', borderless: true }}
-              onPress={canCreateListing ? () => navigation?.navigate('SelectCategory') : showCreateGateAlert}
+              onPress={
+                canCreateListing
+                  ? () => navigation?.navigate('SelectCategory')
+                  : showCreateGateAlert
+              }
             >
-              <View style={styles.actionIconClip}>
-                <StoreQuickActionAddIcon size={51} />
-              </View>
+              <StoreQuickActionAddIcon size={56} />
               <Text style={styles.actionLabel}>Add Listing</Text>
             </Pressable>
             <Pressable
               style={styles.actionItem}
-              android_ripple={{ color: 'transparent', borderless: true }}
               onPress={() => navigation?.navigate('CreateStore', { edit: true })}
             >
-              <View style={styles.actionIconClip}>
-                <StoreQuickActionEditIcon size={51} />
-              </View>
+              <StoreQuickActionEditIcon size={56} />
               <Text style={styles.actionLabel}>Edit Store</Text>
-            </Pressable>
-            <Pressable
-              style={styles.actionItem}
-              android_ripple={{ color: 'transparent', borderless: true }}
-              onPress={() => navigation?.navigate('StoreAnalytics')}
-            >
-              <View style={styles.actionIconClip}>
-                <StoreQuickActionAnalyticsIcon size={51} />
-              </View>
-              <Text style={styles.actionLabel}>Analytics</Text>
             </Pressable>
           </View>
         </ScrollView>
@@ -227,6 +277,7 @@ export const StoreDashboardScreen: React.FC<{ navigation?: any }> = ({ navigatio
         onCreatePress={handleCreatePress}
         canCreateListing={canCreateListing}
         onDisabledCreatePress={showCreateGateAlert}
+        showCreateButton
       />
 
       <Snackbar
@@ -240,108 +291,127 @@ export const StoreDashboardScreen: React.FC<{ navigation?: any }> = ({ navigatio
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.light.surface },
+  container: { flex: 1, backgroundColor: '#F5F6F8' },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    backgroundColor: HEADER_NAVY,
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    backgroundColor: Colors.light.background,
+    paddingBottom: Spacing.md,
   },
-  backButton: {
-    padding: Spacing.xs,
-    marginLeft: -Spacing.xs,
-  },
-  headerTitle: {
-    ...Typography.h3,
-    flex: 1,
-    textAlign: 'center',
-    color: Colors.light.text,
-  },
-  profileButton: {
+  headerCircleBtn: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    overflow: 'hidden',
-    borderWidth: 2,
-    borderColor: Colors.light.primary,
+    backgroundColor: 'rgba(255,255,255,0.14)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  profileImage: {
-    width: '100%',
-    height: '100%',
-    resizeMode: 'cover',
+  headerTitle: {
+    ...Typography.h3,
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 18,
   },
   content: { padding: Spacing.md, paddingBottom: Spacing.xxl },
   storeCard: {
-    borderRadius: BorderRadius.lg,
-    marginBottom: Spacing.md,
-    overflow: 'hidden',
-  },
-  storeCardSolid: {
-    backgroundColor: Colors.light.primary,
-  },
-  storeCardCoverImage: {
-    borderRadius: BorderRadius.lg,
-    resizeMode: 'cover',
-  },
-  storeCardOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.45)',
-  },
-  storeCardContent: {
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: BorderRadius.lg,
     padding: Spacing.md,
+    marginBottom: Spacing.md,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 3,
   },
-  storeInfo: { flex: 1 },
-  storeName: { ...Typography.h3, color: '#fff' },
-  badges: { flexDirection: 'row', gap: Spacing.xs, marginTop: Spacing.xs },
-  badgeVerified: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 12,
-  },
-  badgeVerifiedText: { color: '#fff', fontSize: 11 },
-  badgeActive: { backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 12 },
-  badgeActiveText: { color: '#fff', fontSize: 11 },
   avatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: 'rgba(255,255,255,0.3)',
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: Colors.light.surface,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
+    marginRight: Spacing.md,
   },
   avatarImage: { width: '100%', height: '100%', resizeMode: 'cover' },
-  avatarText: { color: '#fff', fontWeight: '700', fontSize: 16 },
-  statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm, marginBottom: Spacing.lg },
+  avatarText: { color: Colors.light.primary, fontWeight: '700', fontSize: 16 },
+  storeInfo: { flex: 1 },
+  storeName: { ...Typography.h3, color: Colors.light.text, fontSize: 18 },
+  badges: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
+  badge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#E8F8EF',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+  badgeText: { color: '#16A34A', fontSize: 12, fontWeight: '600' },
+  activeDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: '#22C55E',
+  },
+  statsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    rowGap: Spacing.sm,
+    marginBottom: Spacing.lg,
+  },
   statCard: {
-    width: '47%',
-    backgroundColor: Colors.light.background,
+    width: '48.5%',
+    backgroundColor: '#FFFFFF',
     borderRadius: BorderRadius.lg,
     padding: Spacing.md,
-    borderWidth: 1,
-    borderColor: Colors.light.border,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
   },
-  statIcon: { marginBottom: 4 },
-  statValue: { ...Typography.h2, color: Colors.light.text },
-  statLabel: { ...Typography.caption, color: Colors.light.textSecondary },
-  sectionTitle: { ...Typography.h3, marginBottom: Spacing.sm },
+  statTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: Spacing.sm,
+  },
+  statLabel: { ...Typography.caption, color: Colors.light.textSecondary, flex: 1, marginRight: 8 },
+  statIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  statValue: { fontSize: 28, fontWeight: '700', lineHeight: 34 },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: Spacing.sm,
+  },
+  sectionTitle: { ...Typography.h3, color: Colors.light.text, fontSize: 17 },
+  seeAll: { color: HEADER_NAVY, fontWeight: '600', fontSize: 14 },
   emptyReviews: { color: Colors.light.textSecondary, marginBottom: Spacing.lg },
   reviewCard: {
     flexDirection: 'row',
-    backgroundColor: Colors.light.background,
-    borderRadius: BorderRadius.md,
+    backgroundColor: '#FFFFFF',
+    borderRadius: BorderRadius.lg,
     padding: Spacing.md,
     marginBottom: Spacing.sm,
-    borderWidth: 1,
-    borderColor: Colors.light.border,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
   },
   reviewAvatar: {
     width: 40,
@@ -351,46 +421,37 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: Spacing.sm,
+    overflow: 'hidden',
   },
-  reviewInitials: { fontWeight: '700', color: Colors.light.primary },
+  reviewAvatarImage: { width: '100%', height: '100%', resizeMode: 'cover' },
+  reviewInitials: { fontWeight: '700', color: Colors.light.primary, fontSize: 13 },
   reviewBody: { flex: 1 },
-  reviewName: { fontWeight: '600' },
-  reviewStars: { color: '#F59E0B', fontSize: 12 },
-  reviewComment: { ...Typography.caption, color: Colors.light.textSecondary, marginTop: 2 },
-  actionsRow: {
+  reviewTopRow: {
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: Spacing.sm,
     gap: 8,
   },
-  actionItem: {
-    flex: 1,
-    maxWidth: 111.4,
-    minHeight: 112.9,
-    paddingTop: 16.98,
-    paddingRight: 16.99,
-    paddingBottom: 16.99,
-    paddingLeft: 16.99,
-    borderRadius: 10.62,
-    borderWidth: 1.25,
-    borderColor: Colors.light.border,
-    backgroundColor: Colors.light.background,
-    alignItems: 'center',
+  reviewName: { fontWeight: '700', color: Colors.light.text, flexShrink: 1 },
+  starsRow: { flexDirection: 'row', gap: 2 },
+  reviewComment: { ...Typography.caption, color: Colors.light.textSecondary, marginTop: 4, lineHeight: 18 },
+  actionsRow: {
+    flexDirection: 'row',
     justifyContent: 'center',
-    gap: 8.48,
-    opacity: 1,
-    ...(Platform.OS === 'web' ? { outlineStyle: 'none' as const, outlineWidth: 0 } : {}),
+    alignItems: 'center',
+    gap: Spacing.xl,
+    marginTop: Spacing.md,
+    paddingHorizontal: Spacing.sm,
   },
-  actionIconClip: {
-    width: 51,
-    height: 51,
-    borderRadius: 25.5,
-    overflow: 'hidden',
+  actionItem: {
+    alignItems: 'center',
+    gap: Spacing.sm,
   },
   actionLabel: {
     ...Typography.caption,
-    color: Colors.light.textSecondary,
-    fontSize: 12,
+    color: Colors.light.text,
+    fontSize: 13,
+    fontWeight: '600',
     textAlign: 'center',
   },
 });

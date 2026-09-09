@@ -1,5 +1,6 @@
 /**
- * Select Category Screen — create listing: pick Events, Products, Properties, or Services
+ * Select Category Screen — Events, Products, Services, Property
+ * Figma: node 1054:379
  */
 
 import React, { useState, useEffect, useMemo } from 'react';
@@ -7,54 +8,83 @@ import {
   View,
   Text,
   StyleSheet,
-  TouchableOpacity,
-  Image,
   ScrollView,
   ActivityIndicator,
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { BackIcon, ForwardIcon, Snackbar } from '../components/common';
-import {
-  CategoryEventIcon,
-  CategoryProductIcon,
-  PropertiesIcon,
-  CategoryServiceIcon,
-} from '../components/common';
+import { ForwardIcon, Snackbar } from '../components/common';
+import { ListingWizardHeader, ListingCategoryCard } from '../components/listings/wizard';
 import { BottomNavigation, type BottomNavItem } from '../components/navigation';
-import { Colors, Spacing, Typography, BorderRadius } from '../config/theme';
+import { Colors, Spacing } from '../config/theme';
 import { categoryService } from '../services';
 import { useProfile, useStore } from '../hooks';
+
+const MP = Colors.light.marketplace;
 
 type SelectCategoryScreenProps = {
   navigation?: any;
 };
 
-/** Fixed order; only first match per type (drops duplicate Services from API). */
-const CATEGORY_ORDER: { key: string }[] = [
-  { key: 'event' },
-  { key: 'product' },
-  { key: 'propert' },
-  { key: 'service' },
-];
+const CATEGORY_ORDER = ['event', 'product', 'service', 'propert'] as const;
+
+type CategoryTheme = {
+  emoji: string;
+  iconBg: string;
+  chevronBg: string;
+  chevronColor: string;
+  displayName: string;
+  subtitle: string;
+};
+
+const CATEGORY_THEMES: Record<string, CategoryTheme> = {
+  event: {
+    emoji: '🎟️',
+    iconBg: '#F5EEF8',
+    chevronBg: '#F5EEF8',
+    chevronColor: MP.eventBadge,
+    displayName: 'Events',
+    subtitle: 'Parties, concerts, meetups',
+  },
+  product: {
+    emoji: '🛍️',
+    iconBg: '#EBF5FB',
+    chevronBg: '#EBF5FB',
+    chevronColor: MP.primary,
+    displayName: 'Products',
+    subtitle: 'Electronics, clothing, furniture & more',
+  },
+  service: {
+    emoji: '💼',
+    iconBg: '#FFEDD5',
+    chevronBg: '#FFEDD5',
+    chevronColor: '#E99132',
+    displayName: 'Services',
+    subtitle: 'Consulting, beauty, repairs & more',
+  },
+  propert: {
+    emoji: '🏠',
+    iconBg: '#FEF5EC',
+    chevronBg: '#FEF5EC',
+    chevronColor: '#E99132',
+    displayName: 'Property',
+    subtitle: 'Rent, sale & commercial spaces',
+  },
+};
 
 function normalizeCategories(apiList: any[]): any[] {
   if (!Array.isArray(apiList) || apiList.length === 0) return [];
-  const usedIds = new Set<string>();
   const out: any[] = [];
-  for (const { key } of CATEGORY_ORDER) {
+
+  for (const key of CATEGORY_ORDER) {
     const found = apiList.find((c) => {
       const s = `${c?.name || ''} ${c?.slug || ''}`.toLowerCase();
       return s.includes(key);
     });
-    if (found?.id != null) {
-      const id = String(found.id);
-      if (!usedIds.has(id)) {
-        usedIds.add(id);
-        out.push(found);
-      }
-    }
+    if (found?.id == null) continue;
+    out.push({ ...found, optionKey: key });
   }
+
   return out;
 }
 
@@ -77,39 +107,18 @@ function filterCategoriesForStore(categories: any[], businessCategory?: string |
   });
 }
 
-function categorySubtitle(category: any): string {
+function categoryKey(category: any): string {
   const s = `${category?.name || ''} ${category?.slug || ''}`.toLowerCase();
-  if (s.includes('event')) return 'Parties, meetings, workshops';
-  if (s.includes('product')) return 'Items, gadgets, merchandise';
-  if (s.includes('propert')) return 'Rentals, sales, sublets';
-  if (s.includes('service')) return 'Consulting, business, repairs';
-  return category?.description?.trim() || 'Select to create listing';
+  if (s.includes('event')) return 'event';
+  if (s.includes('product')) return 'product';
+  if (s.includes('propert')) return 'propert';
+  if (s.includes('service')) return 'service';
+  return 'product';
 }
 
-function getCategoryIcon(categoryName: string) {
-  const name = (categoryName || '').toLowerCase();
-  if (name.includes('event')) {
-    return <CategoryEventIcon />;
-  }
-  if (name.includes('product')) {
-    return <CategoryProductIcon />;
-  }
-  if (name.includes('propert')) {
-    return <PropertiesIcon />;
-  }
-  if (name.includes('service')) {
-    return <CategoryServiceIcon />;
-  }
-  return <CategoryProductIcon />;
-}
-
-function chevronColorForCategory(categoryName: string): string {
-  const name = (categoryName || '').toLowerCase();
-  if (name.includes('event')) return '#3B75E1';
-  if (name.includes('product')) return '#3EB177';
-  if (name.includes('propert')) return '#B74DED';
-  if (name.includes('service')) return '#E99132';
-  return Colors.light.primary;
+function categoryTheme(category: any): CategoryTheme {
+  const key = categoryKey(category);
+  return CATEGORY_THEMES[key] ?? CATEGORY_THEMES.product;
 }
 
 export const SelectCategoryScreen: React.FC<SelectCategoryScreenProps> = ({ navigation }) => {
@@ -157,7 +166,10 @@ export const SelectCategoryScreen: React.FC<SelectCategoryScreenProps> = ({ navi
     } else if (n.includes('event')) {
       navigation?.navigate('SelectEventType', { categoryId: category.id, category: categoryName });
     } else if (n.includes('service')) {
-      navigation?.navigate('SelectServiceType', { categoryId: category.id, category: categoryName });
+      navigation?.navigate('SelectServiceType', {
+        categoryId: category.id,
+        category: categoryName,
+      });
     } else if (n.includes('propert')) {
       navigation?.navigate('PropertyListing', { categoryId: category.id, category: categoryName });
     }
@@ -165,24 +177,16 @@ export const SelectCategoryScreen: React.FC<SelectCategoryScreenProps> = ({ navi
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.headerRow}>
-        <TouchableOpacity style={styles.backButton} onPress={() => navigation?.goBack()} activeOpacity={0.7}>
-          <BackIcon size={24} color="#030303" />
-        </TouchableOpacity>
-        <View style={styles.headerTitles}>
-          <Text style={styles.titleText}>Select Category</Text>
-          <Text style={styles.subtitleText}>Choose what you want to list</Text>
-        </View>
-        <TouchableOpacity
-          style={styles.profileButton}
-          activeOpacity={0.7}
-          onPress={() => navigation?.navigate('Profile')}
-        >
-          <Image
-            source={{ uri: profileImageUrl || 'https://i.pravatar.cc/150?img=12' }}
-            style={styles.profileImage}
-          />
-        </TouchableOpacity>
+      <View style={styles.headerBand}>
+        <ListingWizardHeader
+          title="Select Category"
+          subtitle="Choose what you want to list"
+          profileImageUrl={profileImageUrl}
+          onBack={() => navigation?.goBack()}
+          onProfilePress={() => navigation?.navigate('Profile')}
+          showBell={false}
+          usePillControls
+        />
       </View>
 
       <ScrollView
@@ -192,7 +196,7 @@ export const SelectCategoryScreen: React.FC<SelectCategoryScreenProps> = ({ navi
       >
         {loading ? (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={Colors.light.primary} />
+            <ActivityIndicator size="large" color={MP.primary} />
             <Text style={styles.loadingText}>Loading categories…</Text>
           </View>
         ) : categories.length === 0 ? (
@@ -205,26 +209,34 @@ export const SelectCategoryScreen: React.FC<SelectCategoryScreenProps> = ({ navi
             </Text>
           </View>
         ) : (
-          categories.map((category) => {
-            const name = category.name || category.slug || '';
-            return (
-              <TouchableOpacity
-                key={String(category.id)}
-                style={styles.rowCard}
-                onPress={() => goToListingFlow(category)}
-                activeOpacity={0.75}
-                accessibilityRole="button"
-                accessibilityLabel={`${name}, ${categorySubtitle(category)}`}
-              >
-                <View style={styles.rowIconWrap}>{getCategoryIcon(name)}</View>
-                <View style={styles.rowTextBlock}>
-                  <Text style={styles.rowTitle}>{name}</Text>
-                  <Text style={styles.rowSubtitle}>{categorySubtitle(category)}</Text>
-                </View>
-                <ForwardIcon size={22} color={chevronColorForCategory(name)} />
-              </TouchableOpacity>
-            );
-          })
+          <>
+            <View style={styles.cardList}>
+              {categories.map((category) => {
+                const theme = categoryTheme(category);
+                return (
+                  <ListingCategoryCard
+                    key={category.optionKey ?? String(category.id)}
+                    title={theme.displayName}
+                    subtitle={theme.subtitle}
+                    emoji={theme.emoji}
+                    iconBackgroundColor={theme.iconBg}
+                    chevronBackgroundColor={theme.chevronBg}
+                    chevronColor={theme.chevronColor}
+                    onPress={() => goToListingFlow(category)}
+                  />
+                );
+              })}
+            </View>
+
+            <View style={styles.hintBox}>
+              <Text style={styles.hintEmoji}>💡</Text>
+              <View style={styles.hintTextBlock}>
+                <Text style={styles.hintTitle}>Not sure?</Text>
+                <Text style={styles.hintSubtitle}>You can change this later anytime.</Text>
+              </View>
+              <ForwardIcon size={14} color={MP.primary} />
+            </View>
+          </>
         )}
       </ScrollView>
 
@@ -254,99 +266,34 @@ export const SelectCategoryScreen: React.FC<SelectCategoryScreenProps> = ({ navi
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: MP.screenSurface,
+  },
+  headerBand: {
     backgroundColor: Colors.light.background,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    paddingHorizontal: Spacing.md,
-    paddingTop: Spacing.sm,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 2,
+    elevation: 2,
     paddingBottom: Spacing.md,
-    gap: Spacing.sm,
-  },
-  backButton: {
-    padding: Spacing.xs,
-    marginLeft: -Spacing.xs,
-    marginTop: 2,
-  },
-  headerTitles: {
-    flex: 1,
-    minWidth: 0,
-  },
-  titleText: {
-    ...Typography.h2,
-    color: Colors.light.text,
-    fontWeight: '700',
-    fontSize: 20,
-  },
-  subtitleText: {
-    ...Typography.body,
-    color: Colors.light.textSecondary,
-    fontSize: 14,
-    marginTop: 4,
-  },
-  profileButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: Colors.light.border,
-    marginTop: 2,
-  },
-  profileImage: {
-    width: '100%',
-    height: '100%',
   },
   scrollView: {
     flex: 1,
   },
   content: {
-    paddingHorizontal: Spacing.md,
+    padding: Spacing.md,
     paddingBottom: Spacing.xl,
   },
-  rowCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.light.background,
-    borderRadius: BorderRadius.lg,
-    borderWidth: 1,
-    borderColor: '#E8E8ED',
-    paddingVertical: Spacing.md,
-    paddingHorizontal: Spacing.md,
-    gap: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 2,
-    marginBottom: Spacing.md,
-  },
-  rowIconWrap: {
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  rowTextBlock: {
-    flex: 1,
-    minWidth: 0,
-  },
-  rowTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: Colors.light.text,
-  },
-  rowSubtitle: {
-    fontSize: 13,
-    color: Colors.light.textSecondary,
-    marginTop: 2,
+  cardList: {
+    gap: 12,
   },
   loadingContainer: {
     padding: Spacing.xl,
     alignItems: 'center',
   },
   loadingText: {
-    ...Typography.body,
-    color: Colors.light.textSecondary,
+    fontSize: 14,
+    color: MP.chipInactiveText,
     marginTop: Spacing.md,
   },
   emptyContainer: {
@@ -355,15 +302,42 @@ const styles = StyleSheet.create({
     minHeight: 200,
   },
   emptyText: {
-    ...Typography.h3,
-    color: Colors.light.text,
+    fontSize: 18,
     fontWeight: '600',
+    color: Colors.light.textHeading,
     marginBottom: Spacing.xs,
   },
   emptySubtext: {
-    ...Typography.body,
-    color: Colors.light.textSecondary,
     fontSize: 14,
+    color: Colors.light.textSecondary,
     textAlign: 'center',
+  },
+  hintBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 8,
+    padding: 12,
+    borderRadius: 14,
+    backgroundColor: '#EBF5FB',
+  },
+  hintEmoji: {
+    fontSize: 16,
+    lineHeight: 24,
+  },
+  hintTextBlock: {
+    flex: 1,
+  },
+  hintTitle: {
+    fontSize: 12,
+    fontWeight: '600',
+    lineHeight: 18,
+    color: MP.primary,
+  },
+  hintSubtitle: {
+    fontSize: 11,
+    lineHeight: 16.5,
+    color: '#5A8FAA',
+    marginTop: 1,
   },
 });

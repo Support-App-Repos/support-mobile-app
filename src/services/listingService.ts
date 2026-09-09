@@ -89,6 +89,11 @@ class ListingService {
     builtUpArea?: string;
     propertyUsage?: string;
     balconySize?: string;
+    // Product fields
+    condition?: string;
+    productCategory?: string;
+    brand?: string;
+    warranty?: string;
     // Photos
     photos?: string[];
     // Regions

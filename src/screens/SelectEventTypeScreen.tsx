@@ -1,6 +1,5 @@
 /**
  * Select Event Type Screen
- * Screen for selecting an event type when creating an event listing
  */
 
 import React, { useState, useEffect } from 'react';
@@ -8,42 +7,36 @@ import {
   View,
   Text,
   StyleSheet,
-  TouchableOpacity,
-  Image,
   ScrollView,
   Dimensions,
   ActivityIndicator,
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { BackIcon, BellIcon, ForwardIcon, PartyIcon, MeetingIcon, WorkshopIcon } from '../components/common';
+import { PartyIcon, MeetingIcon, WorkshopIcon } from '../components/common';
+import {
+  ListingWizardHeader,
+  ListingTypeCard,
+  ListingWizardFooter,
+} from '../components/listings/wizard';
 import { BottomNavigation, type BottomNavItem } from '../components/navigation';
-import { Colors, Spacing, Typography, BorderRadius } from '../config/theme';
+import { Colors, Spacing, Typography } from '../config/theme';
 import { categoryService } from '../services';
 import { useProfile } from '../hooks';
 
 const { width } = Dimensions.get('window');
-const CARD_WIDTH = (width - Spacing.md * 3) / 2; // Account for padding and gap
+const CARD_WIDTH = (width - Spacing.md * 2 - Spacing.sm) / 2;
 
 type SelectEventTypeScreenProps = {
   navigation?: any;
   route?: {
     params?: {
       category?: string;
+      categoryId?: string;
     };
   };
 };
 
-export type EventType = 'Parties' | 'Meetings' | 'Workshops';
-
-interface EventTypeOption {
-  id: EventType;
-  title: string;
-  description: string;
-  icon: React.ReactNode;
-}
-
-// Map event type names to icons
 const getEventTypeIcon = (eventTypeName: string) => {
   const name = eventTypeName.toLowerCase();
   if (name.includes('party') || name.includes('parties')) {
@@ -56,6 +49,14 @@ const getEventTypeIcon = (eventTypeName: string) => {
     return <WorkshopIcon size={24} />;
   }
   return <PartyIcon size={24} color="#FF146E" />;
+};
+
+const getEventTypeTag = (eventTypeName: string): string | undefined => {
+  const name = eventTypeName.toLowerCase();
+  if (name.includes('party')) return 'Fun & Social';
+  if (name.includes('meeting')) return 'Professional';
+  if (name.includes('workshop')) return 'Learning & Growth';
+  return undefined;
 };
 
 export const SelectEventTypeScreen: React.FC<SelectEventTypeScreenProps> = ({
@@ -78,10 +79,9 @@ export const SelectEventTypeScreen: React.FC<SelectEventTypeScreenProps> = ({
       setLoading(true);
       const response = await categoryService.getEventTypes();
       const eventTypesData = (response.data as any)?.data || response.data || [];
-      
+
       if (response.success && Array.isArray(eventTypesData)) {
-        // Filter by categoryId if provided
-        const filtered = categoryId 
+        const filtered = categoryId
           ? eventTypesData.filter((et: any) => et.categoryId === categoryId)
           : eventTypesData;
         setEventTypes(filtered);
@@ -92,10 +92,6 @@ export const SelectEventTypeScreen: React.FC<SelectEventTypeScreenProps> = ({
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleEventTypeSelect = (eventType: any) => {
-    setSelectedEventType(eventType);
   };
 
   const handleContinue = () => {
@@ -109,54 +105,17 @@ export const SelectEventTypeScreen: React.FC<SelectEventTypeScreenProps> = ({
     }
   };
 
-  const handleBack = () => {
-    navigation?.goBack();
-  };
-
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={handleBack}
-          activeOpacity={0.7}
-        >
-          <BackIcon size={24} color="#030303" />
-        </TouchableOpacity>
-        <View style={styles.headerRight}>
-          <TouchableOpacity
-            style={styles.iconButton}
-            activeOpacity={0.7}
-            onPress={() => {
-              // TODO: Navigate to notifications
-              console.log('Notifications pressed');
-            }}
-          >
-            <BellIcon size={24} color="#111827" />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.profileButton}
-            activeOpacity={0.7}
-            onPress={() => {
-              // TODO: Navigate to profile
-              console.log('Profile pressed');
-            }}
-          >
-            <Image
-              source={{ uri: profileImageUrl || 'https://i.pravatar.cc/150?img=12' }}
-              style={styles.profileImage}
-            />
-          </TouchableOpacity>
-        </View>
-      </View>
+      <ListingWizardHeader
+        eyebrow="Step 1 of 3"
+        title="Select Event Type"
+        subtitle="Choose the type that best fits your event."
+        profileImageUrl={profileImageUrl}
+        onBack={() => navigation?.goBack()}
+        onProfilePress={() => navigation?.navigate('Profile')}
+      />
 
-      {/* Title Section */}
-      <View style={styles.titleSection}>
-        <Text style={styles.titleText}>Select Event Type</Text>
-      </View>
-
-      {/* Content */}
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.content}
@@ -168,69 +127,36 @@ export const SelectEventTypeScreen: React.FC<SelectEventTypeScreenProps> = ({
             <Text style={styles.loadingText}>Loading event types...</Text>
           </View>
         ) : (
-          <View style={styles.eventTypesGrid}>
+          <View style={styles.grid}>
             {eventTypes.map((eventType) => (
-              <TouchableOpacity
+              <ListingTypeCard
                 key={eventType.id}
-                style={[
-                  styles.eventTypeCard,
-                  selectedEventType?.id === eventType.id && styles.eventTypeCardSelected,
-                ]}
-                onPress={() => handleEventTypeSelect(eventType)}
-                activeOpacity={0.8}
-              >
-                <View style={styles.eventTypeIcon}>{getEventTypeIcon(eventType.name)}</View>
-                <Text style={styles.eventTypeTitle}>{eventType.name}</Text>
-                <Text style={styles.eventTypeDescription}>
-                  {eventType.description || 'Select to create listing'}
-                </Text>
-              </TouchableOpacity>
+                style={{ width: CARD_WIDTH }}
+                title={eventType.name}
+                description={eventType.description || 'Select to create listing'}
+                icon={getEventTypeIcon(eventType.name)}
+                tag={getEventTypeTag(eventType.name)}
+                selected={selectedEventType?.id === eventType.id}
+                onPress={() => setSelectedEventType(eventType)}
+              />
             ))}
           </View>
         )}
       </ScrollView>
 
-      {/* Continue Button */}
-      <View style={styles.footer}>
-        <TouchableOpacity
-          style={[
-            styles.continueButton,
-            !selectedEventType && styles.continueButtonDisabled,
-          ]}
-          onPress={handleContinue}
-          disabled={!selectedEventType}
-          activeOpacity={0.8}
-        >
-          <Text
-            style={[
-              styles.continueButtonText,
-              !selectedEventType && styles.continueButtonTextDisabled,
-            ]}
-          >
-            Continue to details
-          </Text>
-          <ForwardIcon
-            size={20}
-            color={selectedEventType ? '#FFFFFF' : '#9CA3AF'}
-          />
-        </TouchableOpacity>
-      </View>
+      <ListingWizardFooter
+        label="Continue to details"
+        onPress={handleContinue}
+        disabled={!selectedEventType}
+      />
 
-      {/* Bottom Navigation */}
       <BottomNavigation
         activeTab={activeTab}
         onTabPress={(tab) => {
           setActiveTab(tab);
-          if (tab === 'Home') {
-            navigation?.navigate('Home');
-          } else if (tab === 'Store') {
-            navigation?.navigate('Store');
-          } else if (tab === 'Messages') {
-            // TODO: Navigate to Messages screen when implemented
-            console.log('Messages screen not yet implemented');
-          } else if (tab === 'Profile') {
-            navigation?.navigate('Profile');
-          }
+          if (tab === 'Home') navigation?.navigate('Home');
+          else if (tab === 'Store') navigation?.navigate('Store');
+          else if (tab === 'Profile') navigation?.navigate('Profile');
         }}
         onCreatePress={() => {}}
         showCreateButton={false}
@@ -244,119 +170,17 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.light.background,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.md,
-  },
-  backButton: {
-    padding: Spacing.xs,
-    marginLeft: -Spacing.xs,
-  },
-  headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-  },
-  iconButton: {
-    padding: Spacing.xs,
-  },
-  profileButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: Colors.light.border,
-  },
-  profileImage: {
-    width: '100%',
-    height: '100%',
-    resizeMode: 'cover',
-  },
-  titleSection: {
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.md,
-  },
-  titleText: {
-    ...Typography.h2,
-    color: Colors.light.text,
-    fontWeight: '700',
-    fontSize: 18,
-  },
   scrollView: {
     flex: 1,
   },
   content: {
-    padding: Spacing.md,
+    paddingHorizontal: Spacing.md,
     paddingBottom: Spacing.xl,
   },
-  eventTypesGrid: {
+  grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
-  },
-  eventTypeCard: {
-    width: CARD_WIDTH,
-    backgroundColor: Colors.light.background,
-    borderRadius: BorderRadius.lg,
-    padding: Spacing.md,
-    alignItems: 'flex-start',
-    borderWidth: 2,
-    borderColor: '#E5E7EB',
-    minHeight: 160,
-    justifyContent: 'center',
-    marginBottom: Spacing.md,
-  },
-  eventTypeCardSelected: {
-    borderColor: Colors.light.primary,
-    backgroundColor: '#F0F9FF',
-  },
-  eventTypeIcon: {
-    marginBottom: Spacing.sm,
-  },
-  eventTypeTitle: {
-    ...Typography.h3,
-    color: Colors.light.text,
-    fontWeight: '600',
-    marginBottom: Spacing.xs,
-    fontSize: 16,
-    textAlign: 'left',
-  },
-  eventTypeDescription: {
-    ...Typography.caption,
-    color: Colors.light.textSecondary,
-    textAlign: 'left',
-    fontSize: 12,
-  },
-  footer: {
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.md,
-    backgroundColor: Colors.light.background,
-  },
-  continueButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: Colors.light.primary,
-    borderRadius: 9999, // Pill shape
-    paddingVertical: Spacing.md,
-    paddingHorizontal: Spacing.lg,
-    gap: Spacing.sm,
-  },
-  continueButtonDisabled: {
-    backgroundColor: '#F3F4F6',
-  },
-  continueButtonText: {
-    ...Typography.body,
-    color: '#FFFFFF',
-    fontWeight: '600',
-    fontSize: 16,
-  },
-  continueButtonTextDisabled: {
-    color: '#9CA3AF',
   },
   loadingContainer: {
     padding: Spacing.xl,
@@ -369,4 +193,3 @@ const styles = StyleSheet.create({
     marginTop: Spacing.md,
   },
 });
-

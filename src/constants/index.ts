@@ -18,17 +18,17 @@ const getBaseURL = () => {
   // Always use environment variables, regardless of __DEV__ mode
   let baseURL: string;
   if (Platform.OS === 'android') {
-    baseURL = API_BASE_URL_ANDROID || API_BASE_URL || 'http://10.237.247.75:3000/api';
+    baseURL = API_BASE_URL_ANDROID || API_BASE_URL || 'http://10.112.64.75:3000/api';
   } else {
-    baseURL = API_BASE_URL_IOS || API_BASE_URL || 'http://10.237.247.75:3000/api';
+    baseURL = API_BASE_URL_IOS || API_BASE_URL || 'http://10.112.64.75:3000/api';
   }
   
   // Log the API URL being used (helpful for debugging)
-  // if (__DEV__) {
-  //   console.log(`[API Config] Platform: ${Platform.OS}, Base URL: ${baseURL}`);
-  //   console.log(`[API Config] API_BASE_URL_ANDROID: ${API_BASE_URL_ANDROID || 'not set'}`);
-  //   console.log(`[API Config] API_BASE_URL: ${API_BASE_URL || 'not set'}`);
-  // }
+  if (__DEV__) {
+    console.log(`[API Config] Platform: ${Platform.OS}, Base URL: ${baseURL}`);
+    console.log(`[API Config] API_BASE_URL_ANDROID: ${API_BASE_URL_ANDROID || 'not set'}`);
+    console.log(`[API Config] API_BASE_URL: ${API_BASE_URL || 'not set'}`);
+  }
   
   return baseURL;
 };

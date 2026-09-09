@@ -5,16 +5,16 @@
 
 import React from 'react';
 import {
-  View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
 } from 'react-native';
-import { CategoryTabSvgIcon } from './CategoryTabSvgIcon';
-import { Colors, Spacing, Typography, BorderRadius } from '../../config/theme';
+import { Colors, BorderRadius } from '../../config/theme';
 
 export type Category = 'All' | 'Property' | 'Events' | 'Product' | 'Services';
+
+const MP = Colors.light.marketplace;
 
 const CATEGORY_LABEL: Record<Category, string> = {
   All: 'All',
@@ -24,24 +24,18 @@ const CATEGORY_LABEL: Record<Category, string> = {
   Services: 'Services',
 };
 
-const categories: {
-  name: Category;
-  iconVariant?: 'property' | 'product' | 'services' | 'event';
-}[] = [
-  { name: 'All' },
-  { name: 'Property', iconVariant: 'property' },
-  { name: 'Product', iconVariant: 'product' },
-  { name: 'Services', iconVariant: 'services' },
-  { name: 'Events', iconVariant: 'event' },
+const categories: Category[] = [
+  'All',
+  'Events',
+  'Product',
+  'Services',
+  'Property',
 ];
 
 interface CategoryTabsProps {
   selectedCategory: Category;
   onCategoryChange: (category: Category) => void;
 }
-
-const INACTIVE_ICON = '#828282';
-const ACTIVE_ON_PRIMARY = '#FFFFFF';
 
 export const CategoryTabs: React.FC<CategoryTabsProps> = ({
   selectedCategory,
@@ -54,30 +48,18 @@ export const CategoryTabs: React.FC<CategoryTabsProps> = ({
       contentContainerStyle={styles.container}
     >
       {categories.map((category) => {
-        const active = selectedCategory === category.name;
-        const iconColor = active ? ACTIVE_ON_PRIMARY : INACTIVE_ICON;
+        const active = selectedCategory === category;
 
         return (
           <TouchableOpacity
-            key={category.name}
+            key={category}
             style={[styles.chip, active && styles.chipActive]}
-            onPress={() => onCategoryChange(category.name)}
+            onPress={() => onCategoryChange(category)}
             activeOpacity={0.75}
           >
-            <View style={styles.chipInner}>
-              {category.iconVariant && (
-                <View style={styles.iconWrap}>
-                  <CategoryTabSvgIcon
-                    variant={category.iconVariant}
-                    size={14}
-                    color={iconColor}
-                  />
-                </View>
-              )}
-              <Text style={[styles.chipText, active && styles.chipTextActive]}>
-                {CATEGORY_LABEL[category.name]}
-              </Text>
-            </View>
+            <Text style={[styles.chipText, active && styles.chipTextActive]}>
+              {CATEGORY_LABEL[category]}
+            </Text>
           </TouchableOpacity>
         );
       })}
@@ -89,42 +71,37 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    gap: 10,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    gap: 8,
   },
   chip: {
-    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: Spacing.md,
-    paddingVertical: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: BorderRadius.round,
     backgroundColor: Colors.light.background,
-    borderWidth: 1,
-    borderColor: Colors.light.border,
+    borderWidth: 1.18,
+    borderColor: MP.searchBorder,
+    minHeight: 32,
   },
   chipActive: {
-    backgroundColor: Colors.light.primary,
-    borderColor: Colors.light.primary,
-  },
-  chipInner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  iconWrap: {
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: MP.primary,
+    borderColor: MP.primary,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
   },
   chipText: {
-    ...Typography.caption,
-    fontSize: 14,
-    fontWeight: '500',
-    color: Colors.light.textSecondary,
+    fontSize: 12,
+    fontWeight: '600',
+    lineHeight: 18,
+    color: MP.chipInactiveText,
   },
   chipTextActive: {
-    color: ACTIVE_ON_PRIMARY,
-    fontWeight: '600',
+    color: '#FFFFFF',
   },
 });

@@ -48,6 +48,12 @@ class StoreService {
     return this.apiService.get<{ success: boolean; data: StoreDashboard }>('/stores/me/dashboard');
   }
 
+  async getMyStoreBookings(type: 'service' | 'event' = 'service') {
+    return this.apiService.get<{ success: boolean; data: any[] }>(
+      `/stores/me/bookings?type=${encodeURIComponent(type)}`,
+    );
+  }
+
   async submitVerification(
     storeId: string,
     documents: Array<{ documentUrl: string; documentType?: string }>

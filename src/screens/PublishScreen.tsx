@@ -9,10 +9,10 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { BackIcon, BellIcon, SuccessIcon } from '../components/common';
+import { SuccessIcon } from '../components/common';
+import { ListingWizardHeader } from '../components/listings/wizard';
 import { BottomNavigation, type BottomNavItem } from '../components/navigation';
 import { Colors, Spacing, Typography, BorderRadius } from '../config/theme';
 import { useProfile } from '../hooks';
@@ -28,7 +28,7 @@ type PublishScreenProps = {
 
 export const PublishScreen: React.FC<PublishScreenProps> = ({
   navigation,
-  route,
+  route: _route,
 }) => {
   const [activeTab, setActiveTab] = useState<BottomNavItem>('Home');
   const { profileImageUrl } = useProfile();
@@ -59,41 +59,12 @@ export const PublishScreen: React.FC<PublishScreenProps> = ({
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={handleBack}
-          activeOpacity={0.7}
-        >
-          <BackIcon size={24} color="#030303" />
-        </TouchableOpacity>
-        <View style={styles.headerRight}>
-          <TouchableOpacity
-            style={styles.iconButton}
-            activeOpacity={0.7}
-            onPress={() => {
-              // TODO: Navigate to notifications
-              console.log('Notifications pressed');
-            }}
-          >
-            <BellIcon size={24} color="#111827" />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.profileButton}
-            activeOpacity={0.7}
-            onPress={() => {
-              // TODO: Navigate to profile
-              console.log('Profile pressed');
-            }}
-          >
-            <Image
-              source={{ uri: profileImageUrl || 'https://i.pravatar.cc/150?img=12' }}
-              style={styles.profileImage}
-            />
-          </TouchableOpacity>
-        </View>
-      </View>
+      <ListingWizardHeader
+        title="Publish Listing"
+        profileImageUrl={profileImageUrl}
+        onBack={handleBack}
+        onProfilePress={() => navigation?.navigate('Profile')}
+      />
 
       {/* Content */}
       <View style={styles.content}>
@@ -105,8 +76,7 @@ export const PublishScreen: React.FC<PublishScreenProps> = ({
         {/* Success Message */}
         <Text style={styles.successTitle}>Your listing is published!</Text>
         <Text style={styles.successMessage}>
-          Congratulations! Your listing is now live and visible to potential
-          customers.
+          Congratulations! Your listing is now live and visible to potential customers.
         </Text>
 
         {/* Action Buttons */}
@@ -209,16 +179,14 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.xl,
   },
   successTitle: {
-    ...Typography.h2,
-    color: Colors.light.text,
-    fontWeight: '700',
-    fontSize: 24,
+    ...Typography.listingTitle,
+    color: Colors.light.textHeading,
     textAlign: 'center',
     marginBottom: Spacing.md,
   },
   successMessage: {
     ...Typography.body,
-    color: Colors.light.textSecondary,
+    color: Colors.light.textMuted,
     fontSize: 14,
     textAlign: 'center',
     marginBottom: Spacing.xl,
@@ -232,7 +200,7 @@ const styles = StyleSheet.create({
   },
   viewListingButton: {
     backgroundColor: Colors.light.primary,
-    borderRadius: BorderRadius.md,
+    borderRadius: BorderRadius.round,
     paddingVertical: Spacing.md,
     paddingHorizontal: Spacing.lg,
     alignItems: 'center',
@@ -245,7 +213,7 @@ const styles = StyleSheet.create({
   },
   createAnotherButton: {
     backgroundColor: Colors.light.background,
-    borderRadius: BorderRadius.md,
+    borderRadius: BorderRadius.round,
     borderWidth: 2,
     borderColor: Colors.light.primary,
     paddingVertical: Spacing.md,

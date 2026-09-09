@@ -97,5 +97,7 @@ export { StoreHubProfileIcon } from './StoreHubProfileIcon';
 export { StoreHubDashboardIcon } from './StoreHubDashboardIcon';
 export { StoreHubCreateIcon } from './StoreHubCreateIcon';
 export { StoreHubListingsIcon } from './StoreHubListingsIcon';
+export { StoreHubBookingsIcon } from './StoreHubBookingsIcon';
+export { StoreWelcomeHeaderIcon } from './StoreWelcomeHeaderIcon';
 export { GoogleLocationField } from './GoogleLocationField';
 

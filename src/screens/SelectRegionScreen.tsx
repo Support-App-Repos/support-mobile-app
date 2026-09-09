@@ -10,16 +10,21 @@ import {
   StyleSheet,
   TextInput,
   TouchableOpacity,
-  Image,
   ScrollView,
   ActivityIndicator,
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { BackIcon, BellIcon, StepCompletedMarkIcon, SimpleSearchIcon } from '../components/common';
+import { SimpleSearchIcon } from '../components/common';
+import {
+  ListingWizardHeader,
+  ListingStepProgress,
+  ListingWizardFooter,
+  LISTING_FORM_STEPS,
+} from '../components/listings/wizard';
 import { BottomNavigation, type BottomNavItem } from '../components/navigation';
 import { Colors, Spacing, Typography, BorderRadius } from '../config/theme';
-import { regionService } from '../services';
+import { regionService, listingService } from '../services';
 import { useProfile } from '../hooks';
 
 type SelectRegionScreenProps = {
@@ -32,7 +37,7 @@ type SelectRegionScreenProps = {
   };
 };
 
-const FORM_STEPS = ['Details', 'Payment', 'Select Region', 'Confirm'];
+const FORM_STEPS = LISTING_FORM_STEPS;
 
 interface Region {
   id: string;
@@ -50,9 +55,11 @@ export const SelectRegionScreen: React.FC<SelectRegionScreenProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<BottomNavItem>('Home');
   const [loading, setLoading] = useState(true);
+  const [confirming, setConfirming] = useState(false);
   const { profileImageUrl } = useProfile();
 
   const currentStep = 2; // Third step (Select Region)
+  const listingData = route?.params?.listingData;
 
   useEffect(() => {
     fetchRegions();
@@ -88,13 +95,14 @@ export const SelectRegionScreen: React.FC<SelectRegionScreenProps> = ({
     try {
       setLoading(true);
       const response = await regionService.getRegions(search);
-      const regionsData = (response.data as any)?.data || response.data || [];
+      const raw = response.data as any;
+      const regionsData = Array.isArray(raw) ? raw : raw?.data || [];
       
       if (response.success && Array.isArray(regionsData)) {
         const convertedRegions: Region[] = regionsData.map((r: any) => ({
           id: r.id,
-          name: r.name,
-          country: r.country,
+          name: r.name || '',
+          country: r.country || '',
         }));
         setRegions(convertedRegions);
       }
@@ -109,13 +117,14 @@ export const SelectRegionScreen: React.FC<SelectRegionScreenProps> = ({
   const fetchRecentRegions = async () => {
     try {
       const response = await regionService.getRecentRegions();
-      const recentData = (response.data as any)?.data || response.data || [];
+      const raw = response.data as any;
+      const recentData = Array.isArray(raw) ? raw : raw?.data || [];
       
       if (response.success && Array.isArray(recentData)) {
         const convertedRegions: Region[] = recentData.map((r: any) => ({
           id: r.id,
-          name: r.name,
-          country: r.country,
+          name: r.name || '',
+          country: r.country || '',
         }));
         setRecentRegions(convertedRegions);
       }
@@ -133,8 +142,8 @@ export const SelectRegionScreen: React.FC<SelectRegionScreenProps> = ({
     const query = searchQuery.toLowerCase();
     return regions.filter(
       (region) =>
-        region.name.toLowerCase().includes(query) ||
-        region.country.toLowerCase().includes(query)
+        (region.name || '').toLowerCase().includes(query) ||
+        (region.country || '').toLowerCase().includes(query)
     );
   }, [regions, searchQuery]);
 
@@ -148,116 +157,64 @@ export const SelectRegionScreen: React.FC<SelectRegionScreenProps> = ({
 
   const handleRecentSelect = (region: Region) => {
     setSelectedRegion(region);
-    // Add to recent regions on backend
-    regionService.addRecentRegion(region.id).catch((error) => {
-      console.error('Error adding recent region:', error);
-    });
   };
 
-  const handleConfirmRegion = () => {
-    if (selectedRegion) {
+  const handleConfirmRegion = async () => {
+    if (!selectedRegion) {
+      return;
+    }
+
+    const listingId = listingData?.id;
+    if (!listingId) {
+      Alert.alert('Error', 'Listing data is missing. Go back and save the listing again.');
+      return;
+    }
+
+    try {
+      setConfirming(true);
+      const updateResponse = await listingService.updateListing(listingId, {
+        regionIds: [selectedRegion.id],
+      });
+
+      if (!updateResponse.success) {
+        throw new Error(updateResponse.message || 'Failed to save region');
+      }
+
+      // Best-effort recent regions (do not block confirm)
+      regionService.addRecentRegion(selectedRegion.id).catch((error) => {
+        console.error('Error adding recent region:', error);
+      });
+
       const regionData = { name: selectedRegion.name, id: selectedRegion.id };
       navigation?.navigate('Review', {
-        listingData: route?.params?.listingData,
+        listingData,
         paymentData: route?.params?.paymentData,
         regionData,
       });
+    } catch (error: any) {
+      console.error('Error saving region:', error);
+      Alert.alert('Error', error.message || 'Failed to save region. Please try again.');
+    } finally {
+      setConfirming(false);
     }
   };
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={handleBack}
-          activeOpacity={0.7}
-        >
-          <BackIcon size={24} color="#030303" />
-        </TouchableOpacity>
-        <View style={styles.headerRight}>
-          <TouchableOpacity
-            style={styles.iconButton}
-            activeOpacity={0.7}
-            onPress={() => {
-              // TODO: Navigate to notifications
-              console.log('Notifications pressed');
-            }}
-          >
-            <BellIcon size={24} color="#111827" />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.profileButton}
-            activeOpacity={0.7}
-            onPress={() => {
-              // TODO: Navigate to profile
-              console.log('Profile pressed');
-            }}
-          >
-            <Image
-              source={{ uri: profileImageUrl || 'https://i.pravatar.cc/150?img=12' }}
-              style={styles.profileImage}
-            />
-          </TouchableOpacity>
-        </View>
-      </View>
+      <ListingWizardHeader
+        title="Select Region"
+        subtitle="Choose where your listing should appear"
+        profileImageUrl={profileImageUrl}
+        onBack={handleBack}
+        onProfilePress={() => navigation?.navigate('Profile')}
+      />
+      <ListingStepProgress currentStep={currentStep} steps={FORM_STEPS} numbered />
 
-      {/* Title Section */}
-      <View style={styles.titleSection}>
-        <Text style={styles.titleText}>Select Region</Text>
-      </View>
-
-      {/* Progress Indicator */}
-      <View style={styles.progressContainer}>
-        {FORM_STEPS.map((step, index) => (
-          <React.Fragment key={step}>
-            <View style={styles.progressStepContainer}>
-              <View style={styles.progressCircleWrapper}>
-                <View
-                  style={[
-                    styles.progressCircle,
-                    index === currentStep && styles.progressCircleActive,
-                    index < currentStep && styles.progressCircleCompleted,
-                  ]}
-                >
-                  {index < currentStep && (
-                    <StepCompletedMarkIcon size={8} />
-                  )}
-                  {index === currentStep && (
-                    <View style={styles.progressDotActive} />
-                  )}
-                  {index > currentStep && (
-                    <View style={styles.progressDotInactive} />
-                  )}
-                </View>
-                {index < FORM_STEPS.length - 1 && (
-                  <View
-                    style={[
-                      styles.progressLine,
-                      index < currentStep && styles.progressLineActive,
-                    ]}
-                  />
-                )}
-              </View>
-              <Text style={styles.progressLabel}>
-                {step}
-              </Text>
-            </View>
-          </React.Fragment>
-        ))}
-      </View>
-
-      {/* Content */}
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.introText}>
-          Choose where your listing should appear
-        </Text>
-
         {/* Search Bar */}
         <View style={styles.searchContainer}>
           <SimpleSearchIcon size={18} color="#667085" />
@@ -331,26 +288,15 @@ export const SelectRegionScreen: React.FC<SelectRegionScreenProps> = ({
           )}
         </View>
 
-        {/* Confirm Region Button */}
-        <TouchableOpacity
-          style={[
-            styles.confirmButton,
-            !selectedRegion && styles.confirmButtonDisabled,
-          ]}
-          onPress={handleConfirmRegion}
-          disabled={!selectedRegion}
-          activeOpacity={0.8}
-        >
-          <Text
-            style={[
-              styles.confirmButtonText,
-              !selectedRegion && styles.confirmButtonTextDisabled,
-            ]}
-          >
-            Confirm Region
-          </Text>
-        </TouchableOpacity>
       </ScrollView>
+
+      <ListingWizardFooter
+        label="Confirm Region"
+        onPress={handleConfirmRegion}
+        disabled={!selectedRegion || confirming}
+        loading={confirming}
+        showArrow={false}
+      />
 
       {/* Bottom Navigation */}
       <BottomNavigation

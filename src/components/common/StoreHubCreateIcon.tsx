@@ -1,11 +1,10 @@
 /**
- * Store hub — Create New Store action icon
+ * Store hub — Create New Store (Figma: storefront outline)
  */
 
 import React from 'react';
-import Svg, { Path, Rect } from 'react-native-svg';
+import Svg, { G, Path, Rect } from 'react-native-svg';
 import { ViewStyle } from 'react-native';
-import { Colors } from '../../config/theme';
 
 interface StoreHubCreateIconProps {
   size?: number;
@@ -13,38 +12,15 @@ interface StoreHubCreateIconProps {
 }
 
 export const StoreHubCreateIcon: React.FC<StoreHubCreateIconProps> = ({
-  size = 44,
+  size = 48,
   style,
 }) => (
-  <Svg width={size} height={size} viewBox="0 0 44 44" fill="none" style={style}>
-    <Rect
-      x="0.5"
-      y="0.5"
-      width="43"
-      height="43"
-      rx="10"
-      fill={Colors.light.surface}
-      stroke={Colors.light.border}
-      strokeWidth="1"
-    />
-    <Path
-      d="M14 19L22 13L30 19V29C30 29.5523 29.5523 30 29 30H15C14.4477 30 14 29.5523 14 29V19Z"
-      stroke={Colors.light.primary}
-      strokeWidth="1.75"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-    <Path
-      d="M22 21V27"
-      stroke={Colors.light.primary}
-      strokeWidth="1.75"
-      strokeLinecap="round"
-    />
-    <Path
-      d="M19 24H25"
-      stroke={Colors.light.primary}
-      strokeWidth="1.75"
-      strokeLinecap="round"
-    />
+  <Svg width={size} height={size} viewBox="0 0 48 48" fill="none" style={style}>
+    <Rect width="48" height="48" rx="12" fill="#E8EEF2" />
+    <G transform="translate(12 12)" stroke="#0D475C" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <Path d="M3 9h18v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9Z" />
+      <Path d="M3 9l2.5-5h13L21 9" />
+      <Path d="M10 21V13h4v8" />
+    </G>
   </Svg>
 );

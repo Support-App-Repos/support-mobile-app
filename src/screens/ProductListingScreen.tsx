@@ -1,6 +1,6 @@
 /**
  * Product Listing Screen
- * First step of the multi-step listing creation form for Products
+ * Figma: List Product (node 1055:997) — Details step with full form
  */
 
 import React, { useState, useEffect } from 'react';
@@ -10,34 +10,55 @@ import {
   Text,
   StyleSheet,
   TextInput,
-  TouchableOpacity,
-  Image,
   ScrollView,
-  Dimensions,
   Alert,
-  ActivityIndicator,
   Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { BackIcon, BellIcon, AddPhotoIcon, GoogleLocationField } from '../components/common';
+import { GoogleLocationField, FormSelect } from '../components/common';
+import {
+  ListingWizardHeader,
+  ListingStepProgress,
+  ListingFormField,
+  ListingPhotoUpload,
+  ListingWizardFooter,
+  listingWizardInputStyles,
+  androidInputProps as wizardAndroidInputProps,
+  androidMultilineProps as wizardAndroidMultilineProps,
+  LISTING_FORM_STEPS,
+} from '../components/listings/wizard';
 import { BottomNavigation, type BottomNavItem } from '../components/navigation';
-import { Colors, Spacing, Typography, BorderRadius } from '../config/theme';
-import { listingService, paymentService, pickImages, uploadImages } from '../services';
+import { Colors, Spacing, BorderRadius } from '../config/theme';
+import { listingService, paymentService, pickImages, type PickedImage } from '../services';
 import { useProfile } from '../hooks';
 import { filterNumbersOnly } from '../utils/validation';
-
-const { width } = Dimensions.get('window');
+import { resolveListingPhotoUrls, resolveListingId } from '../utils/listingPhotos';
 
 type ProductListingScreenProps = {
   navigation?: any;
   route?: {
     params?: {
       category?: string;
+      categoryId?: string;
     };
   };
 };
 
-const FORM_STEPS = ['Details', 'Payment', 'Select Region', 'Confirm'];
+const MP = Colors.light.marketplace;
+const FORM_STEPS = LISTING_FORM_STEPS;
+const inputStyles = listingWizardInputStyles;
+
+const PRODUCT_CATEGORY_OPTIONS = [
+  'Electronics',
+  'Clothing',
+  'Furniture',
+  'Home & Garden',
+  'Sports & Outdoors',
+  'Books & Media',
+  'Other',
+];
+const CONDITION_OPTIONS = ['New', 'Used'];
+const CURRENCY_OPTIONS = ['USD', 'AED', 'EUR'];
 
 const DESCRIPTION_WORD_LIMIT = 500;
 function countWords(text: string): number {
@@ -55,57 +76,112 @@ export const ProductListingScreen: React.FC<ProductListingScreenProps> = ({
   navigation,
   route,
 }) => {
-  const androidInputProps =
-    Platform.OS === 'android'
-      ? ({ includeFontPadding: false, textAlignVertical: 'center' as const } as const)
-      : undefined;
-  const androidMultilineProps =
-    Platform.OS === 'android' ? ({ includeFontPadding: false } as const) : undefined;
+  const androidInputProps = wizardAndroidInputProps;
+  const androidMultilineProps = wizardAndroidMultilineProps;
   const [title, setTitle] = useState('');
+  const [productCategory, setProductCategory] = useState('');
+  const [condition, setCondition] = useState('');
+  const [brand, setBrand] = useState('');
+  const [warranty, setWarranty] = useState('');
   const [description, setDescription] = useState('');
   const [price, setPrice] = useState('');
+  const [currency, setCurrency] = useState('USD');
   const [location, setLocation] = useState('');
-  const [photos, setPhotos] = useState<string[]>([]); // Store local URIs first
-  const [photoUris, setPhotoUris] = useState<string[]>([]); // Store local URIs for upload
+  const [, setPhotos] = useState<string[]>([]);
+  const [photoUris, setPhotoUris] = useState<PickedImage[]>([]);
   const [activeTab, setActiveTab] = useState<BottomNavItem>('Home');
   const [loading, setLoading] = useState(false);
   const [snackbarVisible, setSnackbarVisible] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [snackbarType, setSnackbarType] = useState<'error' | 'success' | 'info'>('error');
+  const [listingId, setListingId] = useState<string | null>(
+    resolveListingId((route?.params as any)?.listingData),
+  );
   const { profileImageUrl } = useProfile();
 
-  const currentStep = 0; // First step
-  const categoryId = route?.params?.categoryId;
+  const currentStep = 0;
+  const categoryId =
+    route?.params?.categoryId ||
+    (route?.params as any)?.listingData?.category?.id ||
+    (route?.params as any)?.listingData?.categoryId;
 
-  // Prefill when editing from Review/Region flow
   useEffect(() => {
     const incoming = (route?.params as any)?.listingData || route?.params;
     if (!incoming) return;
+
+    const incomingId = resolveListingId(incoming);
+    if (incomingId) setListingId(incomingId);
 
     if (incoming.title != null) setTitle(String(incoming.title));
     if (incoming.description != null) setDescription(String(incoming.description));
     if (incoming.price != null) setPrice(String(incoming.price));
     if (incoming.location != null) setLocation(String(incoming.location));
+    if (incoming.currency != null) setCurrency(String(incoming.currency));
+    if (incoming.productCategory != null) setProductCategory(String(incoming.productCategory));
+    if (incoming.condition != null) setCondition(String(incoming.condition));
+    if (incoming.brand != null) setBrand(String(incoming.brand));
+    if (incoming.warranty != null) setWarranty(String(incoming.warranty));
 
     if (Array.isArray(incoming.photos) && incoming.photos.length > 0 && photoUris.length === 0) {
       const urls = incoming.photos
         .map((p: any) => (typeof p === 'string' ? p : p?.photoUrl || p?.url))
-        .filter(Boolean);
+        .filter(Boolean) as string[];
       setPhotos(urls);
+      setPhotoUris(urls.map((uri) => ({ uri })));
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Check if all required fields are filled
-  const isFormValid = title.trim() !== '' && 
-                      description.trim() !== '' && 
-                      price.trim() !== '' && 
-                      location.trim() !== '' &&
-                      photoUris.length > 0;
+  const isFormValid =
+    title.trim() !== '' &&
+    productCategory.trim() !== '' &&
+    condition.trim() !== '' &&
+    description.trim() !== '' &&
+    price.trim() !== '' &&
+    currency.trim() !== '' &&
+    location.trim() !== '' &&
+    photoUris.length > 0;
+
+  const navigateAfterSave = async (listingData: any) => {
+    const existingPayment = (route?.params as any)?.paymentData;
+    const existingRegion = (route?.params as any)?.regionData;
+    if (existingPayment && existingRegion) {
+      navigation?.navigate('Review', {
+        listingData,
+        paymentData: existingPayment,
+        regionData: existingRegion,
+      });
+      return;
+    }
+
+    try {
+      const subscriptionCheck = await paymentService.checkSubscriptionValidity();
+      const subscriptionData = (subscriptionCheck.data as any)?.data || subscriptionCheck.data;
+
+      if (subscriptionData?.hasValidSubscription) {
+        navigation?.navigate('SelectRegion', {
+          listingData,
+          paymentData: {
+            plan: 'monthly',
+            subscription: subscriptionData.subscription,
+            skipPayment: true,
+          },
+        });
+      } else {
+        navigation?.navigate('Payment', { listingData });
+      }
+    } catch (subscriptionError: any) {
+      console.error('Error checking subscription:', subscriptionError);
+      navigation?.navigate('Payment', { listingData });
+    }
+  };
 
   const handleSaveAndContinue = async () => {
     if (!isFormValid) {
-      Alert.alert('Validation Error', 'Please fill in all required fields and upload at least one photo');
+      Alert.alert(
+        'Validation Error',
+        'Please fill in all required fields and upload at least one photo.',
+      );
       return;
     }
 
@@ -117,12 +193,10 @@ export const ProductListingScreen: React.FC<ProductListingScreenProps> = ({
     try {
       setLoading(true);
 
-      // Upload images first if any are selected
       let photoUrls: string[] = [];
       if (photoUris.length > 0) {
         try {
-          const uploadedImages = await uploadImages(photoUris, 'listings/');
-          photoUrls = uploadedImages.map((img) => img.url);
+          photoUrls = await resolveListingPhotoUrls(photoUris, 'listings/');
           setPhotos(photoUrls);
         } catch (uploadError: any) {
           console.error('Error uploading photos:', uploadError);
@@ -132,52 +206,36 @@ export const ProductListingScreen: React.FC<ProductListingScreenProps> = ({
         }
       }
 
-      // Create listing on backend with uploaded photo URLs
-      const response = await listingService.createListing({
+      const payload = {
         title: title.trim(),
         description: description.trim(),
         price: parseFloat(price),
-        priceType: 'Paid', // Default for products
+        priceType: 'Paid' as const,
         location: location.trim(),
         categoryId,
+        currency: currency.trim(),
+        productCategory: productCategory.trim(),
+        condition: condition.trim(),
+        brand: brand.trim() || undefined,
+        warranty: warranty.trim() || undefined,
         photos: photoUrls,
-      });
+      };
+
+      const response = listingId
+        ? await listingService.updateListing(listingId, payload)
+        : await listingService.createListing(payload);
 
       if (response.success) {
-        // Backend returns { success: true, data: {...} }
         const listingData = (response.data as any)?.data || response.data;
-        
-        // Check if user has a valid subscription
-        try {
-          const subscriptionCheck = await paymentService.checkSubscriptionValidity();
-          const subscriptionData = (subscriptionCheck.data as any)?.data || subscriptionCheck.data;
-          
-          if (subscriptionData?.hasValidSubscription) {
-            // User has valid subscription - skip payment and go directly to region selection
-            navigation?.navigate('SelectRegion', {
-              listingData,
-              paymentData: {
-                plan: 'monthly',
-                subscription: subscriptionData.subscription,
-                skipPayment: true, // Flag to indicate payment was skipped
-              },
-            });
-          } else {
-            // No valid subscription - proceed to payment screen
-            navigation?.navigate('Payment', { listingData });
-          }
-        } catch (subscriptionError: any) {
-          console.error('Error checking subscription:', subscriptionError);
-          // If subscription check fails, default to payment screen
-          navigation?.navigate('Payment', { listingData });
-        }
+        const savedId = resolveListingId(listingData);
+        if (savedId) setListingId(savedId);
+        await navigateAfterSave(listingData);
       } else {
-        throw new Error(response.message || 'Failed to create listing');
+        throw new Error(response.message || 'Failed to save listing');
       }
     } catch (error: any) {
-      console.error('Error creating listing:', error);
-      // Show server error in snackbar
-      setSnackbarMessage(error.message || 'Failed to create listing. Please try again.');
+      console.error('Error saving listing:', error);
+      setSnackbarMessage(error.message || 'Failed to save listing. Please try again.');
       setSnackbarType('error');
       setSnackbarVisible(true);
     } finally {
@@ -196,13 +254,13 @@ export const ProductListingScreen: React.FC<ProductListingScreenProps> = ({
         return;
       }
 
-      const selectedUris = await pickImages();
+      const selected = await pickImages();
 
-      if (selectedUris && selectedUris.length > 0) {
-        const updatedUris = [...photoUris, ...selectedUris.map((img) => img.uri)].slice(0, 6);
-        setPhotoUris(updatedUris);
-        setPhotos(updatedUris);
-        setSnackbarMessage(`Added ${selectedUris.length} photo(s).`);
+      if (selected && selected.length > 0) {
+        const updated = [...photoUris, ...selected].slice(0, 6);
+        setPhotoUris(updated);
+        setPhotos(updated.map((p) => p.uri));
+        setSnackbarMessage(`Added ${selected.length} photo(s).`);
         setSnackbarType('success');
         setSnackbarVisible(true);
       }
@@ -214,121 +272,91 @@ export const ProductListingScreen: React.FC<ProductListingScreenProps> = ({
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={handleBack}
-          activeOpacity={0.7}
-        >
-          <BackIcon size={24} color="#030303" />
-        </TouchableOpacity>
-        <View style={styles.headerRight}>
-          <TouchableOpacity
-            style={styles.iconButton}
-            activeOpacity={0.7}
-            onPress={() => {
-              // TODO: Navigate to notifications
-              console.log('Notifications pressed');
-            }}
-          >
-            <BellIcon size={24} color="#111827" />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.profileButton}
-            activeOpacity={0.7}
-            onPress={() => {
-              // TODO: Navigate to profile
-              console.log('Profile pressed');
-            }}
-          >
-            <Image
-              source={{ uri: profileImageUrl || 'https://i.pravatar.cc/150?img=12' }}
-              style={styles.profileImage}
-            />
-          </TouchableOpacity>
-        </View>
+      <View style={styles.headerBand}>
+        <ListingWizardHeader
+          title="List Product"
+          subtitle="Add details about your product listing."
+          profileImageUrl={profileImageUrl}
+          onBack={handleBack}
+          showBell
+          usePillControls
+        />
+        <ListingStepProgress
+          currentStep={currentStep}
+          steps={FORM_STEPS}
+          numbered
+          activeColor={MP.detailProductBadge}
+        />
       </View>
 
-      {/* Title Section */}
-      <View style={styles.titleSection}>
-        <Text style={styles.titleText}>Listing Details</Text>
-      </View>
-
-      {/* Progress Indicator */}
-      <View style={styles.progressContainer}>
-        {FORM_STEPS.map((step, index) => (
-          <React.Fragment key={step}>
-            <View style={styles.progressStepContainer}>
-              <View style={styles.progressCircleWrapper}>
-                <View
-                  style={[
-                    styles.progressCircle,
-                    index === currentStep && styles.progressCircleActive,
-                    index < currentStep && styles.progressCircleCompleted,
-                  ]}
-                >
-                  {index === currentStep && (
-                    <View style={styles.progressDotActive} />
-                  )}
-                  {index < currentStep && (
-                    <View style={styles.progressDotCompleted} />
-                  )}
-                  {index > currentStep && (
-                    <View style={styles.progressDotInactive} />
-                  )}
-                </View>
-                {index < FORM_STEPS.length - 1 && (
-                  <View
-                    style={[
-                      styles.progressLine,
-                      index <= currentStep && styles.progressLineActive,
-                    ]}
-                  />
-                )}
-              </View>
-              <Text style={styles.progressLabel}>
-                {step}
-              </Text>
-            </View>
-          </React.Fragment>
-        ))}
-      </View>
-
-      {/* Content */}
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
-        <Text style={styles.introText}>
-          Add details about your service listing.
-        </Text>
-
-        {/* Title Field */}
-        <View style={styles.fieldContainer}>
-          <Text style={styles.label}>
-            Title <Text style={styles.required}>*</Text>
-          </Text>
+        <ListingFormField label="Product Name" required>
           <TextInput
-            style={styles.input}
-            placeholder="Listing title"
-            placeholderTextColor={Colors.light.textSecondary}
+            style={inputStyles.input}
+            placeholder="e.g. iPhone 14 Pro 256GB"
+            placeholderTextColor="rgba(153,153,153,0.5)"
             value={title}
             onChangeText={setTitle}
             {...androidInputProps}
           />
+        </ListingFormField>
+
+        <View style={inputStyles.row}>
+          <FormSelect
+            label="Category"
+            required
+            value={productCategory}
+            placeholder="Select category"
+            options={PRODUCT_CATEGORY_OPTIONS}
+            onSelect={setProductCategory}
+          />
+          <FormSelect
+            label="Condition"
+            required
+            value={condition}
+            placeholder="New / Used"
+            options={CONDITION_OPTIONS}
+            onSelect={setCondition}
+          />
         </View>
 
-        {/* Description Field */}
-        <View style={styles.fieldContainer}>
-          <Text style={styles.label}>
-            Description <Text style={styles.required}>*</Text>
-          </Text>
+        <View style={inputStyles.row}>
+          <View style={styles.fieldFlex}>
+            <ListingFormField label="Brand">
+              <TextInput
+                style={inputStyles.input}
+                placeholder="e.g. Apple"
+                placeholderTextColor="rgba(153,153,153,0.5)"
+                value={brand}
+                onChangeText={setBrand}
+                {...androidInputProps}
+              />
+            </ListingFormField>
+          </View>
+          <View style={styles.fieldFlex}>
+            <ListingFormField label="Warranty">
+              <TextInput
+                style={inputStyles.input}
+                placeholder="e.g. 1 year"
+                placeholderTextColor="rgba(153,153,153,0.5)"
+                value={warranty}
+                onChangeText={setWarranty}
+                {...androidInputProps}
+              />
+            </ListingFormField>
+          </View>
+        </View>
+
+        <ListingFormField label="Description" required>
           <TextInput
-            style={[styles.input, styles.textArea]}
-            placeholder="Describe your listing in detail..."
-            placeholderTextColor={Colors.light.textSecondary}
+            style={[inputStyles.input, inputStyles.textArea]}
+            placeholder="Describe your product in detail..."
+            placeholderTextColor="rgba(153,153,153,0.5)"
             value={description}
             onChangeText={(t) => setDescription(clampWords(t, DESCRIPTION_WORD_LIMIT))}
             multiline
@@ -336,134 +364,67 @@ export const ProductListingScreen: React.FC<ProductListingScreenProps> = ({
             textAlignVertical="top"
             {...androidMultilineProps}
           />
-          <Text style={styles.wordCount}>
+          <Text style={inputStyles.wordCount}>
             {countWords(description)}/{DESCRIPTION_WORD_LIMIT} words
           </Text>
+        </ListingFormField>
+
+        <View style={inputStyles.row}>
+          <View style={styles.fieldFlex}>
+            <ListingFormField label="Price" required>
+              <View style={styles.priceInputWrap}>
+                <Text style={styles.pricePrefix}>$</Text>
+                <TextInput
+                  style={styles.priceInput}
+                  placeholder="e.g. 999"
+                  placeholderTextColor="rgba(153,153,153,0.5)"
+                  value={price}
+                  onChangeText={(text) => setPrice(filterNumbersOnly(text, true))}
+                  keyboardType="decimal-pad"
+                  {...androidInputProps}
+                />
+              </View>
+            </ListingFormField>
+          </View>
+          <FormSelect
+            label="Currency"
+            value={currency}
+            placeholder="USD"
+            options={CURRENCY_OPTIONS}
+            onSelect={setCurrency}
+          />
         </View>
 
-        {/* Price and Location Row */}
-        <View style={styles.rowContainer}>
-          <View style={[styles.fieldContainer, styles.halfWidth]}>
-            <Text style={styles.label}>
-              Price <Text style={styles.required}>*</Text>
-            </Text>
-            <TextInput
-              style={styles.input}
-              placeholder="0.00"
-              placeholderTextColor={Colors.light.textSecondary}
-              value={price}
-              onChangeText={(text) => setPrice(filterNumbersOnly(text, true))}
-              keyboardType="decimal-pad"
-              {...androidInputProps}
-            />
-          </View>
-          <View style={[styles.fieldContainer, styles.halfWidth]}>
-            <Text style={styles.label}>
-              Location <Text style={styles.required}>*</Text>
-            </Text>
-            <GoogleLocationField
-              label=""
-              required
-              value={location}
-              placeholder="Search location"
-              onSelect={({ location: loc }) => setLocation(loc)}
-            />
-          </View>
-        </View>
+        <ListingFormField label="Location" required>
+          <GoogleLocationField
+            label=""
+            required
+            value={location}
+            placeholder="Search location"
+            onSelect={({ location: loc }) => setLocation(loc)}
+          />
+        </ListingFormField>
 
-        {/* Photo Upload Section */}
-        <View style={styles.fieldContainer}>
-          <Text style={styles.label}>Photo <Text style={styles.required}>*</Text></Text>
-          <View style={styles.photoSection}>
-            <TouchableOpacity
-              style={styles.photoIconButton}
-              onPress={handlePhotoUpload}
-              activeOpacity={0.7}
-              disabled={photoUris.length >= 6 || loading}
-            >
-              <AddPhotoIcon size={57} />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.photoUploadArea}
-              onPress={handlePhotoUpload}
-              activeOpacity={0.7}
-              disabled={photoUris.length >= 6 || loading}
-            >
-              <Text style={styles.uploadText}>
-                {photoUris.length >= 6
-                  ? 'Maximum photos reached'
-                  : 'Click to select photos'}
-              </Text>
-              <Text style={styles.uploadSubtext}>
-                (SVG, PNG, JPG or GIF, max. 10MB per file)
-              </Text>
-            </TouchableOpacity>
-          </View>
-          <Text style={styles.photoHint}>
-            {photoUris.length > 0
-              ? `${photoUris.length}/6 photos selected (will upload on save)`
-              : 'Add up to 6 photos'}
-          </Text>
-          {photoUris.length > 0 && (
-            <View style={styles.photosPreview}>
-              {photoUris.map((photoUri, index) => {
-                // Ensure URI is properly formatted for React Native Image
-                const imageUri = photoUri.startsWith('file://') || photoUri.startsWith('content://') || photoUri.startsWith('http')
-                  ? photoUri
-                  : `file://${photoUri}`;
-                
-                return (
-                  <View key={`photo-${index}-${photoUri}`} style={styles.photoPreviewItem}>
-                    <Image 
-                      source={{ uri: imageUri }} 
-                      style={styles.photoPreview}
-                      onError={(error) => {
-                        console.error(`[Image Preview] Error loading image ${index}:`, error.nativeEvent.error);
-                      }}
-                    />
-                    <TouchableOpacity
-                      style={styles.removePhotoButton}
-                      onPress={() => {
-                        const updatedUris = photoUris.filter((_, i) => i !== index);
-                        setPhotoUris(updatedUris);
-                        setPhotos(updatedUris);
-                      }}
-                    >
-                      <Text style={styles.removePhotoText}>×</Text>
-                    </TouchableOpacity>
-                  </View>
-                );
-              })}
-            </View>
-          )}
-        </View>
-
-        {/* Save & Continue Button */}
-        <TouchableOpacity
-          style={[
-            styles.saveButton,
-            (!isFormValid || loading) && styles.saveButtonDisabled,
-          ]}
-          onPress={handleSaveAndContinue}
-          disabled={!isFormValid || loading}
-          activeOpacity={0.8}
-        >
-          {loading ? (
-            <ActivityIndicator color="#FFFFFF" />
-          ) : (
-            <Text
-              style={[
-                styles.saveButtonText,
-                (!isFormValid || loading) && styles.saveButtonTextDisabled,
-              ]}
-            >
-              Save & Continue
-            </Text>
-          )}
-        </TouchableOpacity>
+        <ListingPhotoUpload
+          photos={photoUris.map((p) => ({ uri: p.uri }))}
+          onAdd={handlePhotoUpload}
+          onRemove={(index) => {
+            const updated = photoUris.filter((_, i) => i !== index);
+            setPhotoUris(updated);
+            setPhotos(updated.map((p) => p.uri));
+          }}
+          uploading={loading}
+        />
       </ScrollView>
 
-      {/* Bottom Navigation */}
+      <ListingWizardFooter
+        label="Next"
+        onPress={handleSaveAndContinue}
+        disabled={!isFormValid}
+        loading={loading}
+        showArrow
+      />
+
       <BottomNavigation
         activeTab={activeTab}
         onTabPress={(tab) => {
@@ -473,7 +434,6 @@ export const ProductListingScreen: React.FC<ProductListingScreenProps> = ({
           } else if (tab === 'Store') {
             navigation?.navigate('Store');
           } else if (tab === 'Messages') {
-            // Show coming soon snackbar
             setSnackbarVisible(true);
             setSnackbarMessage('Coming soon feature');
             setSnackbarType('info');
@@ -485,7 +445,6 @@ export const ProductListingScreen: React.FC<ProductListingScreenProps> = ({
         showCreateButton={false}
       />
 
-      {/* Snackbar for messages */}
       <Snackbar
         visible={snackbarVisible}
         message={snackbarMessage}
@@ -499,125 +458,16 @@ export const ProductListingScreen: React.FC<ProductListingScreenProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: MP.screenSurface,
+  },
+  headerBand: {
     backgroundColor: Colors.light.background,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.md,
-  },
-  backButton: {
-    padding: Spacing.xs,
-    marginLeft: -Spacing.xs,
-  },
-  headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-  },
-  iconButton: {
-    padding: Spacing.xs,
-  },
-  profileButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: Colors.light.border,
-  },
-  profileImage: {
-    width: '100%',
-    height: '100%',
-    resizeMode: 'cover',
-  },
-  titleSection: {
-    paddingHorizontal: Spacing.md,
-    paddingBottom: Spacing.md,
-  },
-  titleText: {
-    ...Typography.h2,
-    color: Colors.light.text,
-    fontWeight: '700',
-    fontSize: 18,
-  },
-  progressContainer: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    paddingHorizontal: Spacing.md,
-    paddingBottom: Spacing.lg,
-  },
-  progressStepContainer: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  progressCircleWrapper: {
-    width: '100%',
-    height: 28,
-    position: 'relative',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  progressCircle: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: '#E5E7EB',
-    backgroundColor: Colors.light.background,
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 2,
-  },
-  progressCircleActive: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    borderWidth: 2,
-    borderColor: Colors.light.primary,
-    backgroundColor: Colors.light.background,
-  },
-  progressCircleCompleted: {
-    borderColor: Colors.light.primary,
-    backgroundColor: Colors.light.primary,
-  },
-  progressDotActive: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: Colors.light.primary,
-  },
-  progressDotCompleted: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#FFFFFF',
-  },
-  progressDotInactive: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: '#D1D5DB',
-  },
-  progressLabel: {
-    ...Typography.caption,
-    color: '#374151',
-    fontSize: 12,
-    marginTop: Spacing.xs,
-  },
-  progressLine: {
-    position: 'absolute',
-    left: '50%',
-    right: '-50%',
-    height: 2,
-    backgroundColor: '#E5E7EB',
-    top: 13,
-    zIndex: 1,
-  },
-  progressLineActive: {
-    backgroundColor: Colors.light.primary,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 2,
+    elevation: 2,
+    paddingBottom: Spacing.sm,
   },
   scrollView: {
     flex: 1,
@@ -625,149 +475,31 @@ const styles = StyleSheet.create({
   content: {
     padding: Spacing.md,
     paddingBottom: Spacing.xl,
-  },
-  introText: {
-    ...Typography.body,
-    color: Colors.light.textSecondary,
-    marginBottom: Spacing.lg,
-    fontSize: 14,
-  },
-  fieldContainer: {
-    marginBottom: Spacing.lg,
-  },
-  rowContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
     gap: Spacing.md,
   },
-  halfWidth: {
+  fieldFlex: {
     flex: 1,
+    minWidth: 0,
   },
-  label: {
-    ...Typography.body,
-    color: Colors.light.text,
-    fontWeight: '500',
-    marginBottom: Spacing.xs,
-    fontSize: 14,
-  },
-  required: {
-    color: '#EF4444',
-  },
-  input: {
-    ...Typography.body,
+  priceInputWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: Colors.light.background,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: BorderRadius.md,
+    borderColor: Colors.light.cardBorder,
+    borderRadius: BorderRadius.lg,
     paddingHorizontal: Spacing.md,
-    paddingTop: Spacing.sm,
-    paddingBottom: Platform.OS === 'android' ? Spacing.sm - 2 : Spacing.sm,
-    color: Colors.light.text,
-    fontSize: 14,
+    minHeight: 44,
   },
-  textArea: {
-    minHeight: 100,
-    paddingTop: Spacing.sm,
+  pricePrefix: {
+    fontSize: 12,
+    color: '#BBBBBB',
+    marginRight: Spacing.xs,
   },
-  wordCount: {
-    ...Typography.caption,
-    color: Colors.light.textSecondary,
-    marginTop: 6,
-    textAlign: 'right',
-  },
-  photoSection: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.md,
-    marginTop: Spacing.xs,
-  },
-  photoIconButton: {
-    // Icon handles its own styling
-  },
-  photoUploadArea: {
+  priceInput: {
     flex: 1,
-    borderWidth: 2,
-    borderColor: '#E5E7EB',
-    borderStyle: 'dashed',
-    borderRadius: BorderRadius.md,
-    padding: Spacing.lg,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 120,
-  },
-  uploadText: {
-    ...Typography.body,
-    color: Colors.light.primary,
-    fontWeight: '500',
-    marginBottom: Spacing.xs,
     fontSize: 14,
-  },
-  uploadSubtext: {
-    ...Typography.caption,
-    color: Colors.light.textSecondary,
-    fontSize: 12,
-  },
-  photoHint: {
-    ...Typography.caption,
-    color: Colors.light.textSecondary,
-    marginTop: Spacing.xs,
-    fontSize: 12,
-  },
-  photosPreview: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: Spacing.sm,
-    marginTop: Spacing.md,
-  },
-  photoPreviewItem: {
-    position: 'relative',
-    width: 100,
-    height: 100,
-    borderRadius: BorderRadius.md,
-    overflow: 'hidden',
-  },
-  photoPreview: {
-    width: '100%',
-    height: '100%',
-    resizeMode: 'cover',
-  },
-  removePhotoButton: {
-    position: 'absolute',
-    top: 4,
-    right: 4,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  removePhotoText: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: 'bold',
-    lineHeight: 20,
-  },
-  saveButton: {
-    backgroundColor: Colors.light.primary,
-    borderRadius: BorderRadius.md,
-    paddingVertical: Spacing.md,
-    paddingHorizontal: Spacing.lg,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: Spacing.lg,
-  },
-  saveButtonDisabled: {
-    backgroundColor: '#F3F4F6',
-  },
-  saveButtonText: {
-    ...Typography.body,
-    color: '#FFFFFF',
-    fontWeight: '600',
-    fontSize: 16,
-  },
-  saveButtonTextDisabled: {
-    color: '#9CA3AF',
+    color: Colors.light.textHeading,
+    paddingVertical: Platform.OS === 'android' ? Spacing.sm - 2 : Spacing.sm,
   },
 });
-

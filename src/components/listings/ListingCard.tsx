@@ -22,6 +22,8 @@ import {
 import { Colors, Spacing, Typography, BorderRadius } from '../../config/theme';
 import { formatListingPrice } from '../../utils/currency';
 
+const MP = Colors.light.marketplace;
+
 export interface ListingCardData {
   id: string;
   title: string;
@@ -42,14 +44,23 @@ export interface ListingCardData {
   currency?: string;
 }
 
-function badgeLabel(category?: string): string {
+function badgeLabel(category?: string, variant?: 'grid' | 'feed'): string {
   if (!category || category === 'Unknown') return 'Listing';
   const c = String(category).toLowerCase();
   if (c.includes('propert')) return 'Property';
   if (c.includes('event')) return 'Event';
   if (c.includes('product')) return 'Product';
-  if (c.includes('service')) return 'Service';
+  if (c.includes('service')) return variant === 'feed' ? 'Beauty' : 'Service';
   return category.length > 12 ? `${category.slice(0, 11)}…` : category;
+}
+
+function badgeColor(category?: string): string {
+  const c = String(category || '').toLowerCase();
+  if (c.includes('event')) return MP.eventBadge;
+  if (c.includes('product')) return MP.productBadge;
+  if (c.includes('service')) return MP.beautyBadge;
+  if (c.includes('propert')) return MP.productBadge;
+  return MP.primary;
 }
 
 function formatShortTimePosted(raw?: string): string {
@@ -65,6 +76,7 @@ function formatShortTimePosted(raw?: string): string {
 
 interface ListingCardProps {
   listing: ListingCardData;
+  variant?: 'grid' | 'feed';
   onPress?: (listing: ListingCardData) => void;
   navigation?: any;
   wishlisted?: boolean;
@@ -73,6 +85,7 @@ interface ListingCardProps {
 
 export const ListingCard: React.FC<ListingCardProps> = ({
   listing,
+  variant = 'grid',
   onPress,
   navigation,
   wishlisted = false,
@@ -119,10 +132,52 @@ export const ListingCard: React.FC<ListingCardProps> = ({
 
   const priceSuffix = listing.priceUnit ? `/${listing.priceUnit}` : '';
   const locationText = listing.location?.trim() || 'Location TBD';
+  const isFeed = variant === 'feed';
+
+  const detailsBlock = (
+    <>
+      <Text style={[styles.title, isFeed && styles.titleFeed]} numberOfLines={2}>
+        {listing.title}
+      </Text>
+      <View style={styles.locationRow}>
+        <LocationIcon size={10} color={MP.locationText} />
+        <Text style={[styles.locationText, isFeed && styles.locationTextFeed]} numberOfLines={1}>
+          {locationText}
+        </Text>
+      </View>
+      <Text style={[styles.price, isFeed && styles.priceFeed]}>
+        {formatListingPrice(
+          listing.price != null && listing.price !== ''
+            ? Number(listing.price)
+            : 0,
+          listing.currency,
+        )}
+        {priceSuffix}
+      </Text>
+      <View style={styles.metaRow}>
+        <View style={styles.metaItem}>
+          <RatingIcon size={10} color="#FFB904" />
+          <Text style={[styles.metaText, isFeed && styles.metaTextFeed]}>{ratingText}</Text>
+        </View>
+        <View style={styles.metaItem}>
+          <VisibilityIcon size={10} color={MP.metaText} />
+          <Text style={[styles.metaText, isFeed && styles.metaTextFeed]}>
+            {listing.views != null ? String(listing.views) : '—'}
+          </Text>
+        </View>
+        <View style={styles.metaItem}>
+          <DurationIcon size={10} color={MP.metaMuted} />
+          <Text style={[styles.metaText, isFeed && styles.metaTextFeedMuted]}>
+            {formatShortTimePosted(listing.timePosted)}
+          </Text>
+        </View>
+      </View>
+    </>
+  );
 
   return (
-    <TouchableOpacity style={styles.card} onPress={handlePress} activeOpacity={0.85}>
-      <View style={styles.imageContainer}>
+    <TouchableOpacity style={[styles.card, isFeed && styles.cardFeed]} onPress={handlePress} activeOpacity={0.85}>
+      <View style={[styles.imageContainer, isFeed && styles.imageContainerFeed]}>
         {typeof listing.image === 'string' ? (
           <Image
             source={{ uri: listing.image }}
@@ -132,8 +187,8 @@ export const ListingCard: React.FC<ListingCardProps> = ({
         ) : (
           <Image source={listing.image} style={styles.image} resizeMode="cover" />
         )}
-        <View style={styles.categoryBadge}>
-          <Text style={styles.categoryBadgeText}>{badgeLabel(listing.category)}</Text>
+        <View style={[styles.categoryBadge, isFeed && styles.categoryBadgeFeed, { backgroundColor: badgeColor(listing.category) }]}>
+          <Text style={styles.categoryBadgeText}>{badgeLabel(listing.category, variant)}</Text>
         </View>
         <TouchableOpacity
           style={styles.heartBtn}
@@ -144,47 +199,12 @@ export const ListingCard: React.FC<ListingCardProps> = ({
           }}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
-          <View style={styles.heartCircle}>
-            <SaveIcon size={18} color={heartColor} filled={wishlisted} />
+          <View style={[styles.heartCircle, isFeed && styles.heartCircleFeed]}>
+            <SaveIcon size={isFeed ? 14 : 18} color={heartColor} filled={wishlisted} />
           </View>
         </TouchableOpacity>
       </View>
-      <View style={styles.content}>
-        <View style={styles.locationRow}>
-          <LocationIcon size={12} color={Colors.light.textSecondary} />
-          <Text style={styles.locationText} numberOfLines={1}>
-            {locationText}
-          </Text>
-        </View>
-        <Text style={styles.title} numberOfLines={2}>
-          {listing.title}
-        </Text>
-        <Text style={styles.price}>
-          {formatListingPrice(
-            listing.price != null && listing.price !== ''
-              ? Number(listing.price)
-              : 0,
-            listing.currency,
-          )}
-          {priceSuffix}
-        </Text>
-        <View style={styles.metaRow}>
-          <View style={styles.metaItem}>
-            <RatingIcon size={12} color="#FFB904" />
-            <Text style={styles.metaText}>{ratingText}</Text>
-          </View>
-          <View style={styles.metaItem}>
-            <VisibilityIcon size={14} color={Colors.light.textSecondary} />
-            <Text style={styles.metaText}>
-              {listing.views != null ? String(listing.views) : '—'}
-            </Text>
-          </View>
-          <View style={styles.metaItem}>
-            <DurationIcon size={14} color={Colors.light.textSecondary} />
-            <Text style={styles.metaText}>{formatShortTimePosted(listing.timePosted)}</Text>
-          </View>
-        </View>
-      </View>
+      <View style={[styles.content, isFeed && styles.contentFeed]}>{detailsBlock}</View>
     </TouchableOpacity>
   );
 };
@@ -204,11 +224,22 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 2,
   },
+  cardFeed: {
+    marginBottom: 0,
+    borderRadius: BorderRadius.xl,
+    borderColor: MP.cardBorder,
+    shadowOpacity: 0.07,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 2 },
+  },
   imageContainer: {
     width: '100%',
     height: 148,
     backgroundColor: Colors.light.surface,
     position: 'relative',
+  },
+  imageContainerFeed: {
+    height: 110,
   },
   image: {
     width: '100%',
@@ -218,21 +249,26 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: Spacing.sm,
     bottom: Spacing.sm,
-    backgroundColor: Colors.light.primary,
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: BorderRadius.round,
   },
+  categoryBadgeFeed: {
+    left: 8,
+    bottom: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
   categoryBadgeText: {
-    ...Typography.small,
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '600',
+    lineHeight: 15,
     color: '#FFFFFF',
   },
   heartBtn: {
     position: 'absolute',
-    top: Spacing.sm,
-    right: Spacing.sm,
+    top: 8,
+    right: 8,
   },
   heartCircle: {
     width: 32,
@@ -247,6 +283,12 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
     elevation: 2,
   },
+  heartCircleFeed: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#FFFFFF',
+  },
   content: {
     padding: Spacing.sm,
   },
@@ -254,22 +296,30 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    marginBottom: 6,
+    marginBottom: 4,
   },
   locationText: {
     ...Typography.small,
     flex: 1,
-    color: Colors.light.textSecondary,
+    color: Colors.light.textMuted,
     fontSize: 12,
   },
   title: {
     ...Typography.body,
     fontSize: 14,
     fontWeight: '600',
-    color: Colors.light.text,
+    color: Colors.light.textHeading,
     lineHeight: 20,
-    marginBottom: 6,
+    marginBottom: 4,
     minHeight: 40,
+  },
+  titleFeed: {
+    minHeight: 0,
+    marginBottom: 0,
+    fontSize: 13,
+    lineHeight: 16.9,
+    fontWeight: '600',
+    color: MP.titleText,
   },
   price: {
     ...Typography.body,
@@ -277,6 +327,32 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: Colors.light.primary,
     marginBottom: Spacing.sm,
+  },
+  priceFeed: {
+    fontSize: 14,
+    lineHeight: 21,
+    fontWeight: '700',
+    color: MP.primary,
+    marginBottom: 4,
+    marginTop: 4,
+  },
+  locationTextFeed: {
+    fontSize: 10,
+    lineHeight: 15,
+    color: MP.locationText,
+  },
+  metaTextFeed: {
+    fontSize: 10,
+    lineHeight: 15,
+    color: MP.metaText,
+  },
+  metaTextFeedMuted: {
+    fontSize: 10,
+    lineHeight: 15,
+    color: MP.metaMuted,
+  },
+  contentFeed: {
+    padding: 10,
   },
   metaRow: {
     flexDirection: 'row',

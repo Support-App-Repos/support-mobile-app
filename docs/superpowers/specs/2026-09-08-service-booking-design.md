@@ -1,7 +1,7 @@
 # Service Booking Flow — Design Spec
 
 **Date:** 2026-09-08  
-**Status:** Approved (pending user review of this file)  
+**Status:** Approved  
 **Apps:** `support-mobile-app`, `support-backend`  
 **Figma:** Support file — frames `choose service` (`1179:6569`), `date nd time` (`1180:52`), add-ons / confirm, `booking confirm` (`1180:1112`)
 

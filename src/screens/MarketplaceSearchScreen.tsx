@@ -28,6 +28,7 @@ import {
   type MarketplaceSearchListingVM,
 } from '../components/listings';
 import { Colors, Spacing, Typography, BorderRadius } from '../config/theme';
+import { formatListingPriceWithType } from '../utils/currency';
 import { listingService } from '../services';
 import { useWishlist } from '../hooks';
 
@@ -82,23 +83,21 @@ function navigateToListingDetail(navigation: any, item: RawListing, listingId: s
 }
 
 function formatSearchPriceLabel(listing: RawListing): string | undefined {
-  const priceType = String(listing.priceType || '').toLowerCase();
   const raw = listing.price;
-  if (priceType === 'free' || raw === 0 || raw === '0') {
+  const n = typeof raw === 'number' ? raw : parseFloat(String(raw ?? ''));
+  const priceType = listing.priceType;
+  if (
+    String(priceType || '').toLowerCase() === 'free' ||
+    raw === 0 ||
+    raw === '0' ||
+    n === 0
+  ) {
     return 'Free';
   }
-  const n = typeof raw === 'number' ? raw : parseFloat(String(raw ?? ''));
   if (raw == null || raw === '' || Number.isNaN(n)) {
     return undefined;
   }
-  const cur = (listing.currency && String(listing.currency).length === 3
-    ? String(listing.currency).toUpperCase()
-    : 'USD') as string;
-  try {
-    return new Intl.NumberFormat(undefined, { style: 'currency', currency: cur }).format(n);
-  } catch {
-    return `$${n.toFixed(2)}`;
-  }
+  return formatListingPriceWithType(n, listing.currency, priceType);
 }
 
 function formatDistanceLocation(listing: RawListing): string | undefined {

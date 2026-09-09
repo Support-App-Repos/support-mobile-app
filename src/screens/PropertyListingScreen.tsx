@@ -1,5 +1,6 @@
 /**
- * Property Listing Screen — step 1 (Details) for Properties only
+ * Property Listing Screen — step 1 (Details)
+ * Figma: properting details (node 1055:1469)
  */
 
 import React, { useState, useEffect } from 'react';
@@ -9,23 +10,29 @@ import {
   Text,
   StyleSheet,
   TextInput,
-  TouchableOpacity,
-  Image,
   ScrollView,
-  Modal,
-  FlatList,
   Alert,
-  ActivityIndicator,
   Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { BackIcon, BellIcon, AddPhotoIcon, Checkbox, GoogleLocationField, FormSelect } from '../components/common';
+import { GoogleLocationField, FormSelect } from '../components/common';
+import {
+  ListingWizardHeader,
+  ListingStepProgress,
+  ListingFormSection,
+  ListingFormField,
+  ListingPhotoUpload,
+  ListingWizardFooter,
+  LISTING_FORM_STEPS,
+  listingWizardInputStyles,
+  androidInputProps as wizardAndroidInputProps,
+} from '../components/listings/wizard';
 import { BottomNavigation, type BottomNavItem } from '../components/navigation';
-import { Colors, Spacing, Typography, BorderRadius } from '../config/theme';
-import { listingService, paymentService, pickImages, uploadImages } from '../services';
+import { Colors, Spacing, BorderRadius } from '../config/theme';
+import { listingService, paymentService, pickImages, type PickedImage } from '../services';
+import { resolveListingPhotoUrls, resolveListingId } from '../utils/listingPhotos';
 import { useProfile } from '../hooks';
 import { filterNumbersOnly } from '../utils/validation';
-import { PROPERTY_AMENITIES, serializeAmenityIds } from '../constants/propertyAmenities';
 
 type PropertyListingScreenProps = {
   navigation?: any;
@@ -36,7 +43,9 @@ type PropertyListingScreenProps = {
   };
 };
 
-const FORM_STEPS = ['Details', 'Payment', 'Select Region', 'Confirm'];
+const MP = Colors.light.marketplace;
+const FORM_STEPS = LISTING_FORM_STEPS;
+const inputStyles = listingWizardInputStyles;
 
 const PURPOSE_OPTIONS = ['For Rent', 'For Sale'];
 const CURRENCY_OPTIONS = ['AED', 'USD', 'EUR'];
@@ -49,17 +58,64 @@ const PROPERTY_TYPE_OPTIONS = [
   'Studio',
   'Room',
 ];
-const OWNERSHIP_OPTIONS = ['Freehold', 'Leasehold'];
-const USAGE_OPTIONS = ['Residential', 'Commercial', 'Mixed'];
+
+type IconInputProps = {
+  icon?: string;
+  prefix?: string;
+  value: string;
+  onChangeText: (text: string) => void;
+  placeholder: string;
+  keyboardType?: 'default' | 'decimal-pad' | 'number-pad';
+  numericOnly?: boolean;
+};
+
+const IconInput: React.FC<IconInputProps> = ({
+  icon,
+  prefix,
+  value,
+  onChangeText,
+  placeholder,
+  keyboardType = 'default',
+  numericOnly = false,
+}) => (
+  <View style={styles.iconInputWrap}>
+    {icon ? <Text style={styles.fieldIcon}>{icon}</Text> : null}
+    {prefix ? <Text style={styles.pricePrefix}>{prefix}</Text> : null}
+    <TextInput
+      style={styles.iconInput}
+      placeholder={placeholder}
+      placeholderTextColor="rgba(153,153,153,0.5)"
+      value={value}
+      onChangeText={(t) => onChangeText(numericOnly ? t.replace(/\D/g, '') : t)}
+      keyboardType={keyboardType}
+      {...wizardAndroidInputProps}
+    />
+  </View>
+);
+
+function buildPropertyDescription(params: {
+  title: string;
+  purpose: string;
+  propertyType: string;
+  bedrooms: string;
+  bathrooms: string;
+  squareFeet: string;
+  furnishing: string;
+  city: string;
+}): string {
+  const parts = [
+    params.purpose,
+    params.propertyType,
+    params.bedrooms ? `${params.bedrooms} bed` : '',
+    params.bathrooms ? `${params.bathrooms} bath` : '',
+    params.squareFeet ? `${params.squareFeet} sqft` : '',
+    params.furnishing,
+    params.city,
+  ].filter(Boolean);
+  return parts.join(' · ') || params.title;
+}
 
 export const PropertyListingScreen: React.FC<PropertyListingScreenProps> = ({ navigation, route }) => {
-  const androidInputProps =
-    Platform.OS === 'android'
-      ? ({ includeFontPadding: false, textAlignVertical: 'center' as const } as const)
-      : undefined;
-  const androidMultilineProps =
-    Platform.OS === 'android' ? ({ includeFontPadding: false } as const) : undefined;
-
   const [title, setTitle] = useState('');
   const [purpose, setPurpose] = useState('');
   const [price, setPrice] = useState('');
@@ -71,31 +127,31 @@ export const PropertyListingScreen: React.FC<PropertyListingScreenProps> = ({ na
   const [squareFeet, setSquareFeet] = useState('');
   const [referenceNo, setReferenceNo] = useState('');
   const [furnishing, setFurnishing] = useState('');
-  const [selectedAmenityIds, setSelectedAmenityIds] = useState<string[]>([]);
-  const [amenitiesModalOpen, setAmenitiesModalOpen] = useState(false);
-  const [additionalTags, setAdditionalTags] = useState('');
   const [propertyType, setPropertyType] = useState('');
-  const [ownership, setOwnership] = useState('');
-  const [builtUpArea, setBuiltUpArea] = useState('');
-  const [usage, setUsage] = useState('');
-  const [balconySize, setBalconySize] = useState('');
-  const [photos, setPhotos] = useState<string[]>([]);
-  const [photoUris, setPhotoUris] = useState<string[]>([]);
+  const [, setPhotos] = useState<string[]>([]);
+  const [photoUris, setPhotoUris] = useState<PickedImage[]>([]);
   const [activeTab, setActiveTab] = useState<BottomNavItem>('Home');
   const [loading, setLoading] = useState(false);
   const [snackbarVisible, setSnackbarVisible] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [snackbarType, setSnackbarType] = useState<'error' | 'success' | 'info'>('error');
+  const [listingId, setListingId] = useState<string | null>(
+    resolveListingId((route?.params as any)?.listingData),
+  );
   const { profileImageUrl } = useProfile();
 
   const currentStep = 0;
-  const categoryId = route?.params?.categoryId;
-  const isForSale = purpose === 'For Sale';
+  const categoryId =
+    route?.params?.categoryId ||
+    (route?.params as any)?.listingData?.category?.id ||
+    (route?.params as any)?.listingData?.categoryId;
 
-  // Prefill form when editing from Review/Region flow
   useEffect(() => {
     const incoming = (route?.params as any)?.listingData || route?.params;
     if (!incoming) return;
+
+    const incomingId = resolveListingId(incoming);
+    if (incomingId) setListingId(incomingId);
 
     if (incoming.title != null) setTitle(String(incoming.title));
     if (incoming.propertyPurpose != null) setPurpose(String(incoming.propertyPurpose));
@@ -108,42 +164,17 @@ export const PropertyListingScreen: React.FC<PropertyListingScreenProps> = ({ na
     if (incoming.squareFeet != null) setSquareFeet(String(incoming.squareFeet));
     if (incoming.referenceNo != null) setReferenceNo(String(incoming.referenceNo));
     if (incoming.furnishing != null) setFurnishing(String(incoming.furnishing));
-    if (incoming.additionalTags != null) setAdditionalTags(String(incoming.additionalTags));
     if (incoming.propertyType != null) setPropertyType(String(incoming.propertyType));
-    if (incoming.ownership != null) setOwnership(String(incoming.ownership));
-    if (incoming.builtUpArea != null) setBuiltUpArea(String(incoming.builtUpArea));
-    if (incoming.propertyUsage != null) setUsage(String(incoming.propertyUsage));
-    if (incoming.balconySize != null) setBalconySize(String(incoming.balconySize));
-
-    if (incoming.amenities != null && selectedAmenityIds.length === 0) {
-      // amenities is stored as comma-separated or array of ids
-      const raw = incoming.amenities;
-      const ids = Array.isArray(raw)
-        ? raw.map(String)
-        : String(raw)
-            .split(',')
-            .map((s: string) => s.trim())
-            .filter(Boolean);
-      setSelectedAmenityIds(ids);
-    }
 
     if (Array.isArray(incoming.photos) && incoming.photos.length > 0 && photoUris.length === 0) {
-      // For editing we keep existing URLs in preview
       const urls = incoming.photos
         .map((p: any) => (typeof p === 'string' ? p : p?.photoUrl || p?.url))
-        .filter(Boolean);
+        .filter(Boolean) as string[];
       setPhotos(urls);
+      setPhotoUris(urls.map((uri) => ({ uri })));
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  useEffect(() => {
-    if (purpose === 'For Rent') {
-      setOwnership('');
-    }
-  }, [purpose]);
-
-  const hasDetailText = selectedAmenityIds.length > 0 || additionalTags.trim() !== '';
 
   const isFormValid =
     title.trim() !== '' &&
@@ -152,15 +183,42 @@ export const PropertyListingScreen: React.FC<PropertyListingScreenProps> = ({ na
     currency.trim() !== '' &&
     location.trim() !== '' &&
     city.trim() !== '' &&
-    hasDetailText &&
     photoUris.length > 0;
+
+  const navigateAfterSave = async (listingData: any) => {
+    const existingPayment = (route?.params as any)?.paymentData;
+    const existingRegion = (route?.params as any)?.regionData;
+    if (existingPayment && existingRegion) {
+      navigation?.navigate('Review', {
+        listingData,
+        paymentData: existingPayment,
+        regionData: existingRegion,
+      });
+      return;
+    }
+    try {
+      const subscriptionCheck = await paymentService.checkSubscriptionValidity();
+      const subscriptionData = (subscriptionCheck.data as any)?.data || subscriptionCheck.data;
+      if (subscriptionData?.hasValidSubscription) {
+        navigation?.navigate('SelectRegion', {
+          listingData,
+          paymentData: {
+            plan: 'monthly',
+            subscription: subscriptionData.subscription,
+            skipPayment: true,
+          },
+        });
+      } else {
+        navigation?.navigate('Payment', { listingData });
+      }
+    } catch {
+      navigation?.navigate('Payment', { listingData });
+    }
+  };
 
   const handleSaveAndContinue = async () => {
     if (!isFormValid) {
-      Alert.alert(
-        'Validation',
-        'Please complete required fields, add amenities or additional tags, and upload at least one photo.',
-      );
+      Alert.alert('Validation', 'Please complete all required fields and upload at least one photo.');
       return;
     }
     if (!categoryId) {
@@ -173,8 +231,7 @@ export const PropertyListingScreen: React.FC<PropertyListingScreenProps> = ({ na
       let photoUrls: string[] = [];
       if (photoUris.length > 0) {
         try {
-          const uploadedImages = await uploadImages(photoUris, 'listings/');
-          photoUrls = uploadedImages.map((img) => img.url);
+          photoUrls = await resolveListingPhotoUrls(photoUris, 'listings/');
           setPhotos(photoUrls);
         } catch (uploadError: any) {
           Alert.alert('Upload Error', uploadError.message || 'Failed to upload photos.');
@@ -190,11 +247,24 @@ export const PropertyListingScreen: React.FC<PropertyListingScreenProps> = ({ na
         return;
       }
 
-      const response = await listingService.createListing({
+      const description = buildPropertyDescription({
         title: title.trim(),
-        description: '',
+        purpose: purpose.trim(),
+        propertyType: propertyType.trim(),
+        bedrooms,
+        bathrooms,
+        squareFeet,
+        furnishing: furnishing.trim(),
+        city: city.trim(),
+      });
+
+      const additionalTags = [propertyType.trim(), furnishing.trim()].filter(Boolean).join(', ');
+
+      const payload = {
+        title: title.trim(),
+        description,
         price: parsedPrice,
-        priceType: 'Paid',
+        priceType: 'Paid' as const,
         location: location.trim(),
         city: city.trim(),
         categoryId,
@@ -205,41 +275,25 @@ export const PropertyListingScreen: React.FC<PropertyListingScreenProps> = ({ na
         currency: currency.trim(),
         referenceNo: referenceNo.trim() || undefined,
         furnishing: furnishing.trim() || undefined,
-        amenities: serializeAmenityIds(selectedAmenityIds),
-        additionalTags: additionalTags.trim(),
+        additionalTags: additionalTags || undefined,
         propertyType: propertyType.trim() || undefined,
-        ownership: isForSale && ownership.trim() ? ownership.trim() : undefined,
-        builtUpArea: builtUpArea.trim() || undefined,
-        propertyUsage: usage.trim() || undefined,
-        balconySize: balconySize.trim() || undefined,
         photos: photoUrls,
-      });
+      };
+
+      const response = listingId
+        ? await listingService.updateListing(listingId, payload)
+        : await listingService.createListing(payload);
 
       if (response.success) {
         const listingData = (response.data as any)?.data || response.data;
-        try {
-          const subscriptionCheck = await paymentService.checkSubscriptionValidity();
-          const subscriptionData = (subscriptionCheck.data as any)?.data || subscriptionCheck.data;
-          if (subscriptionData?.hasValidSubscription) {
-            navigation?.navigate('SelectRegion', {
-              listingData,
-              paymentData: {
-                plan: 'monthly',
-                subscription: subscriptionData.subscription,
-                skipPayment: true,
-              },
-            });
-          } else {
-            navigation?.navigate('Payment', { listingData });
-          }
-        } catch {
-          navigation?.navigate('Payment', { listingData });
-        }
+        const savedId = resolveListingId(listingData);
+        if (savedId) setListingId(savedId);
+        await navigateAfterSave(listingData);
       } else {
-        throw new Error(response.message || 'Failed to create listing');
+        throw new Error(response.message || 'Failed to save listing');
       }
     } catch (error: any) {
-      setSnackbarMessage(error.message || 'Failed to create listing.');
+      setSnackbarMessage(error.message || 'Failed to save listing.');
       setSnackbarType('error');
       setSnackbarVisible(true);
     } finally {
@@ -253,12 +307,12 @@ export const PropertyListingScreen: React.FC<PropertyListingScreenProps> = ({ na
         Alert.alert('Limit', 'You can upload up to 6 photos.');
         return;
       }
-      const selectedUris = await pickImages();
-      if (selectedUris?.length) {
-        const updated = [...photoUris, ...selectedUris.map((img) => img.uri)].slice(0, 6);
+      const selected = await pickImages();
+      if (selected?.length) {
+        const updated = [...photoUris, ...selected].slice(0, 6);
         setPhotoUris(updated);
-        setPhotos(updated);
-        setSnackbarMessage(`Added ${selectedUris.length} photo(s).`);
+        setPhotos(updated.map((p) => p.uri));
+        setSnackbarMessage(`Added ${selected.length} photo(s).`);
         setSnackbarType('success');
         setSnackbarVisible(true);
       }
@@ -269,412 +323,189 @@ export const PropertyListingScreen: React.FC<PropertyListingScreenProps> = ({ na
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => navigation?.goBack()} activeOpacity={0.7}>
-          <BackIcon size={24} color="#030303" />
-        </TouchableOpacity>
-        <View style={styles.headerRight}>
-          <TouchableOpacity style={styles.iconButton} activeOpacity={0.7}>
-            <BellIcon size={24} color="#111827" />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.profileButton}
-            activeOpacity={0.7}
-            onPress={() => navigation?.navigate('Profile')}
-          >
-            <Image
-              source={{ uri: profileImageUrl || 'https://i.pravatar.cc/150?img=12' }}
-              style={styles.profileImage}
-            />
-          </TouchableOpacity>
-        </View>
+      <View style={styles.headerBand}>
+        <ListingWizardHeader
+          title="Listing Details"
+          subtitle="Add details about your property listing"
+          profileImageUrl={profileImageUrl}
+          onBack={() => navigation?.goBack()}
+          showBell
+          usePillControls
+        />
+        <ListingStepProgress
+          currentStep={currentStep}
+          steps={FORM_STEPS}
+          numbered
+          activeColor={MP.primary}
+        />
       </View>
 
-      <View style={styles.titleSection}>
-        <Text style={styles.titleText}>Listing Details</Text>
-      </View>
-
-      <View style={styles.progressContainer}>
-        {FORM_STEPS.map((step, index) => (
-          <View key={step} style={styles.progressStepContainer}>
-            <View style={styles.progressCircleWrapper}>
-              <View
-                style={[
-                  styles.progressCircle,
-                  index === currentStep && styles.progressCircleActive,
-                  index < currentStep && styles.progressCircleCompleted,
-                ]}
-              >
-                {index === currentStep ? (
-                  <View style={styles.progressDotActive} />
-                ) : index < currentStep ? (
-                  <View style={styles.progressDotCompleted} />
-                ) : (
-                  <View style={styles.progressDotInactive} />
-                )}
-              </View>
-              {index < FORM_STEPS.length - 1 && (
-                <View style={[styles.progressLine, index < currentStep && styles.progressLineActive]} />
-              )}
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        <ListingFormSection title="Basic Information" variant="card">
+          <View style={inputStyles.row}>
+            <View style={styles.fieldFlex}>
+              <ListingFormField label="Listing Title" required>
+                <IconInput
+                  icon="🏠"
+                  value={title}
+                  onChangeText={setTitle}
+                  placeholder="e.g. Modern Downtown Apartment"
+                />
+              </ListingFormField>
             </View>
-            <Text style={styles.progressLabel}>{step}</Text>
-          </View>
-        ))}
-      </View>
-
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <Text style={styles.introText}>Add details about your property listing</Text>
-
-        <View style={styles.row}>
-          <View style={styles.fieldFlex}>
-            <Text style={styles.label}>
-              Listing Title <Text style={styles.required}>*</Text>
-            </Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Listing title"
-              placeholderTextColor={Colors.light.textSecondary}
-              value={title}
-              onChangeText={setTitle}
-              {...androidInputProps}
-            />
-          </View>
-          <FormSelect
-            label="Purpose"
-            required
-            value={purpose}
-            placeholder="Select"
-            options={PURPOSE_OPTIONS}
-            onSelect={setPurpose}
-          />
-        </View>
-
-        <View style={styles.row}>
-          <View style={styles.fieldFlex}>
-            <Text style={styles.label}>
-              Price <Text style={styles.required}>*</Text>
-            </Text>
-            <TextInput
-              style={styles.input}
-              placeholder="e.g 2,000,000"
-              placeholderTextColor={Colors.light.textSecondary}
-              value={price}
-              onChangeText={(t) => setPrice(filterNumbersOnly(t, true))}
-              keyboardType="decimal-pad"
-              {...androidInputProps}
-            />
-          </View>
-          <FormSelect
-            label="Currency"
-            required
-            value={currency}
-            placeholder="AED"
-            options={CURRENCY_OPTIONS}
-            onSelect={setCurrency}
-          />
-        </View>
-
-        <View style={styles.row}>
-          <View style={styles.fieldFlex}>
-            <Text style={styles.label}>
-              Location <Text style={styles.required}>*</Text>
-            </Text>
-            <GoogleLocationField
-              label=""
+            <FormSelect
+              label="Purpose"
               required
-              value={location}
-              placeholder="Search location"
-              onSelect={({ location: loc, city: c }) => {
-                setLocation(loc);
-                if (c) setCity(c);
-              }}
+              value={purpose}
+              placeholder="Select purpose"
+              options={PURPOSE_OPTIONS}
+              onSelect={setPurpose}
             />
           </View>
-          <View style={styles.fieldFlex}>
-            <Text style={styles.label}>
-              City <Text style={styles.required}>*</Text>
-            </Text>
-            <TextInput
-              style={styles.input}
-              placeholder="e.g Dubai, UAE"
-              placeholderTextColor={Colors.light.textSecondary}
-              value={city}
-              onChangeText={setCity}
-              {...androidInputProps}
-            />
-          </View>
-        </View>
 
-        <View style={styles.rowTriple}>
-          <View style={styles.fieldFlex}>
-            <Text style={styles.label}>Bedrooms</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="e.g 2"
-              placeholderTextColor={Colors.light.textSecondary}
-              value={bedrooms}
-              onChangeText={(t) => setBedrooms(t.replace(/\D/g, ''))}
-              keyboardType="number-pad"
-              {...androidInputProps}
+          <View style={inputStyles.row}>
+            <View style={styles.fieldFlex}>
+              <ListingFormField label="Price">
+                <IconInput
+                  prefix="$"
+                  value={price}
+                  onChangeText={(t) => setPrice(filterNumbersOnly(t, true))}
+                  placeholder="e.g. 2,000,000"
+                  keyboardType="decimal-pad"
+                />
+              </ListingFormField>
+            </View>
+            <FormSelect
+              label="Currency"
+              value={currency}
+              placeholder="AED"
+              options={CURRENCY_OPTIONS}
+              onSelect={setCurrency}
+              leadingIcon="💱"
             />
           </View>
-          <View style={styles.fieldFlex}>
-            <Text style={styles.label}>Bathrooms</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="e.g 3"
-              placeholderTextColor={Colors.light.textSecondary}
-              value={bathrooms}
-              onChangeText={(t) => setBathrooms(t.replace(/\D/g, ''))}
-              keyboardType="number-pad"
-              {...androidInputProps}
-            />
-          </View>
-          <View style={styles.fieldFlex}>
-            <Text style={styles.label}>Area (sqft)</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="e.g 1588"
-              placeholderTextColor={Colors.light.textSecondary}
-              value={squareFeet}
-              onChangeText={(t) => setSquareFeet(t.replace(/\D/g, ''))}
-              keyboardType="number-pad"
-              {...androidInputProps}
-            />
-          </View>
-        </View>
+        </ListingFormSection>
 
-        <View style={styles.row}>
-          <View style={styles.fieldFlex}>
-            <Text style={styles.label}>Reference No.</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="e.g NABN- GQ5678"
-              placeholderTextColor={Colors.light.textSecondary}
-              value={referenceNo}
-              onChangeText={setReferenceNo}
-              {...androidInputProps}
+        <ListingFormSection title="Location" variant="card">
+          <View style={inputStyles.row}>
+            <View style={styles.fieldFlex}>
+              <ListingFormField label="Location">
+                <GoogleLocationField
+                  label=""
+                  required
+                  value={location}
+                  placeholder="Search location"
+                  onSelect={({ location: loc, city: c }) => {
+                    setLocation(loc);
+                    if (c) setCity(c);
+                  }}
+                />
+              </ListingFormField>
+            </View>
+            <View style={styles.fieldFlex}>
+              <ListingFormField label="City">
+                <IconInput
+                  icon="🏙️"
+                  value={city}
+                  onChangeText={setCity}
+                  placeholder="e.g. Dubai, UAE"
+                />
+              </ListingFormField>
+            </View>
+          </View>
+        </ListingFormSection>
+
+        <ListingFormSection title="Property Details" variant="card">
+          <View style={styles.rowTriple}>
+            <View style={styles.fieldThird}>
+              <ListingFormField label="Bedrooms">
+                <IconInput
+                  icon="🛏"
+                  value={bedrooms}
+                  onChangeText={setBedrooms}
+                  placeholder="e.g. 2"
+                  keyboardType="number-pad"
+                  numericOnly
+                />
+              </ListingFormField>
+            </View>
+            <View style={styles.fieldThird}>
+              <ListingFormField label="Bathrooms">
+                <IconInput
+                  icon="🛁"
+                  value={bathrooms}
+                  onChangeText={setBathrooms}
+                  placeholder="e.g. 1"
+                  keyboardType="number-pad"
+                  numericOnly
+                />
+              </ListingFormField>
+            </View>
+            <View style={styles.fieldThird}>
+              <ListingFormField label="Area (sqft)">
+                <IconInput
+                  value={squareFeet}
+                  onChangeText={setSquareFeet}
+                  placeholder="e.g. 1500"
+                  keyboardType="number-pad"
+                  numericOnly
+                />
+              </ListingFormField>
+            </View>
+          </View>
+
+          <View style={inputStyles.row}>
+            <View style={styles.fieldFlex}>
+              <ListingFormField label="Reference No.">
+                <IconInput
+                  value={referenceNo}
+                  onChangeText={setReferenceNo}
+                  placeholder="e.g. NABR-G00A-78"
+                />
+              </ListingFormField>
+            </View>
+            <FormSelect
+              label="Furnishing"
+              value={furnishing}
+              placeholder="Select furnishing"
+              options={FURNISHING_OPTIONS}
+              onSelect={setFurnishing}
             />
           </View>
+
           <FormSelect
-            label="Furnishing"
-            value={furnishing}
-            placeholder="Select"
-            options={FURNISHING_OPTIONS}
-            onSelect={setFurnishing}
-          />
-        </View>
-
-        <View style={styles.fieldBlock}>
-          <FormSelect
-            label="Property type"
+            label="Property Type"
             value={propertyType}
-            placeholder="e.g Apartment"
+            placeholder="Select property type"
             options={PROPERTY_TYPE_OPTIONS}
             onSelect={setPropertyType}
           />
-        </View>
+        </ListingFormSection>
 
-        <View style={styles.fieldBlock}>
-          <Text style={styles.label}>
-            Amenities <Text style={styles.required}>*</Text>
-          </Text>
-          <TouchableOpacity
-            style={styles.selectTrigger}
-            onPress={() => setAmenitiesModalOpen(true)}
-            activeOpacity={0.7}
-          >
-            <Text
-              style={[styles.selectText, selectedAmenityIds.length === 0 && styles.selectPlaceholder]}
-              numberOfLines={2}
-            >
-              {selectedAmenityIds.length === 0
-                ? 'Select amenities'
-                : `${selectedAmenityIds.length} selected — ${PROPERTY_AMENITIES.filter((a) =>
-                    selectedAmenityIds.includes(a.id),
-                  )
-                    .map((a) => a.label)
-                    .join(', ')}`}
-            </Text>
-            <Text style={styles.selectChevron}>▼</Text>
-          </TouchableOpacity>
-          <Modal
-            visible={amenitiesModalOpen}
-            transparent
-            animationType="slide"
-            onRequestClose={() => setAmenitiesModalOpen(false)}
-          >
-            <TouchableOpacity
-              style={styles.modalOverlay}
-              activeOpacity={1}
-              onPress={() => setAmenitiesModalOpen(false)}
-            >
-              <View style={styles.amenitiesModalSheet} onStartShouldSetResponder={() => true}>
-                <Text style={styles.modalTitle}>Amenities</Text>
-                <FlatList
-                  data={[...PROPERTY_AMENITIES]}
-                  keyExtractor={(item) => item.id}
-                  style={styles.amenitiesModalList}
-                  renderItem={({ item }) => (
-                    <Checkbox
-                      checked={selectedAmenityIds.includes(item.id)}
-                      onToggle={(checked) => {
-                        setSelectedAmenityIds((prev) =>
-                          checked
-                            ? prev.includes(item.id)
-                              ? prev
-                              : [...prev, item.id]
-                            : prev.filter((id) => id !== item.id),
-                        );
-                      }}
-                      label={item.label}
-                      containerStyle={styles.amenityCheckboxRow}
-                    />
-                  )}
-                />
-                <TouchableOpacity
-                  style={styles.amenitiesDoneButton}
-                  onPress={() => setAmenitiesModalOpen(false)}
-                  activeOpacity={0.85}
-                >
-                  <Text style={styles.amenitiesDoneButtonText}>Done</Text>
-                </TouchableOpacity>
-              </View>
-            </TouchableOpacity>
-          </Modal>
-        </View>
-
-        <View style={styles.fieldBlock}>
-          <Text style={styles.label}>
-            Additional Tags <Text style={styles.required}>*</Text>
-          </Text>
-          <TextInput
-            style={[styles.input, styles.textArea]}
-            placeholder="e.g Luxury, Sea view, New"
-            placeholderTextColor={Colors.light.textSecondary}
-            value={additionalTags}
-            onChangeText={setAdditionalTags}
-            multiline
-            {...androidMultilineProps}
-          />
-        </View>
-
-        <Text style={styles.optionalSectionTitle}>Validated details (optional)</Text>
-        <Text style={styles.optionalHint}>
-          {!purpose.trim()
-            ? 'Ownership only appears when purpose is “For Sale”. For rent you will not see it and can still submit with photos.'
-            : isForSale
-              ? 'Ownership (freehold / leasehold) is optional and only used for sale listings.'
-              : 'For “For Rent”, ownership is hidden — you can still save and upload photos without it.'}
-        </Text>
-        {isForSale ? (
-          <View style={styles.row}>
-            <FormSelect
-              label="Ownership"
-              value={ownership}
-              placeholder="Select (optional)"
-              options={OWNERSHIP_OPTIONS}
-              onSelect={setOwnership}
-            />
-            <View style={styles.fieldFlex}>
-              <Text style={styles.label}>Built-up area</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="e.g 864 sqft"
-                placeholderTextColor={Colors.light.textSecondary}
-                value={builtUpArea}
-                onChangeText={setBuiltUpArea}
-                {...androidInputProps}
-              />
-            </View>
-          </View>
-        ) : (
-          <View style={styles.fieldBlock}>
-            <Text style={styles.label}>Built-up area</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="e.g 864 sqft"
-              placeholderTextColor={Colors.light.textSecondary}
-              value={builtUpArea}
-              onChangeText={setBuiltUpArea}
-              {...androidInputProps}
-            />
-          </View>
-        )}
-        <View style={styles.row}>
-          <FormSelect label="Usage" value={usage} placeholder="Select" options={USAGE_OPTIONS} onSelect={setUsage} />
-          <View style={styles.fieldFlex}>
-            <Text style={styles.label}>Balcony size</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="e.g 132 sqft"
-              placeholderTextColor={Colors.light.textSecondary}
-              value={balconySize}
-              onChangeText={setBalconySize}
-              {...androidInputProps}
-            />
-          </View>
-        </View>
-
-        <View style={styles.fieldBlock}>
-          <Text style={styles.label}>
-            Photo <Text style={styles.required}>*</Text>
-          </Text>
-          <View style={styles.photoSection}>
-            <TouchableOpacity
-              style={styles.photoIconButton}
-              onPress={handlePhotoUpload}
-              disabled={photoUris.length >= 6 || loading}
-            >
-              <AddPhotoIcon size={57} />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.photoUploadArea}
-              onPress={handlePhotoUpload}
-              disabled={photoUris.length >= 6 || loading}
-            >
-              <Text style={styles.uploadText}>
-                {photoUris.length >= 6 ? 'Maximum photos reached' : 'Click to upload'}
-              </Text>
-              <Text style={styles.uploadSubtext}>SVG, PNG, JPG or GIF (max. 800×400px)</Text>
-            </TouchableOpacity>
-          </View>
-          <Text style={styles.photoHint}>Add upto 6 photos</Text>
-          {photoUris.length > 0 && (
-            <View style={styles.photosPreview}>
-              {photoUris.map((uri, index) => {
-                const imageUri =
-                  uri.startsWith('file://') || uri.startsWith('content://') || uri.startsWith('http')
-                    ? uri
-                    : `file://${uri}`;
-                return (
-                  <View key={`${uri}-${index}`} style={styles.photoPreviewItem}>
-                    <Image source={{ uri: imageUri }} style={styles.photoPreview} />
-                    <TouchableOpacity
-                      style={styles.removePhotoButton}
-                      onPress={() => {
-                        const next = photoUris.filter((_, i) => i !== index);
-                        setPhotoUris(next);
-                        setPhotos(next);
-                      }}
-                    >
-                      <Text style={styles.removePhotoText}>×</Text>
-                    </TouchableOpacity>
-                  </View>
-                );
-              })}
-            </View>
-          )}
-        </View>
-
-        <TouchableOpacity
-          style={[styles.saveButton, (!isFormValid || loading) && styles.saveButtonDisabled]}
-          onPress={handleSaveAndContinue}
-          disabled={!isFormValid || loading}
-        >
-          {loading ? <ActivityIndicator color="#FFF" /> : <Text style={styles.saveButtonText}>Save & Continue</Text>}
-        </TouchableOpacity>
+        <ListingPhotoUpload
+          photos={photoUris.map((p) => ({ uri: p.uri }))}
+          onAdd={handlePhotoUpload}
+          onRemove={(index) => {
+            const next = photoUris.filter((_, i) => i !== index);
+            setPhotoUris(next);
+            setPhotos(next.map((p) => p.uri));
+          }}
+          uploading={loading}
+        />
       </ScrollView>
+
+      <ListingWizardFooter
+        label="Save & Continue"
+        onPress={handleSaveAndContinue}
+        disabled={!isFormValid}
+        loading={loading}
+        showArrow={false}
+      />
 
       <BottomNavigation
         activeTab={activeTab}
@@ -703,195 +534,54 @@ export const PropertyListingScreen: React.FC<PropertyListingScreenProps> = ({ na
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.light.background },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.md,
+  container: {
+    flex: 1,
+    backgroundColor: MP.screenSurface,
   },
-  backButton: { padding: Spacing.xs, marginLeft: -Spacing.xs },
-  headerRight: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
-  iconButton: { padding: Spacing.xs },
-  profileButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: Colors.light.border,
+  headerBand: {
+    backgroundColor: Colors.light.background,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 2,
+    elevation: 2,
+    paddingBottom: Spacing.sm,
   },
-  profileImage: { width: '100%', height: '100%' },
-  titleSection: { paddingHorizontal: Spacing.md, paddingBottom: Spacing.sm },
-  titleText: { ...Typography.h2, color: Colors.light.text, fontWeight: '700', fontSize: 18 },
-  progressContainer: {
-    flexDirection: 'row',
-    paddingHorizontal: Spacing.md,
-    paddingBottom: Spacing.lg,
-  },
-  progressStepContainer: { flex: 1, alignItems: 'center' },
-  progressCircleWrapper: {
-    width: '100%',
-    height: 28,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  progressCircle: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: '#E5E7EB',
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 2,
-  },
-  progressCircleActive: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    borderColor: Colors.light.primary,
-  },
-  progressCircleCompleted: { borderColor: Colors.light.primary, backgroundColor: Colors.light.primary },
-  progressDotActive: { width: 12, height: 12, borderRadius: 6, backgroundColor: Colors.light.primary },
-  progressDotCompleted: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#FFF' },
-  progressDotInactive: { width: 4, height: 4, borderRadius: 2, backgroundColor: '#D1D5DB' },
-  progressLabel: { ...Typography.caption, color: '#374151', fontSize: 11, marginTop: Spacing.xs, textAlign: 'center' },
-  progressLine: {
-    position: 'absolute',
-    left: '50%',
-    right: '-50%',
-    height: 2,
-    backgroundColor: '#E5E7EB',
-    top: 13,
-    zIndex: 0,
-  },
-  progressLineActive: { backgroundColor: Colors.light.primary },
   scrollView: { flex: 1 },
-  content: { padding: Spacing.md, paddingBottom: Spacing.xxl },
-  introText: { ...Typography.body, color: Colors.light.textSecondary, marginBottom: Spacing.lg, fontSize: 14 },
-  row: { flexDirection: 'row', gap: Spacing.md, marginBottom: Spacing.lg },
-  rowTriple: { flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.lg },
-  fieldFlex: { flex: 1, minWidth: 0 },
-  fieldBlock: { marginBottom: Spacing.lg },
-  optionalSectionTitle: {
-    ...Typography.body,
-    fontWeight: '600',
-    color: Colors.light.text,
-    marginBottom: Spacing.xs,
-    fontSize: 14,
+  content: {
+    padding: Spacing.md,
+    paddingBottom: Spacing.xxl,
   },
-  optionalHint: {
-    ...Typography.body,
-    color: Colors.light.textSecondary,
-    fontSize: 12,
-    lineHeight: 17,
+  fieldFlex: { flex: 1, minWidth: 0 },
+  fieldThird: { flex: 1, minWidth: 0 },
+  rowTriple: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
     marginBottom: Spacing.md,
   },
-  label: { ...Typography.body, color: Colors.light.text, fontWeight: '500', marginBottom: Spacing.xs, fontSize: 14 },
-  required: { color: '#EF4444' },
-  input: {
-    ...Typography.body,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: BorderRadius.md,
-    paddingHorizontal: Spacing.md,
-    paddingTop: Spacing.sm,
-    paddingBottom: Platform.OS === 'android' ? Spacing.sm - 2 : Spacing.sm,
-    fontSize: 14,
-    color: Colors.light.text,
-  },
-  textArea: { minHeight: 72, paddingTop: Spacing.sm, textAlignVertical: 'top' },
-  selectTrigger: {
+  iconInputWrap: {
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: Colors.light.background,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: BorderRadius.md,
+    borderColor: Colors.light.cardBorder,
+    borderRadius: BorderRadius.lg,
     paddingHorizontal: Spacing.md,
     minHeight: 44,
   },
-  selectText: { flex: 1, fontSize: 14, color: Colors.light.text },
-  selectPlaceholder: { color: Colors.light.textSecondary },
-  selectChevron: { fontSize: 10, color: Colors.light.textSecondary },
-  modalOverlay: {
+  fieldIcon: {
+    fontSize: 12,
+    marginRight: Spacing.xs,
+  },
+  pricePrefix: {
+    fontSize: 12,
+    color: '#BBBBBB',
+    marginRight: Spacing.xs,
+  },
+  iconInput: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    justifyContent: 'flex-end',
+    fontSize: 14,
+    color: Colors.light.textHeading,
+    paddingVertical: Platform.OS === 'android' ? Spacing.sm - 2 : Spacing.sm,
   },
-  modalSheet: {
-    backgroundColor: '#FFF',
-    borderTopLeftRadius: BorderRadius.lg,
-    borderTopRightRadius: BorderRadius.lg,
-    maxHeight: '55%',
-    paddingBottom: Spacing.lg,
-  },
-  amenitiesModalSheet: {
-    backgroundColor: '#FFF',
-    borderTopLeftRadius: BorderRadius.lg,
-    borderTopRightRadius: BorderRadius.lg,
-    maxHeight: '78%',
-    paddingBottom: Spacing.lg,
-  },
-  amenitiesModalList: { maxHeight: 420 },
-  amenityCheckboxRow: { marginBottom: Spacing.sm, paddingHorizontal: Spacing.md },
-  amenitiesDoneButton: {
-    marginHorizontal: Spacing.md,
-    marginTop: Spacing.sm,
-    backgroundColor: Colors.light.primary,
-    borderRadius: BorderRadius.md,
-    paddingVertical: Spacing.md,
-    alignItems: 'center',
-  },
-  amenitiesDoneButtonText: { color: '#FFF', fontWeight: '600', fontSize: 16 },
-  modalTitle: {
-    ...Typography.h3,
-    padding: Spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-  },
-  modalRow: { paddingVertical: Spacing.md, paddingHorizontal: Spacing.md },
-  modalRowActive: { backgroundColor: '#F3F4F6' },
-  modalRowText: { fontSize: 16, color: Colors.light.text },
-  modalRowTextActive: { fontWeight: '600', color: Colors.light.primary },
-  photoSection: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, marginTop: Spacing.xs },
-  photoIconButton: {},
-  photoUploadArea: {
-    flex: 1,
-    borderWidth: 2,
-    borderColor: '#E5E7EB',
-    borderStyle: 'dashed',
-    borderRadius: BorderRadius.md,
-    padding: Spacing.lg,
-    alignItems: 'center',
-    minHeight: 120,
-  },
-  uploadText: { ...Typography.body, color: Colors.light.primary, fontWeight: '500', marginBottom: Spacing.xs, fontSize: 14 },
-  uploadSubtext: { ...Typography.caption, color: Colors.light.textSecondary, fontSize: 12, textAlign: 'center' },
-  photoHint: { ...Typography.caption, color: Colors.light.textSecondary, marginTop: Spacing.xs, fontSize: 12 },
-  photosPreview: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm, marginTop: Spacing.md },
-  photoPreviewItem: { width: 100, height: 100, borderRadius: BorderRadius.md, overflow: 'hidden' },
-  photoPreview: { width: '100%', height: '100%' },
-  removePhotoButton: {
-    position: 'absolute',
-    top: 4,
-    right: 4,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  removePhotoText: { color: '#FFF', fontSize: 18, fontWeight: 'bold' },
-  saveButton: {
-    backgroundColor: Colors.light.primary,
-    borderRadius: BorderRadius.md,
-    paddingVertical: Spacing.md,
-    alignItems: 'center',
-    marginTop: Spacing.lg,
-  },
-  saveButtonDisabled: { backgroundColor: '#E5E7EB' },
-  saveButtonText: { color: '#FFF', fontWeight: '600', fontSize: 16 },
 });
