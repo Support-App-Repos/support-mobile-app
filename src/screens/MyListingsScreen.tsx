@@ -285,10 +285,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     paddingTop: 12,
     paddingBottom: Spacing.xl,
+    flexGrow: 1,
   },
   loadingContainer: {
+    flexGrow: 1,
     padding: Spacing.xl,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   loadingText: {
     fontSize: 14,

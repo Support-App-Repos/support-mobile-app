@@ -155,9 +155,15 @@ export const StoreDashboardScreen: React.FC<{ navigation?: any }> = ({ navigatio
       </View>
 
       {loading ? (
-        <ActivityIndicator size="large" color={Colors.light.primary} style={{ marginTop: 40 }} />
+        <View style={styles.loadingBody}>
+          <ActivityIndicator size="large" color={Colors.light.primary} />
+        </View>
       ) : (
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          style={styles.body}
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
+        >
           <View style={styles.storeCard}>
             <View style={styles.avatar}>
               {storeData?.logoUrl ? (
@@ -292,6 +298,14 @@ export const StoreDashboardScreen: React.FC<{ navigation?: any }> = ({ navigatio
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F5F6F8' },
+  body: {
+    flex: 1,
+  },
+  loadingBody: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -314,7 +328,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontSize: 18,
   },
-  content: { padding: Spacing.md, paddingBottom: Spacing.xxl },
+  content: { padding: Spacing.md, paddingBottom: Spacing.xxl, flexGrow: 1 },
   storeCard: {
     flexDirection: 'row',
     alignItems: 'center',

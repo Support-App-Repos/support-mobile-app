@@ -283,13 +283,16 @@ const styles = StyleSheet.create({
   content: {
     padding: Spacing.md,
     paddingBottom: Spacing.xl,
+    flexGrow: 1,
   },
   cardList: {
     gap: 12,
   },
   loadingContainer: {
+    flexGrow: 1,
     padding: Spacing.xl,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   loadingText: {
     fontSize: 14,
@@ -297,8 +300,10 @@ const styles = StyleSheet.create({
     marginTop: Spacing.md,
   },
   emptyContainer: {
+    flexGrow: 1,
     padding: Spacing.xl,
     alignItems: 'center',
+    justifyContent: 'center',
     minHeight: 200,
   },
   emptyText: {

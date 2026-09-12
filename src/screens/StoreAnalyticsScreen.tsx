@@ -40,7 +40,9 @@ export const StoreAnalyticsScreen: React.FC<{ navigation?: any }> = ({ navigatio
       </View>
 
       {loading ? (
-        <ActivityIndicator size="large" color={Colors.light.primary} style={{ marginTop: 40 }} />
+        <View style={styles.body}>
+          <ActivityIndicator size="large" color={Colors.light.primary} />
+        </View>
       ) : (
         <View style={styles.content}>
           <View style={styles.statCard}>
@@ -71,6 +73,11 @@ export const StoreAnalyticsScreen: React.FC<{ navigation?: any }> = ({ navigatio
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.light.surface },
+  body: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -201,9 +201,13 @@ export const StoreScreen: React.FC<{ navigation?: any }> = ({ navigation }) => {
         <Text style={styles.welcomeBannerSubtitle}>Manage everything about your business</Text>
       </View>
 
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={[styles.content, loading && styles.contentLoading]}
+        showsVerticalScrollIndicator={false}
+      >
         {loading ? (
-          <ActivityIndicator size="large" color={Colors.light.primary} style={{ marginTop: 40 }} />
+          <ActivityIndicator size="large" color={Colors.light.primary} />
         ) : isPendingReview ? (
           <View style={styles.pendingReviewCard}>
             <StoreVerificationPendingIcon size={148} />
@@ -296,7 +300,13 @@ const styles = StyleSheet.create({
     marginTop: Spacing.xs,
     fontSize: 15,
   },
+  scrollView: { flex: 1 },
   content: { padding: Spacing.md, paddingBottom: Spacing.xxl },
+  contentLoading: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   pendingReviewCard: {
     alignItems: 'center',
     marginTop: Spacing.xl,

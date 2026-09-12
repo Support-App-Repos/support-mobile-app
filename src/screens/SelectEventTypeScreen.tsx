@@ -176,6 +176,7 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: Spacing.md,
     paddingBottom: Spacing.xl,
+    flexGrow: 1,
   },
   grid: {
     flexDirection: 'row',
@@ -183,6 +184,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   loadingContainer: {
+    flexGrow: 1,
     padding: Spacing.xl,
     alignItems: 'center',
     justifyContent: 'center',

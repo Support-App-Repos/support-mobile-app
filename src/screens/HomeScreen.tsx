@@ -624,6 +624,7 @@ const styles = StyleSheet.create({
     marginTop: 20,
   },
   loadingContainer: {
+    minHeight: 220,
     padding: Spacing.xl,
     alignItems: 'center',
     justifyContent: 'center',
@@ -634,6 +635,7 @@ const styles = StyleSheet.create({
     marginTop: Spacing.md,
   },
   emptyContainer: {
+    minHeight: 220,
     padding: Spacing.xl,
     alignItems: 'center',
     justifyContent: 'center',

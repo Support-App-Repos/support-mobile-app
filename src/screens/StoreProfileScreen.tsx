@@ -188,7 +188,9 @@ export const StoreProfileScreen: React.FC<{ navigation?: any; route?: any }> = (
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
         {renderHeader('Store Profile')}
-        <ActivityIndicator size="large" color={Colors.light.primary} style={styles.loader} />
+        <View style={styles.loadingBody}>
+          <ActivityIndicator size="large" color={Colors.light.primary} />
+        </View>
       </SafeAreaView>
     );
   }
@@ -398,7 +400,11 @@ const styles = StyleSheet.create({
   reviewStars: { color: '#F59E0B', fontSize: 12 },
   reviewComment: { ...Typography.caption, color: Colors.light.textSecondary, marginTop: 4 },
   errorText: { textAlign: 'center', marginTop: 40, color: Colors.light.textSecondary, paddingHorizontal: Spacing.lg },
-  loader: { marginTop: 40 },
+  loadingBody: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   topBar: {
     flexDirection: 'row',
     alignItems: 'center',

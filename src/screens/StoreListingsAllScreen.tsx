@@ -62,9 +62,12 @@ export const StoreListingsAllScreen: React.FC<{ navigation?: any; route?: any }>
       </View>
 
       {loading ? (
-        <ActivityIndicator size="large" color={Colors.light.primary} style={{ marginTop: 40 }} />
+        <View style={styles.loadingBody}>
+          <ActivityIndicator size="large" color={Colors.light.primary} />
+        </View>
       ) : (
         <FlatList
+          style={styles.body}
           data={listings}
           numColumns={2}
           columnWrapperStyle={styles.row}
@@ -89,6 +92,12 @@ export const StoreListingsAllScreen: React.FC<{ navigation?: any; route?: any }>
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.light.background },
+  body: { flex: 1 },
+  loadingBody: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -100,7 +109,7 @@ const styles = StyleSheet.create({
     marginLeft: -Spacing.xs,
   },
   headerTitle: { ...Typography.h3 },
-  list: { padding: Spacing.md, paddingBottom: Spacing.xxl },
+  list: { padding: Spacing.md, paddingBottom: Spacing.xxl, flexGrow: 1 },
   row: { gap: Spacing.md, marginBottom: Spacing.md },
   empty: { textAlign: 'center', color: Colors.light.textSecondary, marginTop: 40 },
 });

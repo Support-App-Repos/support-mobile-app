@@ -307,7 +307,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
       if (error?.code === statusCodes.SIGN_IN_CANCELLED) {
         return;
       }
-      setSnackbarMessage(error || 'Google sign-in failed');
+      setSnackbarMessage(error?.message || 'Google sign-in failed');
       setSnackbarVisible(true);
     } finally {
       setLoadingGoogle(false);

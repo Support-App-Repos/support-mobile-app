@@ -187,7 +187,9 @@ export const ManageStoreListingsScreen: React.FC<{ navigation?: any }> = ({ navi
         showsVerticalScrollIndicator={false}
       >
         {loading ? (
-          <ActivityIndicator size="large" color={Colors.light.marketplace.primary} style={styles.loader} />
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={Colors.light.marketplace.primary} />
+          </View>
         ) : listings.length === 0 ? (
           <View style={styles.empty}>
             <NoListingIcon size={117} color="#BBBBBB" />
@@ -277,9 +279,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     paddingTop: 12,
     paddingBottom: Spacing.xxl,
+    flexGrow: 1,
   },
-  loader: {
-    marginTop: 40,
+  loadingContainer: {
+    flexGrow: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: Spacing.xxl,
   },
   empty: {
     alignItems: 'center',
