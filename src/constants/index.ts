@@ -40,7 +40,7 @@ export const API_CONFIG = {
 
 // App Configuration
 export const APP_CONFIG = {
-  NAME: APP_NAME || 'SupportMobileApp',
+  NAME: APP_NAME || 'YouZell',
   VERSION: APP_VERSION || '0.0.1',
 } as const;
 
