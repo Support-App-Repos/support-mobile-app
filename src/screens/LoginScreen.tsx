@@ -16,7 +16,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
-import { GOOGLE_WEB_CLIENT_ID } from '@env';
+import { GOOGLE_WEB_CLIENT_ID, GOOGLE_IOS_CLIENT_ID } from '@env';
 import {
   Input,
   SegmentedControl,
@@ -34,6 +34,7 @@ import { useProfile, useStore } from '../hooks';
 import { TERMS_AND_CONDITIONS_CONTENT, PRIVACY_POLICY_CONTENT } from '../constants';
 
 const googleWebClientId = (GOOGLE_WEB_CLIENT_ID || '').trim();
+const googleIosClientId = (GOOGLE_IOS_CLIENT_ID || '').trim();
 
 interface LoginScreenProps {
   navigation?: {
@@ -71,6 +72,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
     if (googleWebClientId) {
       GoogleSignin.configure({
         webClientId: googleWebClientId,
+        ...(googleIosClientId ? { iosClientId: googleIosClientId } : {}),
         offlineAccess: false,
       });
     }
@@ -307,7 +309,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
       if (error?.code === statusCodes.SIGN_IN_CANCELLED) {
         return;
       }
-      setSnackbarMessage(error || 'Google sign-in failed');
+      setSnackbarMessage(error?.message || 'Google sign-in failed');
       setSnackbarVisible(true);
     } finally {
       setLoadingGoogle(false);
