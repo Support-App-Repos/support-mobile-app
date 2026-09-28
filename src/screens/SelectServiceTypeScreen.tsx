@@ -92,9 +92,14 @@ export const SelectServiceTypeScreen: React.FC<SelectServiceTypeScreenProps> = (
       const serviceTypesData = (response.data as any)?.data || response.data || [];
 
       if (response.success && Array.isArray(serviceTypesData)) {
+        const withoutBeauty = serviceTypesData.filter((st: any) => {
+          const slug = String(st.slug || '').toLowerCase();
+          const name = String(st.name || '').toLowerCase();
+          return slug !== 'beauty' && name !== 'beauty';
+        });
         const byCategory = categoryId
-          ? serviceTypesData.filter((st: any) => st.categoryId === categoryId)
-          : serviceTypesData;
+          ? withoutBeauty.filter((st: any) => st.categoryId === categoryId)
+          : withoutBeauty;
         setServiceTypes(byCategory);
       }
     } catch (error: any) {

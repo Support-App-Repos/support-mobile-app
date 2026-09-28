@@ -46,7 +46,7 @@ const getListingKind = (category?: string): ListingKind => {
   const c = String(category || '').toLowerCase();
   if (c.includes('event')) return 'event';
   if (c.includes('product')) return 'product';
-  if (c.includes('service')) return 'service';
+  if (c.includes('aesthetic') || c.includes('beauty') || c.includes('service')) return 'service';
   if (c.includes('propert')) return 'property';
   return 'other';
 };

@@ -21,9 +21,10 @@ export function getListingBadgeLabel(listing: Pick<MyListingCardData, 'category'
   }
   if (cat.includes('event')) return 'Event';
   if (cat.includes('product')) return 'Product';
+  if (cat.includes('aesthetic') || cat.includes('beauty')) return 'Aesthetics';
   if (cat.includes('service')) {
     const st = (listing.serviceType?.name || '').toLowerCase();
-    if (st.includes('beauty') || st.includes('medical') || st.includes('aesthetic')) return 'Beauty';
+    if (st.includes('medical')) return 'Medical';
     return 'Service';
   }
   return listing.category?.name || 'Listing';
@@ -33,7 +34,9 @@ export function getListingBadgeColor(listing: Pick<MyListingCardData, 'category'
   const label = getListingBadgeLabel(listing).toLowerCase();
   if (label.includes('event')) return MP.eventBadge;
   if (label.includes('product')) return MP.productBadge;
-  if (label.includes('beauty') || label.includes('service')) return MP.beautyBadge;
+  if (label.includes('aesthetic') || label.includes('beauty') || label.includes('service') || label.includes('medical')) {
+    return MP.beautyBadge;
+  }
   if (label.includes('rent')) return MP.primary;
   if (label.includes('sale')) return '#E99132';
   return MP.primary;

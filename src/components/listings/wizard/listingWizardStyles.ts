@@ -3,20 +3,32 @@ import { Colors, Spacing, Typography, BorderRadius } from '../../../config/theme
 
 export const listingWizardInputStyles = StyleSheet.create({
   input: {
-    ...Typography.body,
     backgroundColor: Colors.light.background,
     borderWidth: 1,
     borderColor: Colors.light.cardBorder,
     borderRadius: BorderRadius.md,
     paddingHorizontal: Spacing.md,
-    paddingTop: Spacing.sm,
-    paddingBottom: Platform.OS === 'android' ? Spacing.sm - 2 : Spacing.sm,
+    minHeight: 44,
     color: Colors.light.textHeading,
     fontSize: 14,
+    fontWeight: Typography.body.fontWeight,
+    // iOS single-line TextInputs sit low when lineHeight is set — omit it and
+    // use slightly more bottom padding to keep the value vertically centered.
+    ...(Platform.OS === 'ios'
+      ? {
+          paddingTop: 10,
+          paddingBottom: 14,
+        }
+      : {
+          paddingVertical: Spacing.sm - 2,
+          lineHeight: 20,
+        }),
   },
   textArea: {
     minHeight: 100,
     paddingTop: Spacing.sm,
+    paddingBottom: Spacing.sm,
+    ...(Platform.OS === 'ios' ? { lineHeight: 20 } : {}),
   },
   row: {
     flexDirection: 'row',

@@ -1,5 +1,5 @@
 /**
- * Select Category Screen — Events, Products, Services, Property
+ * Select Category Screen — Events, Products, Services, Property, Aesthetics
  * Figma: node 1054:379
  */
 
@@ -26,7 +26,7 @@ type SelectCategoryScreenProps = {
   navigation?: any;
 };
 
-const CATEGORY_ORDER = ['event', 'product', 'service', 'propert'] as const;
+const CATEGORY_ORDER = ['event', 'product', 'service', 'propert', 'aesthetic'] as const;
 
 type CategoryTheme = {
   emoji: string;
@@ -60,7 +60,7 @@ const CATEGORY_THEMES: Record<string, CategoryTheme> = {
     chevronBg: '#FFEDD5',
     chevronColor: '#E99132',
     displayName: 'Services',
-    subtitle: 'Consulting, beauty, repairs & more',
+    subtitle: 'Consulting, repairs & more',
   },
   propert: {
     emoji: '🏠',
@@ -69,6 +69,14 @@ const CATEGORY_THEMES: Record<string, CategoryTheme> = {
     chevronColor: '#E99132',
     displayName: 'Property',
     subtitle: 'Rent, sale & commercial spaces',
+  },
+  aesthetic: {
+    emoji: '✨',
+    iconBg: '#FCE7F3',
+    chevronBg: '#FCE7F3',
+    chevronColor: MP.beautyBadge,
+    displayName: 'Aesthetics',
+    subtitle: 'Beauty treatments & wellness',
   },
 };
 
@@ -88,30 +96,12 @@ function normalizeCategories(apiList: any[]): any[] {
   return out;
 }
 
-const STORE_CATEGORY_TO_KEY: Record<string, string> = {
-  product: 'product',
-  service: 'service',
-  property: 'propert',
-  event: 'event',
-};
-
-function filterCategoriesForStore(categories: any[], businessCategory?: string | null): any[] {
-  if (!businessCategory || businessCategory.trim().toLowerCase() === 'mixed') {
-    return categories;
-  }
-  const key = STORE_CATEGORY_TO_KEY[businessCategory.trim().toLowerCase()];
-  if (!key) return categories;
-  return categories.filter((category) => {
-    const label = `${category?.name || ''} ${category?.slug || ''}`.toLowerCase();
-    return label.includes(key);
-  });
-}
-
 function categoryKey(category: any): string {
   const s = `${category?.name || ''} ${category?.slug || ''}`.toLowerCase();
   if (s.includes('event')) return 'event';
   if (s.includes('product')) return 'product';
   if (s.includes('propert')) return 'propert';
+  if (s.includes('aesthetic') || s.includes('beauty')) return 'aesthetic';
   if (s.includes('service')) return 'service';
   return 'product';
 }
@@ -127,12 +117,9 @@ export const SelectCategoryScreen: React.FC<SelectCategoryScreenProps> = ({ navi
   const [loading, setLoading] = useState(true);
   const [snackbarVisible, setSnackbarVisible] = useState(false);
   const { profileImageUrl } = useProfile();
-  const { store } = useStore();
+  const { canCreateListing } = useStore();
 
-  const categories = useMemo(() => {
-    const normalized = normalizeCategories(categoriesRaw);
-    return filterCategoriesForStore(normalized, store?.businessCategory);
-  }, [categoriesRaw, store?.businessCategory]);
+  const categories = useMemo(() => normalizeCategories(categoriesRaw), [categoriesRaw]);
 
   useEffect(() => {
     fetchCategories();
@@ -158,19 +145,44 @@ export const SelectCategoryScreen: React.FC<SelectCategoryScreenProps> = ({ navi
     }
   };
 
+  const showAestheticsStoreGate = () => {
+    Alert.alert(
+      'Aesthetics store required',
+      'Create and verify your Aesthetics store before adding Aesthetics listings.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Go to Store', onPress: () => navigation?.navigate('Store') },
+      ]
+    );
+  };
+
   const goToListingFlow = (category: any) => {
+    const key = categoryKey(category);
     const categoryName = category.name || category.slug || '';
-    const n = categoryName.toLowerCase();
-    if (n.includes('product')) {
+
+    if (key === 'aesthetic') {
+      if (!canCreateListing) {
+        showAestheticsStoreGate();
+        return;
+      }
+      navigation?.navigate('ServiceListing', {
+        categoryId: category.id,
+        category: categoryName,
+        serviceType: 'Beauty',
+      });
+      return;
+    }
+
+    if (key === 'product') {
       navigation?.navigate('ProductListing', { categoryId: category.id, category: categoryName });
-    } else if (n.includes('event')) {
+    } else if (key === 'event') {
       navigation?.navigate('SelectEventType', { categoryId: category.id, category: categoryName });
-    } else if (n.includes('service')) {
+    } else if (key === 'service') {
       navigation?.navigate('SelectServiceType', {
         categoryId: category.id,
         category: categoryName,
       });
-    } else if (n.includes('propert')) {
+    } else if (key === 'propert') {
       navigation?.navigate('PropertyListing', { categoryId: category.id, category: categoryName });
     }
   };
@@ -203,9 +215,7 @@ export const SelectCategoryScreen: React.FC<SelectCategoryScreenProps> = ({ navi
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyText}>No categories available</Text>
             <Text style={styles.emptySubtext}>
-              {store?.businessCategory && store.businessCategory.toLowerCase() !== 'mixed'
-                ? `Your store is set to ${store.businessCategory}. No matching listing category was found.`
-                : 'Please check your connection or contact support'}
+              Please check your connection or contact support
             </Text>
           </View>
         ) : (
@@ -250,7 +260,7 @@ export const SelectCategoryScreen: React.FC<SelectCategoryScreenProps> = ({ navi
           else if (tab === 'Profile') navigation?.navigate('Profile');
         }}
         onCreatePress={() => {}}
-        showCreateButton
+        showCreateButton={false}
       />
 
       <Snackbar
@@ -307,42 +317,40 @@ const styles = StyleSheet.create({
     minHeight: 200,
   },
   emptyText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: Colors.light.textHeading,
-    marginBottom: Spacing.xs,
+    fontSize: 16,
+    fontWeight: '700',
+    color: MP.titleText,
+    marginBottom: Spacing.sm,
   },
   emptySubtext: {
     fontSize: 14,
-    color: Colors.light.textSecondary,
+    color: MP.chipInactiveText,
     textAlign: 'center',
+    lineHeight: 20,
   },
   hintBox: {
+    marginTop: Spacing.lg,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginTop: 8,
-    padding: 12,
+    backgroundColor: Colors.light.background,
     borderRadius: 14,
-    backgroundColor: '#EBF5FB',
+    padding: Spacing.md,
+    gap: 10,
   },
   hintEmoji: {
-    fontSize: 16,
-    lineHeight: 24,
+    fontSize: 18,
   },
   hintTextBlock: {
     flex: 1,
   },
   hintTitle: {
-    fontSize: 12,
-    fontWeight: '600',
-    lineHeight: 18,
-    color: MP.primary,
+    fontSize: 14,
+    fontWeight: '700',
+    color: MP.titleText,
   },
   hintSubtitle: {
-    fontSize: 11,
-    lineHeight: 16.5,
-    color: '#5A8FAA',
-    marginTop: 1,
+    fontSize: 12,
+    color: MP.chipInactiveText,
+    marginTop: 2,
   },
 });

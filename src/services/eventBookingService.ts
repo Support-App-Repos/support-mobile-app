@@ -23,6 +23,7 @@ class EventBookingService {
     listingId: string;
     ticketQuantity: number;
     storeId?: string | null;
+    paymentIntentId?: string;
   }) {
     return this.apiService.post<{ success: boolean; data: EventBooking }>(
       '/event-bookings',

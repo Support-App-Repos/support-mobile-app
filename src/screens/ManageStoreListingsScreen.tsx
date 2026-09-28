@@ -145,7 +145,14 @@ export const ManageStoreListingsScreen: React.FC<{ navigation?: any }> = ({ navi
       navigation?.navigate('EventListingDetail', { listingId: listing.id });
     } else if (categorySlug.includes('propert') || categoryName.includes('propert')) {
       navigation?.navigate('PropertyListingDetail', { listingId: listing.id });
-    } else if (categorySlug.includes('service') || categoryName.includes('service')) {
+    } else if (
+      categorySlug.includes('service') ||
+      categoryName.includes('service') ||
+      categorySlug.includes('aesthetic') ||
+      categoryName.includes('aesthetic') ||
+      categorySlug.includes('beauty') ||
+      categoryName.includes('beauty')
+    ) {
       navigation?.navigate('ServiceListingDetail', { listingId: listing.id });
     } else {
       navigation?.navigate('ListingDetail', { listingId: listing.id });
@@ -153,11 +160,7 @@ export const ManageStoreListingsScreen: React.FC<{ navigation?: any }> = ({ navi
   };
 
   const handlePostListing = () => {
-    if (canCreateListing) {
-      navigation?.navigate('SelectCategory');
-    } else {
-      showCreateGateAlert();
-    }
+    navigation?.navigate('SelectCategory');
   };
 
   return (

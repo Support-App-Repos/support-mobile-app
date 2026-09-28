@@ -208,13 +208,9 @@ export const ServiceListingDetailScreen: React.FC<ServiceListingDetailScreenProp
   };
 
   const handleBookNow = () => {
-    const storeId = listing?.store?.id;
-    if (!storeId) {
-      Alert.alert('Unavailable', 'Booking requires a store listing');
-      return;
-    }
+    if (!listing?.id) return;
     navigation?.navigate('ChooseService', {
-      storeId,
+      storeId: listing?.store?.id || undefined,
       listingId: listing.id,
     });
   };

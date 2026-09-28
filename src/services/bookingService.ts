@@ -14,7 +14,7 @@ export type ServiceAddon = {
 
 export type ServiceBooking = {
   id: string;
-  storeId: string;
+  storeId?: string | null;
   listingId: string;
   serviceTitle: string;
   servicePrice: number;
@@ -96,11 +96,12 @@ class BookingService {
   }
 
   async createBooking(body: {
-    storeId: string;
+    storeId?: string | null;
     listingId: string;
     appointmentDate: string;
     appointmentTime: string;
     addonIds?: string[];
+    paymentIntentId?: string;
   }) {
     return this.apiService.post<{ success: boolean; data: ServiceBooking }>(
       '/bookings',

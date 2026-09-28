@@ -94,6 +94,19 @@ function formatEventDateTime(eventDate?: string | Date | null, eventTime?: strin
   return [eventDate, eventTime].filter(Boolean).join(' • ') || '—';
 }
 
+/** Listing form stores duration as hours (e.g. "2"); detail shows "2 Hrs". */
+function formatEventDuration(duration?: string | number | null): string {
+  if (duration == null || duration === '') return '—';
+  const raw = String(duration).trim();
+  if (!raw) return '—';
+  if (/hr|hour/i.test(raw)) return raw;
+  const numeric = Number(raw);
+  if (!Number.isNaN(numeric)) {
+    return `${raw} ${numeric === 1 ? 'Hr' : 'Hrs'}`;
+  }
+  return raw;
+}
+
 function DetailGridCard({ label, value, tall }: DetailTile) {
   return (
     <View style={[styles.detailCard, tall && styles.detailCardTall]}>
@@ -323,7 +336,7 @@ export const EventListingDetailScreen: React.FC<EventListingDetailScreenProps> =
     },
     {
       label: 'Duration',
-      value: listing.duration || '—',
+      value: formatEventDuration(listing.duration),
     },
     {
       label: 'Capacity',

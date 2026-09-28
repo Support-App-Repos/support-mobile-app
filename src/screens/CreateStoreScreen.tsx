@@ -25,8 +25,14 @@ import { useStore, useProfile } from '../hooks';
 import type { StoreWorkingHours } from '../types';
 
 const STEPS = ['Basic Info', 'Business Details', 'Verify'];
-const CATEGORIES = ['Product', 'Service', 'Property', 'Event', 'Mixed'];
-const DAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+const CATEGORIES = ['Aesthetics'];
+
+function storeCategoryOptions(current?: string) {
+  if (current && !CATEGORIES.includes(current)) {
+    return [current, ...CATEGORIES];
+  }
+  return CATEGORIES;
+}const DAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 const DAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 const MAX_DOCUMENTS = 5;
 
@@ -46,7 +52,7 @@ export const CreateStoreScreen: React.FC<{ navigation?: any; route?: any }> = ({
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [coverImage, setCoverImage] = useState<PickedImage | null>(null);
   const [coverUrl, setCoverUrl] = useState<string | null>(null);
-  const [businessCategory, setBusinessCategory] = useState('');
+  const [businessCategory, setBusinessCategory] = useState('Aesthetics');
   const [description, setDescription] = useState('');
   const [address, setAddress] = useState('');
   const [openTime, setOpenTime] = useState('09:00');
@@ -59,7 +65,7 @@ export const CreateStoreScreen: React.FC<{ navigation?: any; route?: any }> = ({
       setName(store.name || '');
       setLogoUrl(store.logoUrl || null);
       setCoverUrl(store.coverImageUrl || null);
-      setBusinessCategory(store.businessCategory || '');
+      setBusinessCategory(store.businessCategory || 'Aesthetics');
       setDescription(store.description || '');
       setAddress(store.address || store.location || '');
       if (store.workingHours) {
@@ -325,7 +331,7 @@ export const CreateStoreScreen: React.FC<{ navigation?: any; route?: any }> = ({
               required
               value={businessCategory}
               placeholder="Select category"
-              options={CATEGORIES}
+              options={storeCategoryOptions(businessCategory)}
               onSelect={setBusinessCategory}
               containerStyle={{ marginBottom: Spacing.md }}
             />

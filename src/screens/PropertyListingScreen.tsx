@@ -33,6 +33,7 @@ import { listingService, paymentService, pickImages, type PickedImage } from '..
 import { resolveListingPhotoUrls, resolveListingId } from '../utils/listingPhotos';
 import { useProfile } from '../hooks';
 import { filterNumbersOnly } from '../utils/validation';
+import { CURRENCY_OPTIONS, currencySymbol } from '../utils/currency';
 
 type PropertyListingScreenProps = {
   navigation?: any;
@@ -48,7 +49,6 @@ const FORM_STEPS = LISTING_FORM_STEPS;
 const inputStyles = listingWizardInputStyles;
 
 const PURPOSE_OPTIONS = ['For Rent', 'For Sale'];
-const CURRENCY_OPTIONS = ['AED', 'USD', 'EUR'];
 const FURNISHING_OPTIONS = ['Furnished', 'Unfurnished', 'Semi-Furnished'];
 const PROPERTY_TYPE_OPTIONS = [
   'Apartment',
@@ -372,7 +372,7 @@ export const PropertyListingScreen: React.FC<PropertyListingScreenProps> = ({ na
             <View style={styles.fieldFlex}>
               <ListingFormField label="Price">
                 <IconInput
-                  prefix="$"
+                  prefix={currencySymbol(currency)}
                   value={price}
                   onChangeText={(t) => setPrice(filterNumbersOnly(t, true))}
                   placeholder="e.g. 2,000,000"
@@ -384,7 +384,7 @@ export const PropertyListingScreen: React.FC<PropertyListingScreenProps> = ({ na
               label="Currency"
               value={currency}
               placeholder="AED"
-              options={CURRENCY_OPTIONS}
+              options={[...CURRENCY_OPTIONS]}
               onSelect={setCurrency}
               leadingIcon="💱"
             />

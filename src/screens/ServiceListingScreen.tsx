@@ -44,6 +44,7 @@ import { resolveListingPhotoUrls, resolveListingId } from '../utils/listingPhoto
 import { useProfile } from '../hooks';
 import { unwrapApiPayload } from '../utils/apiHelpers';
 import { filterNumbersOnly } from '../utils/validation';
+import { CURRENCY_OPTIONS, currencySymbol } from '../utils/currency';
 
 type ServiceListingScreenProps = {
   navigation?: any;
@@ -72,7 +73,6 @@ type DraftAddonForm = Omit<DraftAddon, 'localId' | 'id'>;
 const MP = Colors.light.marketplace;
 const FORM_STEPS = LISTING_FORM_STEPS;
 const inputStyles = listingWizardInputStyles;
-const CURRENCY_OPTIONS = ['USD', 'AED', 'EUR'];
 const DURATION_OPTIONS = [
   '30 minutes',
   '45 minutes',
@@ -182,7 +182,7 @@ function getSpecializationOptions(serviceTypeName: string): string[] {
     .replace(/\s+/g, ' ')
     .trim();
 
-  if (key.includes('beauty')) return [...BEAUTY_SPECIALIZATIONS];
+  if (key.includes('beauty') || key.includes('aesthetic')) return [...BEAUTY_SPECIALIZATIONS];
   if (key.includes('home service') || key.includes('home services')) {
     return [...HOME_SERVICES_SPECIALIZATIONS];
   }
@@ -657,7 +657,7 @@ export const ServiceListingScreen: React.FC<ServiceListingScreenProps> = ({
           <View style={styles.fieldFlex}>
             <ListingFormField label="Price" required>
               <View style={styles.priceInputWrap}>
-                <Text style={styles.pricePrefix}>$</Text>
+                <Text style={styles.pricePrefix}>{currencySymbol(currency)}</Text>
                 <TextInput
                   style={styles.priceInput}
                   placeholder="e.g. 45"
@@ -674,7 +674,7 @@ export const ServiceListingScreen: React.FC<ServiceListingScreenProps> = ({
             label="Currency"
             value={currency}
             placeholder="USD"
-            options={CURRENCY_OPTIONS}
+            options={[...CURRENCY_OPTIONS]}
             onSelect={setCurrency}
           />
         </View>
@@ -831,7 +831,7 @@ export const ServiceListingScreen: React.FC<ServiceListingScreenProps> = ({
 
               <ListingFormField label="Price" required>
                 <View style={styles.priceInputWrap}>
-                  <Text style={styles.pricePrefix}>$</Text>
+                  <Text style={styles.pricePrefix}>{currencySymbol(currency)}</Text>
                   <TextInput
                     style={styles.priceInput}
                     placeholder="e.g. 15"

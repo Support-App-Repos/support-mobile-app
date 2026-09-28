@@ -13,8 +13,8 @@ export const useBottomNavHandlers = (
 
   const showCreateGateAlert = useCallback(() => {
     Alert.alert(
-      'Store required',
-      'Create and verify your store before adding listings.',
+      'Aesthetics store required',
+      'Create and verify your Aesthetics store before adding Aesthetics listings.',
       [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Go to Store', onPress: () => navigation?.navigate('Store') },
@@ -23,12 +23,8 @@ export const useBottomNavHandlers = (
   }, [navigation]);
 
   const handleCreatePress = useCallback(() => {
-    if (!canCreateListing) {
-      showCreateGateAlert();
-      return;
-    }
     navigation?.navigate('SelectCategory');
-  }, [canCreateListing, navigation, showCreateGateAlert]);
+  }, [navigation]);
 
   const handleTabPress = useCallback(
     (tab: BottomNavItem) => {

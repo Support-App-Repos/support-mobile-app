@@ -2,6 +2,27 @@
  * Display listing prices with symbols where standard (matches design: "$ 2,000,000" not "USD 2000000").
  */
 
+/** Shared currency codes for all listing create/edit forms */
+export const CURRENCY_OPTIONS = ['USD', 'AED', 'EUR', 'GBP'] as const;
+export type CurrencyCode = (typeof CURRENCY_OPTIONS)[number];
+
+/** Symbol/prefix shown next to price inputs */
+export function currencySymbol(currency?: string | null): string {
+  const c = String(currency || 'USD').trim().toUpperCase();
+  switch (c) {
+    case 'USD':
+      return '$';
+    case 'EUR':
+      return '€';
+    case 'GBP':
+      return '£';
+    case 'AED':
+      return 'AED';
+    default:
+      return c || '$';
+  }
+}
+
 export function formatListingPrice(
   price: number | null | undefined,
   currency?: string | null,
@@ -42,7 +63,7 @@ export function listingPriceUnitLabel(priceType?: string | null): string | undef
 
 /**
  * Price + price type for listing tiles/details.
- * Examples: "Free", "AED 50/seat", "$ 100/hr", "AED 1,200"
+ * Examples: "Free", "AED 50/seat", "$ 100/hr", "AED 1,200", "£ 20"
  */
 export function formatListingPriceWithType(
   price: number | string | null | undefined,

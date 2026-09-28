@@ -87,7 +87,11 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
 
     if (normalized.includes('propert')) {
       navigation?.push('PropertyListing', params);
-    } else if (normalized.includes('service')) {
+    } else if (
+      normalized.includes('service') ||
+      normalized.includes('aesthetic') ||
+      normalized.includes('beauty')
+    ) {
       navigation?.push('ServiceListing', params);
     } else if (normalized.includes('event')) {
       navigation?.push('EventListing', params);

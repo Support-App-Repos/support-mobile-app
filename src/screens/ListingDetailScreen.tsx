@@ -188,14 +188,24 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
 
   const handlePhoneCall = () => {
     const phoneNumber =
+      listing?.user?.phoneNumber ||
+      listing?.user?.phone ||
       listing?.organizerContact ||
       listing?.store?.phone ||
+      listing?.store?.contactPhone ||
       listing?.contactPhone;
-    if (!phoneNumber) {
+
+    const cleaned =
+      typeof phoneNumber === 'string' ? phoneNumber.replace(/[^\d+]/g, '') : '';
+
+    if (!cleaned) {
       Alert.alert('Unavailable', 'No phone number is available for this listing.');
       return;
     }
-    Linking.openURL(`tel:${phoneNumber}`);
+
+    Linking.openURL(`tel:${cleaned}`).catch(() =>
+      Alert.alert('Error', 'Could not start call.'),
+    );
   };
 
   const handleBuyNow = () => {

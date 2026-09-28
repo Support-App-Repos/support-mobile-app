@@ -15,10 +15,12 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useStripe } from '@stripe/stripe-react-native';
 import { BackIcon } from '../../components/common';
-import { eventBookingService } from '../../services';
+import { eventBookingService, paymentService } from '../../services';
 import type { RootStackParamList } from '../../types';
 import { unwrapApiPayload } from '../../utils/apiHelpers';
+import { requiresBookingPayment } from '../../utils/bookingTotals';
 import { formatListingPriceWithType } from '../../utils/currency';
 
 const C = {
@@ -84,6 +86,7 @@ export const EventBookTicketsScreen: React.FC<EventBookTicketsScreenProps> = ({
   route,
 }) => {
   const params = route?.params;
+  const { initPaymentSheet, presentPaymentSheet } = useStripe();
   const [quantity, setQuantity] = useState(MIN_QTY);
   const [submitting, setSubmitting] = useState(false);
 
@@ -121,10 +124,47 @@ export const EventBookTicketsScreen: React.FC<EventBookTicketsScreenProps> = ({
 
     try {
       setSubmitting(true);
+
+      let paymentIntentId: string | undefined;
+      if (requiresBookingPayment(totalAmount, params.priceType)) {
+        const createResponse = await paymentService.createBookingPaymentIntent({
+          type: 'event',
+          listingId: params.listingId,
+          ticketQuantity: quantity,
+        });
+        if (!createResponse.success) {
+          throw new Error(createResponse.message || 'Failed to start payment');
+        }
+        const paymentData =
+          (createResponse.data as any)?.data || createResponse.data;
+        if (!paymentData?.clientSecret || !paymentData?.paymentIntentId) {
+          throw new Error('Invalid payment response');
+        }
+
+        const { error: initError } = await initPaymentSheet({
+          paymentIntentClientSecret: paymentData.clientSecret,
+          merchantDisplayName: 'Marketplace',
+          allowsDelayedPaymentMethods: false,
+        });
+        if (initError) {
+          throw new Error(initError.message || 'Failed to initialize payment');
+        }
+
+        const { error: presentError } = await presentPaymentSheet();
+        if (presentError) {
+          if (presentError.code !== 'Canceled') {
+            Alert.alert('Error', presentError.message || 'Payment failed');
+          }
+          return;
+        }
+        paymentIntentId = paymentData.paymentIntentId;
+      }
+
       const response = await eventBookingService.createBooking({
         listingId: params.listingId,
         ticketQuantity: quantity,
         storeId: params.storeId || undefined,
+        paymentIntentId,
       });
       const booking = unwrapApiPayload<{ id?: string; _id?: string }>(response);
       const bookingId = booking?.id || booking?._id;

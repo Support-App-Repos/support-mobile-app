@@ -58,16 +58,15 @@ export const FormSelect: React.FC<FormSelectProps> = ({
         <Text style={styles.selectChevron}>▼</Text>
       </TouchableOpacity>
       <Modal visible={open} transparent animationType="slide" onRequestClose={() => setOpen(false)}>
-        <TouchableOpacity
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={() => setOpen(false)}
-        >
-          <View style={styles.modalSheet} onStartShouldSetResponder={() => true}>
+        <View style={styles.modalOverlay}>
+          <TouchableOpacity style={styles.modalDismiss} activeOpacity={1} onPress={() => setOpen(false)} />
+          <View style={styles.modalSheet}>
             <Text style={styles.modalTitle}>{label || 'Select'}</Text>
             <FlatList
               data={options}
               keyExtractor={(item) => item}
+              style={styles.modalList}
+              keyboardShouldPersistTaps="handled"
               renderItem={({ item }) => (
                 <TouchableOpacity
                   style={[styles.modalRow, value === item && styles.modalRowActive]}
@@ -81,9 +80,12 @@ export const FormSelect: React.FC<FormSelectProps> = ({
                   </Text>
                 </TouchableOpacity>
               )}
+              ListEmptyComponent={
+                <Text style={styles.modalEmpty}>No options available</Text>
+              }
             />
           </View>
-        </TouchableOpacity>
+        </View>
       </Modal>
     </View>
   );
@@ -135,12 +137,18 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.4)',
     justifyContent: 'flex-end',
   },
+  modalDismiss: {
+    flex: 1,
+  },
   modalSheet: {
     backgroundColor: '#FFF',
     borderTopLeftRadius: BorderRadius.lg,
     borderTopRightRadius: BorderRadius.lg,
     maxHeight: '55%',
     paddingBottom: Spacing.lg,
+  },
+  modalList: {
+    maxHeight: 320,
   },
   modalTitle: {
     ...Typography.h3,
@@ -162,5 +170,10 @@ const styles = StyleSheet.create({
   modalRowTextActive: {
     fontWeight: '600',
     color: Colors.light.primary,
+  },
+  modalEmpty: {
+    padding: Spacing.lg,
+    textAlign: 'center',
+    color: Colors.light.textSecondary,
   },
 });

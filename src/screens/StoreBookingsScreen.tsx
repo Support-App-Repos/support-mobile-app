@@ -92,8 +92,15 @@ export const StoreBookingsScreen: React.FC<{ navigation?: any }> = ({ navigation
       const payload = unwrapApiPayload<StoreBookingItem[]>(response);
       setBookings(Array.isArray(payload) ? payload : []);
     } catch (err: any) {
+      const message = String(err?.message || '');
+      // No store yet — show empty list instead of an error
+      if (/store not found/i.test(message) || /404/.test(message)) {
+        setBookings([]);
+        setError(null);
+        return;
+      }
       console.error('Error loading store bookings:', err);
-      setError(err.message || 'Failed to load bookings.');
+      setError(message || 'Failed to load bookings.');
       setBookings([]);
     } finally {
       setLoading(false);

@@ -51,6 +51,7 @@ function badgeLabel(categoryName?: string): string {
   if (c.includes('propert')) return 'Property';
   if (c.includes('event')) return 'Event';
   if (c.includes('product')) return 'Product';
+  if (c.includes('aesthetic') || c.includes('beauty')) return 'Aesthetics';
   if (c.includes('service')) return 'Service';
   return categoryName.length > 12 ? `${categoryName.slice(0, 11)}…` : categoryName;
 }
@@ -60,11 +61,11 @@ function isPropertyCategory(listing: RawListing): boolean {
   return String(name).toLowerCase().includes('propert');
 }
 
-/** Service and event listings show as title-only rows in marketplace search. */
+/** Service, aesthetics and event listings show as title-only rows in marketplace search. */
 function isServiceOrEventCategory(listing: RawListing): boolean {
   const name = listing?.category?.name || '';
   const n = String(name).toLowerCase();
-  return n.includes('service') || n.includes('event');
+  return n.includes('service') || n.includes('aesthetic') || n.includes('beauty') || n.includes('event');
 }
 
 function navigateToListingDetail(navigation: any, item: RawListing, listingId: string) {
@@ -73,7 +74,7 @@ function navigateToListingDetail(navigation: any, item: RawListing, listingId: s
     return;
   }
   const cat = String(item?.category?.name || '').toLowerCase();
-  if (cat.includes('service')) {
+  if (cat.includes('service') || cat.includes('aesthetic') || cat.includes('beauty')) {
     navigation?.navigate('ServiceListingDetail', { listingId });
   } else if (cat.includes('event')) {
     navigation?.navigate('EventListingDetail', { listingId });

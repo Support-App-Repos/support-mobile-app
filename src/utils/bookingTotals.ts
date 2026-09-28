@@ -6,3 +6,12 @@ export function computeBookingTotals(
   const addonsTotal = addons.reduce((sum, a) => sum + (Number(a.price) || 0), 0);
   return { addonsTotal, totalAmount: base + addonsTotal };
 }
+
+export function requiresBookingPayment(
+  totalAmount: number | null | undefined,
+  priceType?: string | null,
+): boolean {
+  if (/^free$/i.test(String(priceType || '').trim())) return false;
+  const amount = typeof totalAmount === 'number' && !Number.isNaN(totalAmount) ? totalAmount : 0;
+  return amount > 0;
+}

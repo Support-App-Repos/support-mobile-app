@@ -257,11 +257,7 @@ export const StoreDashboardScreen: React.FC<{ navigation?: any }> = ({ navigatio
           <View style={styles.actionsRow}>
             <Pressable
               style={styles.actionItem}
-              onPress={
-                canCreateListing
-                  ? () => navigation?.navigate('SelectCategory')
-                  : showCreateGateAlert
-              }
+              onPress={() => navigation?.navigate('SelectCategory')}
             >
               <StoreQuickActionAddIcon size={56} />
               <Text style={styles.actionLabel}>Add Listing</Text>

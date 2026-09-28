@@ -149,7 +149,14 @@ export const MyListingsScreen: React.FC<{
       navigation?.navigate('EventListingDetail', { listingId: listing.id });
     } else if (categorySlug.includes('propert') || categoryName.includes('propert')) {
       navigation?.navigate('PropertyListingDetail', { listingId: listing.id });
-    } else if (categorySlug.includes('service') || categoryName.includes('service')) {
+    } else if (
+      categorySlug.includes('service') ||
+      categoryName.includes('service') ||
+      categorySlug.includes('aesthetic') ||
+      categoryName.includes('aesthetic') ||
+      categorySlug.includes('beauty') ||
+      categoryName.includes('beauty')
+    ) {
       navigation?.navigate('ServiceListingDetail', { listingId: listing.id });
     } else {
       navigation?.navigate('ListingDetail', { listingId: listing.id });

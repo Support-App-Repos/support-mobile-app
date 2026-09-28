@@ -81,11 +81,11 @@ export type RootStackParamList = {
     listingId: string;
   };
   ChooseService: {
-    storeId: string;
+    storeId?: string;
     listingId: string;
   };
   SelectBookingDateTime: {
-    storeId: string;
+    storeId?: string;
     listingId: string;
     serviceTitle: string;
     servicePrice: number | null;
@@ -97,7 +97,7 @@ export type RootStackParamList = {
     storeLogoUrl?: string | null;
   };
   ServiceBookingAddOns: {
-    storeId: string;
+    storeId?: string;
     listingId: string;
     serviceTitle: string;
     servicePrice: number | null;

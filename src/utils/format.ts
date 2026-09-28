@@ -18,10 +18,15 @@ export const formatDate = (date: Date | string): string => {
  * Format currency
  */
 export const formatCurrency = (amount: number, currency: string = 'USD'): string => {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency,
-  }).format(amount);
+  const code = (currency || 'USD').toUpperCase();
+  try {
+    return new Intl.NumberFormat('en-GB', {
+      style: 'currency',
+      currency: code,
+    }).format(amount);
+  } catch {
+    return `${code} ${amount.toLocaleString()}`;
+  }
 };
 
 /**

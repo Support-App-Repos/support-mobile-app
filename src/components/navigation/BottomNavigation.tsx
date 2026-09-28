@@ -36,14 +36,10 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
   onTabPress,
   onCreatePress,
   showCreateButton = true,
-  canCreateListing = true,
-  onDisabledCreatePress,
+  canCreateListing: _canCreateListing = true,
+  onDisabledCreatePress: _onDisabledCreatePress,
 }) => {
   const handleCreatePress = () => {
-    if (!canCreateListing) {
-      onDisabledCreatePress?.();
-      return;
-    }
     onCreatePress();
   };
 
@@ -91,12 +87,9 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
         {showCreateButton && (
           <View style={styles.createButtonContainer}>
             <TouchableOpacity
-              style={[
-                styles.createButton,
-                !canCreateListing && styles.createButtonDisabled,
-              ]}
+              style={styles.createButton}
               onPress={handleCreatePress}
-              activeOpacity={canCreateListing ? 0.8 : 1}
+              activeOpacity={0.8}
             >
               <AddNewIcon size={24} color="white" />
             </TouchableOpacity>

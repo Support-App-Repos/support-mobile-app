@@ -17,7 +17,7 @@ import {
   ForwardIcon,
 } from '../../components/common';
 import { Spacing } from '../../config/theme';
-import { bookingService, storeService } from '../../services';
+import { bookingService, listingService, storeService } from '../../services';
 import type { RootStackParamList } from '../../types';
 import { unwrapApiPayload } from '../../utils/apiHelpers';
 import { formatListingPriceWithType } from '../../utils/currency';
@@ -52,7 +52,7 @@ const SERVICE_ICON_TILES: Array<{
 
 const isServiceListing = (listing: any) => {
   const slug = String(listing?.category?.slug || listing?.category?.name || '').toLowerCase();
-  return slug.includes('service');
+  return slug.includes('service') || slug.includes('aesthetic') || slug.includes('beauty');
 };
 
 type StoreServiceListing = {
@@ -122,8 +122,12 @@ const prioritizeListing = (
 
 const getPrimaryPhoto = (listing: StoreServiceListing) => {
   const photos = listing.photos || [];
-  const primary = photos.find((p) => p.isPrimary && p.photoUrl);
-  return primary?.photoUrl || photos.find((p) => p.photoUrl)?.photoUrl || null;
+  const normalized = photos.map((p: any) => ({
+    photoUrl: p?.photoUrl || p?.photo_url || null,
+    isPrimary: Boolean(p?.isPrimary ?? p?.is_primary),
+  }));
+  const primary = normalized.find((p) => p.isPrimary && p.photoUrl);
+  return primary?.photoUrl || normalized.find((p) => p.photoUrl)?.photoUrl || null;
 };
 
 export const ChooseServiceScreen: React.FC<ChooseServiceScreenProps> = ({
@@ -138,8 +142,8 @@ export const ChooseServiceScreen: React.FC<ChooseServiceScreenProps> = ({
   const [error, setError] = useState<string | null>(null);
 
   const loadServices = useCallback(async () => {
-    if (!storeId) {
-      setError('Store is required to choose a service.');
+    if (!storeId && !currentListingId) {
+      setError('Listing is required to choose a service.');
       setLoading(false);
       return;
     }
@@ -148,9 +152,38 @@ export const ChooseServiceScreen: React.FC<ChooseServiceScreenProps> = ({
       setLoading(true);
       setError(null);
 
+      // No store — load this listing only (independent service providers)
+      if (!storeId && currentListingId) {
+        const response = await listingService.getListingById(currentListingId);
+        const listing = unwrapApiPayload<any>(response);
+        if (!listing) {
+          setError('Service listing not found.');
+          setData(null);
+          return;
+        }
+        const providerName =
+          listing.businessName ||
+          listing.serviceProviderName ||
+          listing.organizerName ||
+          listing.user?.fullName ||
+          listing.user?.name ||
+          'Service provider';
+        setData({
+          store: {
+            name: providerName,
+            logoUrl: listing.user?.profileImageUrl || null,
+            ratingAverage: listing.ratingAverage ?? null,
+            businessCategory: listing.specialization || listing.category?.name || null,
+          },
+          listings: [listing],
+          highlightListingId: currentListingId,
+        });
+        return;
+      }
+
       try {
         const response = await bookingService.getStoreServiceListings(
-          storeId,
+          storeId!,
           currentListingId,
         );
         const payload = unwrapApiPayload<StoreServiceCatalog>(response);
@@ -168,8 +201,8 @@ export const ChooseServiceScreen: React.FC<ChooseServiceScreenProps> = ({
       }
 
       const [storeRes, listingsRes] = await Promise.all([
-        storeService.getStoreById(storeId),
-        storeService.getStoreListings(storeId, { status: 'Active', limit: 50 }),
+        storeService.getStoreById(storeId!),
+        storeService.getStoreListings(storeId!, { status: 'Active', limit: 50 }),
       ]);
       const store = unwrapApiPayload<StoreServiceCatalog['store']>(storeRes);
       const allListings = unwrapApiPayload<any[]>(listingsRes) || [];
@@ -199,10 +232,10 @@ export const ChooseServiceScreen: React.FC<ChooseServiceScreenProps> = ({
 
   const handleServicePress = (item: StoreServiceListing) => {
     const listingId = getListingId(item);
-    if (!storeId || !listingId) return;
+    if (!listingId) return;
 
     navigation?.navigate('SelectBookingDateTime', {
-      storeId,
+      storeId: storeId || undefined,
       listingId,
       serviceTitle: item.title || 'Service',
       servicePrice:
@@ -332,7 +365,7 @@ export const ChooseServiceScreen: React.FC<ChooseServiceScreenProps> = ({
       ) : error ? (
         <View style={styles.state}>
           <Text style={styles.errorTitle}>
-            {!storeId ? 'Unable to continue' : 'Could not load services'}
+            {!currentListingId && !storeId ? 'Unable to continue' : 'Could not load services'}
           </Text>
           <Text style={styles.stateText}>{error}</Text>
           <TouchableOpacity style={styles.retryBtn} onPress={loadServices} activeOpacity={0.85}>

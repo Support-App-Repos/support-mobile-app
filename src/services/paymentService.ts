@@ -43,6 +43,28 @@ class PaymentService {
   }
 
   /**
+   * Create booking payment intent (platform charge for service/event)
+   */
+  async createBookingPaymentIntent(data: {
+    type: 'service' | 'event';
+    listingId: string;
+    addonIds?: string[];
+    ticketQuantity?: number;
+  }) {
+    const response = await this.apiService.post<{
+      success: boolean;
+      message?: string;
+      data: {
+        clientSecret: string;
+        paymentIntentId: string;
+        amount: number;
+        currency: string;
+      };
+    }>('/stripe/create-booking-payment-intent', data);
+    return response;
+  }
+
+  /**
    * Confirm payment
    */
   async confirmPayment(data: {
@@ -69,4 +91,3 @@ class PaymentService {
 }
 
 export const paymentService = new PaymentService();
-

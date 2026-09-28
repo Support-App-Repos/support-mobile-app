@@ -79,7 +79,6 @@ const HUB_ITEMS: HubItem[] = [
     subtitle: 'Service and event bookings',
     route: 'StoreBookings',
     Icon: StoreHubBookingsIcon,
-    requiresStore: true,
   },
   {
     id: 'listings',
@@ -87,8 +86,6 @@ const HUB_ITEMS: HubItem[] = [
     subtitle: 'View and edit your products',
     route: 'ManageStoreListings',
     Icon: StoreHubListingsIcon,
-    requiresStore: true,
-    requiresVerified: true,
   },
 ];
 

@@ -305,15 +305,19 @@ export const PropertyListingDetailScreen: React.FC<PropertyListingDetailScreenPr
         </View>
 
         <View style={styles.padH}>
-          <Text style={styles.listingTitle}>{listing.title || 'Property'}</Text>
+          <View style={styles.titleRow}>
+            <Text style={styles.listingTitle} numberOfLines={2}>
+              {listing.title || 'Property'}
+            </Text>
+            <Text style={styles.price}>
+              {formatListingPrice(listing.price, listing.currency ?? 'AED')}
+            </Text>
+          </View>
           <Text style={styles.views}>{formatViews(listing.viewsCount ?? listing.views)}</Text>
           <ListingStoreProfileCTA
             store={listing.store}
             onPress={handleViewStoreProfile}
           />
-          <Text style={styles.price}>
-            {formatListingPrice(listing.price, listing.currency ?? 'AED')}
-          </Text>
 
           <View style={styles.sectionHeaderRow}>
             <Text style={styles.sectionTitle}>{detailTitle}</Text>
@@ -568,18 +572,25 @@ const styles = StyleSheet.create({
   dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.5)' },
   dotActive: { backgroundColor: '#FFF', width: 8, height: 8, borderRadius: 4 },
   padH: { paddingHorizontal: Spacing.md },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 8,
+    marginTop: Spacing.md,
+  },
   listingTitle: {
+    flex: 1,
     fontSize: 22,
     fontWeight: '700',
     color: Colors.light.text,
-    marginTop: Spacing.md,
   },
   views: { fontSize: 14, color: Colors.light.textSecondary, marginTop: 4 },
   price: {
-    fontSize: 28,
-    fontWeight: '700',
+    fontSize: 20,
+    lineHeight: 30,
+    fontWeight: '800',
     color: Colors.light.primary,
-    marginTop: Spacing.sm,
   },
   sectionHeaderRow: {
     flexDirection: 'row',

@@ -33,6 +33,7 @@ import { listingService, paymentService, pickImages, type PickedImage } from '..
 import { useProfile } from '../hooks';
 import { filterNumbersOnly } from '../utils/validation';
 import { resolveListingPhotoUrls, resolveListingId } from '../utils/listingPhotos';
+import { CURRENCY_OPTIONS, currencySymbol } from '../utils/currency';
 
 type ProductListingScreenProps = {
   navigation?: any;
@@ -58,7 +59,6 @@ const PRODUCT_CATEGORY_OPTIONS = [
   'Other',
 ];
 const CONDITION_OPTIONS = ['New', 'Used'];
-const CURRENCY_OPTIONS = ['USD', 'AED', 'EUR'];
 
 const DESCRIPTION_WORD_LIMIT = 500;
 function countWords(text: string): number {
@@ -373,7 +373,7 @@ export const ProductListingScreen: React.FC<ProductListingScreenProps> = ({
           <View style={styles.fieldFlex}>
             <ListingFormField label="Price" required>
               <View style={styles.priceInputWrap}>
-                <Text style={styles.pricePrefix}>$</Text>
+                <Text style={styles.pricePrefix}>{currencySymbol(currency)}</Text>
                 <TextInput
                   style={styles.priceInput}
                   placeholder="e.g. 999"
@@ -390,7 +390,7 @@ export const ProductListingScreen: React.FC<ProductListingScreenProps> = ({
             label="Currency"
             value={currency}
             placeholder="USD"
-            options={CURRENCY_OPTIONS}
+            options={[...CURRENCY_OPTIONS]}
             onSelect={setCurrency}
           />
         </View>

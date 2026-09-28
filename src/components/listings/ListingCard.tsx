@@ -40,7 +40,7 @@ export interface ListingCardData {
   timePosted?: string;
   category?: 'Property' | 'Events' | 'Product' | 'Services' | string;
   location?: string;
-  /** ISO code e.g. USD, AED — drives symbol vs code in price line */
+  /** ISO code e.g. USD, AED, EUR, GBP — drives symbol vs code in price line */
   currency?: string;
 }
 
@@ -50,7 +50,8 @@ function badgeLabel(category?: string, variant?: 'grid' | 'feed'): string {
   if (c.includes('propert')) return 'Property';
   if (c.includes('event')) return 'Event';
   if (c.includes('product')) return 'Product';
-  if (c.includes('service')) return variant === 'feed' ? 'Beauty' : 'Service';
+  if (c.includes('aesthetic') || c.includes('beauty')) return 'Aesthetics';
+  if (c.includes('service')) return variant === 'feed' ? 'Service' : 'Service';
   return category.length > 12 ? `${category.slice(0, 11)}…` : category;
 }
 
@@ -58,7 +59,7 @@ function badgeColor(category?: string): string {
   const c = String(category || '').toLowerCase();
   if (c.includes('event')) return MP.eventBadge;
   if (c.includes('product')) return MP.productBadge;
-  if (c.includes('service')) return MP.beautyBadge;
+  if (c.includes('aesthetic') || c.includes('beauty') || c.includes('service')) return MP.beautyBadge;
   if (c.includes('propert')) return MP.productBadge;
   return MP.primary;
 }
@@ -102,7 +103,12 @@ export const ListingCard: React.FC<ListingCardProps> = ({
         categoryLower.includes('propert') ||
         categoryName === 'Properties' ||
         categoryName === 'Property';
-      const isService = categoryLower.includes('service') || categoryName === 'Services';
+      const isService =
+        categoryLower.includes('service') ||
+        categoryLower.includes('aesthetic') ||
+        categoryLower.includes('beauty') ||
+        categoryName === 'Services' ||
+        categoryName === 'Aesthetics';
 
       if (isEvent) {
         navigation.navigate('EventListingDetail', { listingId: listing.id });

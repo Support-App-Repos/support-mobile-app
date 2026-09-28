@@ -162,7 +162,7 @@ export const SelectBookingDateTimeScreen: React.FC<SelectBookingDateTimeScreenPr
     });
   };
 
-  const missingParams = !params?.storeId || !params?.listingId;
+  const missingParams = !params?.listingId;
   const serviceTitle = params?.serviceTitle || 'Selected service';
   const servicePrice = formatListingPriceWithType(
     params?.servicePrice,

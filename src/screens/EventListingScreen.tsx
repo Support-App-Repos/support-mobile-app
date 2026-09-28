@@ -4,7 +4,6 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { Snackbar } from '../components/common';
 import {
   View,
   Text,
@@ -19,6 +18,8 @@ import {
   PriceTypeDropdown,
   type PriceType,
   GoogleLocationField,
+  FormSelect,
+  Snackbar,
 } from '../components/common';
 import {
   ListingWizardHeader,
@@ -37,6 +38,7 @@ import { listingService, paymentService, pickImages, type PickedImage } from '..
 import { resolveListingPhotoUrls, resolveListingId } from '../utils/listingPhotos';
 import { useProfile } from '../hooks';
 import { filterNumbersOnly, filterLettersOnly } from '../utils/validation';
+import { CURRENCY_OPTIONS, currencySymbol } from '../utils/currency';
 
 type EventListingScreenProps = {
   navigation?: any;
@@ -75,6 +77,7 @@ export const EventListingScreen: React.FC<EventListingScreenProps> = ({
   const [description, setDescription] = useState('');
   const [priceType, setPriceType] = useState<PriceType | null>('Per Seat');
   const [price, setPrice] = useState('');
+  const [currency, setCurrency] = useState('USD');
   const [venue, setVenue] = useState('');
   const [city, setCity] = useState('');
   const [eventDate, setEventDate] = useState('');
@@ -116,6 +119,7 @@ export const EventListingScreen: React.FC<EventListingScreenProps> = ({
     if (incoming.description != null) setDescription(String(incoming.description));
     if (incoming.priceType != null) setPriceType(incoming.priceType);
     if (incoming.price != null) setPrice(String(incoming.price));
+    if (incoming.currency != null) setCurrency(String(incoming.currency));
     if (incoming.venue != null) setVenue(String(incoming.venue));
     if (incoming.city != null) setCity(String(incoming.city));
     if (incoming.eventDate != null) setEventDate(String(incoming.eventDate));
@@ -208,6 +212,7 @@ export const EventListingScreen: React.FC<EventListingScreenProps> = ({
         description: description.trim(),
         price: priceType === 'Free' ? 0 : parseFloat(price),
         priceType: priceType || 'Paid',
+        currency: currency.trim() || 'USD',
         location: venue.trim(),
         city: city.trim(),
         venue: venue.trim(),
@@ -315,13 +320,13 @@ export const EventListingScreen: React.FC<EventListingScreenProps> = ({
           <View style={styles.fieldFlex}>
             <ListingFormField label="Price">
               <View style={styles.priceInputWrap}>
-                <Text style={styles.pricePrefix}>$</Text>
+                <Text style={styles.pricePrefix}>{currencySymbol(currency)}</Text>
                 <TextInput
                   style={[
                     styles.priceInput,
                     (priceType === 'Free' || priceType === null) && styles.inputDisabled,
                   ]}
-                  placeholder="e.g. $20"
+                  placeholder={`e.g. ${currencySymbol(currency)}20`}
                   placeholderTextColor="rgba(153,153,153,0.5)"
                   value={price}
                   onChangeText={(text) => setPrice(filterNumbersOnly(text, true))}
@@ -334,9 +339,20 @@ export const EventListingScreen: React.FC<EventListingScreenProps> = ({
           </View>
         </View>
 
-        <ListingFormField label="Price Type">
-          <PriceTypeDropdown value={priceType} onSelect={setPriceType} />
-        </ListingFormField>
+        <View style={inputStyles.row}>
+          <View style={styles.fieldFlex}>
+            <ListingFormField label="Price Type">
+              <PriceTypeDropdown value={priceType} onSelect={setPriceType} />
+            </ListingFormField>
+          </View>
+          <FormSelect
+            label="Currency"
+            value={currency}
+            placeholder="USD"
+            options={[...CURRENCY_OPTIONS]}
+            onSelect={setCurrency}
+          />
+        </View>
 
         <ListingFormField label="Description" required>
           <TextInput
@@ -570,7 +586,9 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 14,
     color: Colors.light.textHeading,
-    paddingVertical: Platform.OS === 'android' ? Spacing.sm - 2 : Spacing.sm,
+    ...(Platform.OS === 'ios'
+      ? { paddingTop: 0, paddingBottom: 0, height: 44 }
+      : { paddingVertical: Spacing.sm - 2 }),
   },
   inputDisabled: {
     opacity: 0.5,
