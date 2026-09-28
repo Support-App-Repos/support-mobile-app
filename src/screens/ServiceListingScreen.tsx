@@ -597,7 +597,7 @@ export const ServiceListingScreen: React.FC<ServiceListingScreenProps> = ({
         <ListingFormField label="Service Name" required>
           <TextInput
             style={inputStyles.input}
-            placeholder="e.g. Luxury Facial Treatment"
+            placeholder="e.g. Home Cleaning Visit"
             placeholderTextColor="rgba(153,153,153,0.5)"
             value={title}
             onChangeText={setTitle}
@@ -618,7 +618,7 @@ export const ServiceListingScreen: React.FC<ServiceListingScreenProps> = ({
           <ListingFormField label="Category" required>
             <TextInput
               style={inputStyles.input}
-              placeholder="e.g. manicure, nails"
+              placeholder="e.g. plumbing, tutoring"
               placeholderTextColor="rgba(153,153,153,0.5)"
               value={specialization}
               onChangeText={setSpecialization}
@@ -684,7 +684,7 @@ export const ServiceListingScreen: React.FC<ServiceListingScreenProps> = ({
             label=""
             required
             value={location}
-            placeholder="Salon or home visits?"
+            placeholder="On-site, remote, or both?"
             onSelect={({ location: loc }) => setLocation(loc)}
           />
         </ListingFormField>
