@@ -189,7 +189,7 @@ export const StoreScreen: React.FC<{ navigation?: any }> = ({ navigation }) => {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['bottom']}>
+    <SafeAreaView style={styles.container} edges={[]}>
       <View style={[styles.welcomeBanner, { paddingTop: Math.max(insets.top, Spacing.md) + Spacing.sm }]}>
         <View style={styles.welcomeCircleLeft} />
         <View style={styles.welcomeCircleRight} />

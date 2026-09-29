@@ -135,7 +135,7 @@ export const StoreDashboardScreen: React.FC<{ navigation?: any }> = ({ navigatio
   ];
 
   return (
-    <SafeAreaView style={styles.container} edges={['bottom']}>
+    <SafeAreaView style={styles.container} edges={[]}>
       <View style={[styles.header, { paddingTop: Math.max(insets.top, Spacing.sm) }]}>
         <TouchableOpacity
           style={styles.headerCircleBtn}
