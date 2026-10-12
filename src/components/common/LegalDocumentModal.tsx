@@ -33,33 +33,67 @@ export const LegalDocumentModal: React.FC<LegalDocumentModalProps> = ({
 }) => {
   if (!visible) return null;
 
-  // Function to render content with bold headings
+  // Function to render content with bold headings / subheadings
   const renderFormattedContent = (text: string) => {
     if (!text) return <Text style={styles.content}>No content available</Text>;
 
     const lines = text.split('\n');
     const elements: React.ReactNode[] = [];
-    
+
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
       const nextLine = lines[i + 1];
       const prevLine = lines[i - 1];
-      
-      // Check if this line is a heading:
-      // 1. Not empty
-      // 2. Not starting with bullet points or special characters
-      // 3. Not too long (headings are usually short)
-      // 4. Followed by content (not empty next line)
-      // 5. Previous line is empty or this is the first line
-      const isEmpty = line.trim() === '';
-      const isBulletPoint = line.trim().startsWith('•') || line.trim().startsWith('-');
+      const trimmed = line.trim();
+      const isEmpty = trimmed === '';
+
+      // Skip divider lines
+      if (
+        trimmed === '⸻' ||
+        trimmed === '---' ||
+        trimmed === '—' ||
+        trimmed === '-----'
+      ) {
+        continue;
+      }
+
+      // Explicit markdown-style headings: # Heading / ## Subheading
+      if (trimmed.startsWith('## ')) {
+        elements.push(
+          <Text key={`subheading-${i}`} style={styles.subheading}>
+            {trimmed.slice(3).trim()}
+            {'\n'}
+          </Text>
+        );
+        continue;
+      }
+      if (trimmed.startsWith('# ')) {
+        elements.push(
+          <Text key={`heading-${i}`} style={styles.heading}>
+            {trimmed.slice(2).trim()}
+            {'\n'}
+          </Text>
+        );
+        continue;
+      }
+
+      const isBulletPoint =
+        trimmed.startsWith('•') ||
+        trimmed.startsWith('-') ||
+        trimmed.startsWith('*');
       const isLongLine = line.length > 100;
       const hasNextContent = nextLine && nextLine.trim() !== '';
       const isAfterEmptyLine = !prevLine || prevLine.trim() === '';
-      
-      if (!isEmpty && !isBulletPoint && !isLongLine && hasNextContent && isAfterEmptyLine && line.length < 80) {
-        // This is likely a heading - render in bold with colon
-        const headingText = line.trim().endsWith(':') ? line : `${line}:`;
+
+      if (
+        !isEmpty &&
+        !isBulletPoint &&
+        !isLongLine &&
+        hasNextContent &&
+        isAfterEmptyLine &&
+        line.length < 80
+      ) {
+        const headingText = trimmed.endsWith(':') ? trimmed : `${trimmed}:`;
         elements.push(
           <Text key={`heading-${i}`} style={styles.heading}>
             {headingText}
@@ -67,7 +101,6 @@ export const LegalDocumentModal: React.FC<LegalDocumentModalProps> = ({
           </Text>
         );
       } else if (!isEmpty) {
-        // Regular content
         elements.push(
           <Text key={`content-${i}`} style={styles.content}>
             {line}
@@ -75,7 +108,6 @@ export const LegalDocumentModal: React.FC<LegalDocumentModalProps> = ({
           </Text>
         );
       } else {
-        // Empty line
         elements.push(
           <Text key={`empty-${i}`} style={styles.content}>
             {'\n'}
@@ -83,7 +115,7 @@ export const LegalDocumentModal: React.FC<LegalDocumentModalProps> = ({
         );
       }
     }
-    
+
     return <Text selectable={true}>{elements}</Text>;
   };
 
@@ -219,6 +251,15 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontSize: 18,
     lineHeight: 26,
+    marginTop: Spacing.md,
+    marginBottom: Spacing.xs,
+  },
+  subheading: {
+    ...Typography.h3,
+    color: Colors.light.text,
+    fontWeight: '600',
+    fontSize: 16,
+    lineHeight: 24,
     marginTop: Spacing.md,
     marginBottom: Spacing.xs,
   },

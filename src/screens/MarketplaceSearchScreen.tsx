@@ -20,7 +20,6 @@ import {
   BackIcon,
   SearchIcon,
   ArrowDownIcon,
-  VerifiedBadgeIcon,
 } from '../components/common';
 import {
   MarketplaceSearchResultCard,
@@ -153,7 +152,6 @@ export const MarketplaceSearchScreen: React.FC<MarketplaceSearchScreenProps> = (
   const [priceModalOpen, setPriceModalOpen] = useState(false);
   const [minPriceText, setMinPriceText] = useState('');
   const [maxPriceText, setMaxPriceText] = useState('');
-  const [onlyVerified, setOnlyVerified] = useState(false);
   const { isWishlisted, toggleWishlist, refresh: refreshWishlist } = useWishlist();
 
   const load = useCallback(async () => {
@@ -192,9 +190,6 @@ export const MarketplaceSearchScreen: React.FC<MarketplaceSearchScreenProps> = (
         return blob.includes(q);
       });
     }
-    if (onlyVerified) {
-      rows = rows.filter((l) => l.sellerVerified === true || l.verified === true || l.isVerified === true);
-    }
     if (minPrice != null && !Number.isNaN(minPrice)) {
       rows = rows.filter((l) => (Number(l.price) || 0) >= minPrice);
     }
@@ -215,7 +210,7 @@ export const MarketplaceSearchScreen: React.FC<MarketplaceSearchScreenProps> = (
       });
     }
     return rows;
-  }, [rawListings, query, onlyVerified, minPrice, maxPrice, sortKey]);
+  }, [rawListings, query, minPrice, maxPrice, sortKey]);
 
   const openAdvancedFilters = () => {
     Alert.alert('Filters', 'More filter options can connect here (categories, distance, etc.).');
@@ -277,17 +272,6 @@ export const MarketplaceSearchScreen: React.FC<MarketplaceSearchScreenProps> = (
         <TouchableOpacity style={styles.chip} activeOpacity={0.85} onPress={() => setPriceModalOpen(true)}>
           <Text style={styles.chipText}>Price</Text>
           <ArrowDownIcon size={14} color={Colors.light.textSecondary} />
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.chip, styles.chipWide, onlyVerified && styles.chipActive]}
-          activeOpacity={0.85}
-          onPress={() => setOnlyVerified((v) => !v)}
-        >
-          <VerifiedBadgeIcon
-            size={18}
-            color={onlyVerified ? Colors.light.primary : Colors.light.textSecondary}
-          />
-          <Text style={[styles.chipText, onlyVerified && styles.chipTextActive]}>Only Verified</Text>
         </TouchableOpacity>
       </ScrollView>
     </View>
@@ -440,13 +424,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E8E8ED',
   },
-  chipWide: { paddingRight: Spacing.md },
-  chipActive: {
-    borderColor: Colors.light.primary,
-    backgroundColor: 'rgba(13, 71, 92, 0.06)',
-  },
   chipText: { fontSize: 14, fontWeight: '500', color: Colors.light.text },
-  chipTextActive: { color: Colors.light.primary, fontWeight: '600' },
   empty: {
     textAlign: 'center',
     color: Colors.light.textSecondary,

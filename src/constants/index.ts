@@ -61,6 +61,7 @@ export const SCREENS = {
 export {
   TERMS_AND_CONDITIONS_CONTENT,
   PRIVACY_POLICY_CONTENT,
+  HELP_AND_SUPPORT_CONTENT,
 } from './legalDocuments';
 
 export {

@@ -30,12 +30,14 @@ import {
   SignOutIcon,
   DeleteIcon,
   Snackbar,
+  LegalDocumentModal,
 } from '../components/common';
 import { ListingCard, type ListingCardData } from '../components/listings';
 import { BottomNavigation, type BottomNavItem } from '../components/navigation';
 import { profileService } from '../services';
 import { authService } from '../services/authService';
 import { Colors, Spacing, Typography, BorderRadius } from '../config/theme';
+import { HELP_AND_SUPPORT_CONTENT } from '../constants';
 import { useProfileContext } from '../contexts/ProfileContext';
 import { useStoreContext } from '../contexts/StoreContext';
 import { formatListingPriceWithType, listingPriceUnitLabel } from '../utils/currency';
@@ -101,6 +103,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   const [loadingWishlist, setLoadingWishlist] = useState(false);
   const [deletingAccount, setDeletingAccount] = useState(false);
   const [snackbarVisible, setSnackbarVisible] = useState(false);
+  const [showHelpSupportModal, setShowHelpSupportModal] = useState(false);
 
   // Update active tab and refetch profile when screen comes into focus
   useFocusEffect(
@@ -186,8 +189,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   };
 
   const handleHelpSupport = () => {
-    // TODO: Navigate to help & support
-    console.log('Help & Support pressed');
+    setShowHelpSupportModal(true);
   };
 
   const handleSignOut = async () => {
@@ -577,6 +579,13 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
         message="Coming soon feature"
         type="info"
         onDismiss={() => setSnackbarVisible(false)}
+      />
+
+      <LegalDocumentModal
+        visible={showHelpSupportModal}
+        title="Help & Support"
+        content={HELP_AND_SUPPORT_CONTENT}
+        onClose={() => setShowHelpSupportModal(false)}
       />
     </SafeAreaView>
   );

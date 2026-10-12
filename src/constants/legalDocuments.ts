@@ -217,3 +217,193 @@ Similique sunt in culpa qui officia deserunt mollitia animi, id est laborum et d
 Nam libero tempore, cum soluta nobis est eligendi optio cumque nihil impedit quo minus id quod maxime placeat facere possimus, omnis voluptas assumenda est, omnis dolor repellendus.
 
 Temporibus autem quibusdam et aut officiis debitis aut rerum necessitatibus saepe eveniet ut et voluptates repudiandae sint et molestiae non recusandae.`;
+
+export const HELP_AND_SUPPORT_CONTENT = `
+# Welcome to YouZell Support
+
+We're here to help make your experience on YouZell as simple and straightforward as possible.
+
+YouZell is a marketplace and sourcing platform that connects customers with businesses and individuals offering products, properties, events and services.
+
+If you need help using the app, making a payment, managing a listing, booking a service or contacting a Vendor, we're here to assist.
+
+# How Can We Help?
+
+## Account & Profile
+
+For help with:
+
+• Creating an account
+• Logging in
+• Updating your profile
+• Changing your contact details
+• Password and security issues
+• Account verification
+• Closing your account
+
+Please contact YouZell Support.
+
+## Vendor Support
+
+If you are a Vendor, we can help with:
+
+• Creating your business profile
+• Creating and managing listings
+• Uploading products or services
+• Managing bookings
+• Managing availability
+• Updating prices
+• Promoting your business
+• Understanding advertising packages
+• Verification
+• Payment-related platform queries
+
+Vendors are responsible for ensuring their listings and business information are accurate and up to date.
+
+## Payments
+
+YouZell may provide payment facilities that allow customers to pay for products, services or bookings through the platform.
+
+If you have a payment issue, please contact YouZell Support with:
+
+• Your name
+• Your YouZell account email
+• Transaction or booking reference
+• Date of payment
+• Amount paid
+• A description of the problem
+
+Where payment processing is handled by a third-party payment provider, additional information may be required.
+
+## Products & Orders
+
+If you have a problem with a product purchased through YouZell, please contact the Vendor first.
+
+This includes:
+
+• Product not received
+• Incorrect product
+• Damaged product
+• Product not matching its listing
+• Delivery problems
+• Product-related refunds
+
+The Vendor is responsible for the products they sell and the service they provide.
+
+YouZell may assist with communication between you and the Vendor where appropriate.
+
+## Bookings & Appointments
+
+If you have booked a service through YouZell, the relevant Vendor is responsible for providing the appointment or service.
+
+For issues such as:
+
+• Cancellation
+• Rescheduling
+• Missed appointments
+• Vendor cancellation
+• Service problems
+• Booking changes
+• Refund requests
+
+Please contact the Vendor first.
+
+If you are unable to resolve the issue with the Vendor, YouZell Support may be able to assist with the platform or payment aspect of the transaction.
+
+## Property Listings
+
+YouZell may allow Vendors and property professionals to advertise properties.
+
+If you are interested in a property, please contact the Vendor or advertiser through the information provided on the listing.
+
+Vendors and advertisers are responsible for the accuracy of their property information.
+
+YouZell does not guarantee the availability, condition, ownership, suitability or accuracy of a property listing unless expressly stated.
+
+## Events
+
+If you have purchased a ticket or booked an event through YouZell, the event organiser is responsible for the event itself.
+
+For questions about:
+
+• Event times
+• Venue information
+• Event cancellation
+• Tickets
+• Event changes
+• Refunds
+
+Please contact the event organiser first.
+
+YouZell may assist with payment or platform-related issues where appropriate.
+
+## Reporting a Listing or User
+
+If you believe a listing, account or Vendor is:
+
+• Fraudulent
+• Misleading
+• Illegal
+• Unsafe
+• Selling prohibited goods or services
+• Using false information
+• Abusing another user
+• Violating YouZell's Terms & Conditions
+
+Please report it to YouZell.
+
+We may investigate reported content and take appropriate action, including removing a listing, restricting an account or suspending a Vendor.
+
+## Fraud & Security
+
+If you believe someone is attempting to scam you through YouZell, stop communicating with them and report the issue to us immediately.
+
+Never share:
+
+• Your password
+• Security codes
+• Banking login details
+• One-time authentication codes
+• Full card details
+
+YouZell will never ask you to provide your password or security codes.
+
+If you believe your payment information has been compromised, contact your bank or payment provider immediately.
+
+## Vendor & Customer Disputes
+
+YouZell is designed to connect customers and Vendors.
+
+Where a disagreement concerns the actual product or service, customers should normally contact the Vendor first.
+
+YouZell may assist with communication or investigate platform-related issues, but we do not automatically become a party to the underlying transaction simply because the transaction was arranged or paid for through YouZell.
+
+Nothing in this Help & Support policy affects any legal rights you may have.
+
+## Contact YouZell Support
+
+For general support, please contact:
+
+YouZell Support
+
+Email: Youzell@outlook.com
+
+When contacting us, please include as much information as possible, including your account email, booking/order reference and a description of the issue.
+
+This helps us investigate your request more quickly.
+
+## Support Requests
+
+We aim to respond to support requests as soon as reasonably possible.
+
+Response times may vary depending on the nature and complexity of the issue.
+
+Urgent payment, fraud or security issues should be clearly identified when contacting us.
+
+## Our Goal
+
+Our goal is to make YouZell a trusted marketplace where businesses and individuals can promote what they offer and customers can easily discover and connect with them.
+
+Find it. Promote it. Book it. Buy it. Sell it.
+
+That's YouZell.`;
