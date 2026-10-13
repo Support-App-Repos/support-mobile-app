@@ -46,7 +46,7 @@ class PaymentService {
    * Create booking payment intent (platform charge for service/event)
    */
   async createBookingPaymentIntent(data: {
-    type: 'service' | 'event';
+    type: 'service' | 'event' | 'product';
     listingId: string;
     addonIds?: string[];
     ticketQuantity?: number;
@@ -61,6 +61,25 @@ class PaymentService {
         currency: string;
       };
     }>('/stripe/create-booking-payment-intent', data);
+    return response;
+  }
+
+  /**
+   * Create a paid product order after Stripe Payment Sheet succeeds
+   */
+  async createProductOrder(data: { listingId: string; paymentIntentId: string }) {
+    const response = await this.apiService.post<{
+      success: boolean;
+      message?: string;
+      data: {
+        id: string;
+        productTitle?: string | null;
+        amount: number;
+        currency: string | null;
+        quantity?: number;
+        status: string;
+      };
+    }>('/product-orders', data);
     return response;
   }
 
