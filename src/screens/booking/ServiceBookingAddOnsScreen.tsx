@@ -173,8 +173,9 @@ export const ServiceBookingAddOnsScreen: React.FC<ServiceBookingAddOnsScreenProp
 
         const { error: initError } = await initPaymentSheet({
           paymentIntentClientSecret: paymentData.clientSecret,
-          merchantDisplayName: 'Marketplace',
+          merchantDisplayName: 'YouZell',
           allowsDelayedPaymentMethods: false,
+          returnURL: 'supportapp://stripe-redirect',
         });
         if (initError) {
           throw new Error(initError.message || 'Failed to initialize payment');

@@ -170,8 +170,9 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({
       // 2. Initialize payment sheet
       const { error: initError } = await initPaymentSheet({
         paymentIntentClientSecret: clientSecret,
-        merchantDisplayName: 'Marketplace',
+        merchantDisplayName: 'YouZell',
         allowsDelayedPaymentMethods: true,
+        returnURL: 'supportapp://stripe-redirect',
       });
 
       if (initError) {
