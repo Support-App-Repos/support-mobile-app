@@ -18,6 +18,7 @@ import {
   FlatList,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useStripe } from '@stripe/stripe-react-native';
 import {
   BackIcon,
   SaveIcon,
@@ -29,9 +30,11 @@ import {
   LocationIcon,
 } from '../components/common';
 import { Colors, Spacing, BorderRadius } from '../config/theme';
-import { listingService, profileService } from '../services';
+import { listingService, profileService, paymentService, authService } from '../services';
+import { useProfile } from '../hooks';
 import { formatListingPrice } from '../utils/currency';
 import { ListingStoreProfileCTA } from '../components/listings';
+import { unwrapApiPayload } from '../utils/apiHelpers';
 
 const { width } = Dimensions.get('window');
 const MP = Colors.light.marketplace;
@@ -83,6 +86,12 @@ function DetailGridCard({ label, value }: DetailTile) {
   );
 }
 
+const isAuthError = (error: any) => {
+  const status = error?.status || error?.response?.status;
+  const message = String(error?.message || '').toLowerCase();
+  return status === 401 || message.includes('unauthorized') || message.includes('login');
+};
+
 export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
   navigation,
   route,
@@ -91,10 +100,18 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
   const [loading, setLoading] = useState(true);
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [buying, setBuying] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const flatListRef = useRef<FlatList>(null);
+  const { initPaymentSheet, presentPaymentSheet } = useStripe();
+  const { user } = useProfile();
 
   const listingId = route?.params?.listingId;
+  const isOwnListing =
+    !!user?.id &&
+    !!listing?.user?.id &&
+    String(user.id) === String(listing.user.id);
+  const buyDisabled = buying || isOwnListing;
 
   const checkWishlistStatus = async () => {
     if (!listingId) return;
@@ -208,8 +225,115 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
     );
   };
 
-  const handleBuyNow = () => {
-    handlePhoneCall();
+  const promptLogin = () => {
+    Alert.alert('Login required', 'Please log in before purchasing this product.', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Login', onPress: () => navigation?.navigate('Login') },
+    ]);
+  };
+
+  const handleBuyNow = async () => {
+    if (!listingId || !listing || buying || isOwnListing) return;
+
+    const price =
+      typeof listing.price === 'number'
+        ? listing.price
+        : Number(listing.price);
+    const priceType = listing.priceType || listing.price_type;
+    const isFree =
+      /^free$/i.test(String(priceType || '')) ||
+      !price ||
+      Number.isNaN(price) ||
+      price <= 0;
+
+    if (isFree) {
+      Alert.alert(
+        'No payment required',
+        'This product is free. Please contact the seller to arrange collection.',
+      );
+      return;
+    }
+
+    try {
+      setBuying(true);
+
+      const authenticated = await authService.isAuthenticated();
+      if (!authenticated) {
+        promptLogin();
+        return;
+      }
+
+      const createResponse = await paymentService.createBookingPaymentIntent({
+        type: 'product',
+        listingId,
+      });
+      if (!createResponse.success) {
+        throw new Error(createResponse.message || 'Failed to start payment');
+      }
+
+      const paymentData =
+        (createResponse.data as any)?.data || createResponse.data;
+      if (!paymentData?.clientSecret || !paymentData?.paymentIntentId) {
+        throw new Error('Invalid payment response');
+      }
+
+      const { error: initError } = await initPaymentSheet({
+        paymentIntentClientSecret: paymentData.clientSecret,
+        merchantDisplayName: 'YouZell',
+        allowsDelayedPaymentMethods: false,
+        returnURL: 'supportapp://stripe-redirect',
+      });
+      if (initError) {
+        throw new Error(initError.message || 'Failed to initialize payment');
+      }
+
+      const { error: presentError } = await presentPaymentSheet();
+      if (presentError) {
+        if (presentError.code !== 'Canceled') {
+          Alert.alert('Error', presentError.message || 'Payment failed');
+        }
+        return;
+      }
+
+      const orderResponse = await paymentService.createProductOrder({
+        listingId,
+        paymentIntentId: paymentData.paymentIntentId,
+      });
+      if (!orderResponse.success) {
+        throw new Error(orderResponse.message || 'Payment succeeded but order failed');
+      }
+
+      const order = unwrapApiPayload<{
+        id?: string;
+        productTitle?: string | null;
+        amount?: number | null;
+        currency?: string | null;
+        quantity?: number | null;
+        status?: string | null;
+      }>(orderResponse);
+
+      if (!order?.id) {
+        throw new Error('Payment succeeded but order details are missing');
+      }
+
+      navigation?.replace('ProductPaymentConfirmed', {
+        orderId: order.id,
+        productTitle: order.productTitle || listing.title || 'Product',
+        amount: order.amount ?? listing.price ?? 0,
+        currency: order.currency ?? listing.currency ?? null,
+        quantity: order.quantity ?? 1,
+        status: order.status || 'Paid',
+      });
+    } catch (err: any) {
+      console.error('Buy Now payment error:', err);
+      if (isAuthError(err)) {
+        promptLogin();
+        return;
+      }
+      Alert.alert('Error', err.message || 'Failed to complete purchase. Please try again.');
+    } finally {
+      setBuying(false);
+    }
   };
 
   if (loading) {
@@ -430,8 +554,17 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
           <PhoneIcon size={16} color={MP.primary} />
           <Text style={styles.callButtonText}>Call</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.buyButton} onPress={handleBuyNow} activeOpacity={0.85}>
-          <Text style={styles.buyButtonText}>Buy Now</Text>
+        <TouchableOpacity
+          style={[styles.buyButton, buyDisabled && styles.buyButtonDisabled]}
+          onPress={handleBuyNow}
+          activeOpacity={0.85}
+          disabled={buyDisabled}
+        >
+          {buying ? (
+            <ActivityIndicator size="small" color="#FFFFFF" />
+          ) : (
+            <Text style={styles.buyButtonText}>Buy Now</Text>
+          )}
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -727,6 +860,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 6,
     elevation: 4,
+  },
+  buyButtonDisabled: {
+    opacity: 0.7,
   },
   buyButtonText: {
     fontSize: 14,
