@@ -128,6 +128,14 @@ export type RootStackParamList = {
   EventBookingConfirmed: {
     bookingId: string;
   };
+  ProductPaymentConfirmed: {
+    orderId: string;
+    productTitle?: string | null;
+    amount?: number | null;
+    currency?: string | null;
+    quantity?: number | null;
+    status?: string | null;
+  };
   // Add more screen params as needed
 };
 

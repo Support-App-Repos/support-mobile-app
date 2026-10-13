@@ -37,7 +37,12 @@ import { BottomNavigation, type BottomNavItem } from '../components/navigation';
 import { profileService } from '../services';
 import { authService } from '../services/authService';
 import { Colors, Spacing, Typography, BorderRadius } from '../config/theme';
-import { HELP_AND_SUPPORT_CONTENT } from '../constants';
+import {
+  ABOUT_CONTENT,
+  TERMS_AND_CONDITIONS_CONTENT,
+  PRIVACY_POLICY_CONTENT,
+  HELP_AND_SUPPORT_CONTENT,
+} from '../constants';
 import { useProfileContext } from '../contexts/ProfileContext';
 import { useStoreContext } from '../contexts/StoreContext';
 import { formatListingPriceWithType, listingPriceUnitLabel } from '../utils/currency';
@@ -104,6 +109,9 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   const [deletingAccount, setDeletingAccount] = useState(false);
   const [snackbarVisible, setSnackbarVisible] = useState(false);
   const [showHelpSupportModal, setShowHelpSupportModal] = useState(false);
+  const [showAboutModal, setShowAboutModal] = useState(false);
+  const [showTermsModal, setShowTermsModal] = useState(false);
+  const [showPrivacyModal, setShowPrivacyModal] = useState(false);
 
   // Update active tab and refetch profile when screen comes into focus
   useFocusEffect(
@@ -191,6 +199,10 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   const handleHelpSupport = () => {
     setShowHelpSupportModal(true);
   };
+
+  const handleAbout = () => setShowAboutModal(true);
+  const handleTerms = () => setShowTermsModal(true);
+  const handlePrivacy = () => setShowPrivacyModal(true);
 
   const handleSignOut = async () => {
     try {
@@ -372,6 +384,30 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
           >
             <SettingsIcon size={24} color="#B7B7B7" />
             <Text style={styles.accountButtonText}>Account Setting</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.accountButton}
+            onPress={handleAbout}
+            activeOpacity={0.7}
+          >
+            <HelpIcon size={24} color="#B7B7B7" />
+            <Text style={styles.accountButtonText}>About</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.accountButton}
+            onPress={handleTerms}
+            activeOpacity={0.7}
+          >
+            <HelpIcon size={24} color="#B7B7B7" />
+            <Text style={styles.accountButtonText}>Terms & Conditions</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.accountButton}
+            onPress={handlePrivacy}
+            activeOpacity={0.7}
+          >
+            <LockIcon size={24} color="#B7B7B7" />
+            <Text style={styles.accountButtonText}>Privacy Policy</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.accountButton}
@@ -581,6 +617,24 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
         onDismiss={() => setSnackbarVisible(false)}
       />
 
+      <LegalDocumentModal
+        visible={showAboutModal}
+        title="About YouZell"
+        content={ABOUT_CONTENT}
+        onClose={() => setShowAboutModal(false)}
+      />
+      <LegalDocumentModal
+        visible={showTermsModal}
+        title="Terms & Conditions"
+        content={TERMS_AND_CONDITIONS_CONTENT}
+        onClose={() => setShowTermsModal(false)}
+      />
+      <LegalDocumentModal
+        visible={showPrivacyModal}
+        title="Privacy Policy"
+        content={PRIVACY_POLICY_CONTENT}
+        onClose={() => setShowPrivacyModal(false)}
+      />
       <LegalDocumentModal
         visible={showHelpSupportModal}
         title="Help & Support"

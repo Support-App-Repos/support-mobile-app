@@ -52,6 +52,7 @@ import { ServiceBookingAddOnsScreen } from '../screens/booking/ServiceBookingAdd
 import { BookingConfirmedScreen } from '../screens/booking/BookingConfirmedScreen';
 import { EventBookTicketsScreen } from '../screens/booking/EventBookTicketsScreen';
 import { EventBookingConfirmedScreen } from '../screens/booking/EventBookingConfirmedScreen';
+import { ProductPaymentConfirmedScreen } from '../screens/booking/ProductPaymentConfirmedScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -344,6 +345,11 @@ export const AppNavigator: React.FC = () => {
         <Stack.Screen
           name="EventBookingConfirmed"
           component={EventBookingConfirmedScreen}
+          options={{ headerShown: false, contentStyle: { backgroundColor: '#F2F2F2' } }}
+        />
+        <Stack.Screen
+          name="ProductPaymentConfirmed"
+          component={ProductPaymentConfirmedScreen}
           options={{ headerShown: false, contentStyle: { backgroundColor: '#F2F2F2' } }}
         />
         </Stack.Navigator>
