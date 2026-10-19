@@ -4,25 +4,36 @@
  */
 
 /**
+ * Normalize an id value to string
+ */
+function normalizeId(value) {
+  if (value == null) return null;
+  if (typeof value === 'string') return value;
+  if (typeof value.toString === 'function') return value.toString();
+  return null;
+}
+
+/**
  * Extract user ID from request
- * Handles both Mongoose (old) and Prisma (new) user structures
+ * Prefer JWT payload (auth user) over legacy mongoose profile — profileDal can
+ * resolve a different User collection/document for the same email.
  */
 function getUserId(req) {
-  // Try Prisma user first (from addReqUser middleware)
-  if (req.user?.id) {
-    return req.user.id;
-  }
-
-  // Try userPayload.sub (JWT token structure)
+  // JWT token structure from generateToken({ id, email, ... })
   if (req.userPayload?.sub) {
     const user = req.userPayload.sub;
-    // Mongoose uses _id, Prisma uses id
-    return user.id || user._id || user._id?.toString();
+    const fromJwt = normalizeId(user.id || user._id);
+    if (fromJwt) return fromJwt;
   }
 
-  // Try direct userPayload.id
   if (req.userPayload?.id) {
-    return req.userPayload.id;
+    const fromPayload = normalizeId(req.userPayload.id);
+    if (fromPayload) return fromPayload;
+  }
+
+  // Legacy / profile middleware fallback
+  if (req.user?.id) {
+    return normalizeId(req.user.id);
   }
 
   return null;

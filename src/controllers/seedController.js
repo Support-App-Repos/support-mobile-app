@@ -20,6 +20,7 @@ exports.seedDatabase = async (req, res) => {
       { name: 'Events', slug: 'events', description: 'Events, parties, and gatherings' },
       { name: 'Services', slug: 'services', description: 'Professional and personal services' },
       { name: 'Properties', slug: 'properties', description: 'Real estate and property listings' },
+      { name: 'Aesthetics', slug: 'aesthetics', description: 'Beauty and aesthetic treatments' },
     ];
 
     const createdCategories = {};
@@ -63,13 +64,12 @@ exports.seedDatabase = async (req, res) => {
       }
     }
 
-    // Create Service Types
+    // Create Service Types (Beauty is a top-level Aesthetics category, not a service subtype)
     if (createdCategories.services) {
       const serviceTypes = [
         { name: 'Professional Service', slug: 'professional-service', categoryId: createdCategories.services._id },
         { name: 'Medical', slug: 'medical', categoryId: createdCategories.services._id },
         { name: 'Home Service', slug: 'home-service', categoryId: createdCategories.services._id },
-        { name: 'Beauty', slug: 'beauty', categoryId: createdCategories.services._id },
       ];
 
       const serviceTypesCollection = await getCollection('ServiceType');
@@ -83,10 +83,23 @@ exports.seedDatabase = async (req, res) => {
           });
         }
       }
+
+      // Deactivate legacy Beauty service subtype if present
+      await serviceTypesCollection.updateMany(
+        { slug: 'beauty' },
+        { $set: { is_active: false, updatedAt: new Date() } }
+      );
     }
 
     // Create Regions
     const regions = [
+      { name: 'Dubai', country: 'United Arab Emirates', country_code: 'AE' },
+      { name: 'Abu Dhabi', country: 'United Arab Emirates', country_code: 'AE' },
+      { name: 'Sharjah', country: 'United Arab Emirates', country_code: 'AE' },
+      { name: 'Ajman', country: 'United Arab Emirates', country_code: 'AE' },
+      { name: 'Ras Al Khaimah', country: 'United Arab Emirates', country_code: 'AE' },
+      { name: 'Fujairah', country: 'United Arab Emirates', country_code: 'AE' },
+      { name: 'Umm Al Quwain', country: 'United Arab Emirates', country_code: 'AE' },
       { name: 'New York', country: 'United States', country_code: 'US' },
       { name: 'Los Angeles', country: 'United States', country_code: 'US' },
       { name: 'Chicago', country: 'United States', country_code: 'US' },

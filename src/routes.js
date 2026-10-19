@@ -5,12 +5,14 @@ const listingController = require('./controllers/listingController');
 const regionController = require('./controllers/regionController');
 const paymentController = require('./controllers/paymentController');
 const stripeController = require('./controllers/stripeController');
+const bookingStripeController = require('./controllers/bookingStripeController');
 const profileController = require('./controllers/profileController');
 const seedController = require('./controllers/seedController');
 const uploadController = require('./controllers/uploadController');
 const storeController = require('./controllers/storeController');
 const serviceBookingController = require('./controllers/serviceBookingController');
 const serviceAddonController = require('./controllers/serviceAddonController');
+const eventBookingController = require('./controllers/eventBookingController');
 
 const { jwtAuth, addReqUser } = require('./middlewares');
 const { uploadMultiple } = require('./middlewares/upload');
@@ -44,6 +46,7 @@ router.get('/listings/:id', listingController.getListingById);
 // Store owner routes (must be before /stores/:id to avoid "me" matching as id)
 router.get('/stores/me', jwtAuth, addReqUser, storeController.getMyStore);
 router.get('/stores/me/dashboard', jwtAuth, addReqUser, storeController.getStoreDashboard);
+router.get('/stores/me/bookings', jwtAuth, addReqUser, storeController.getMyStoreBookings);
 
 // Public store routes
 router.get(
@@ -72,6 +75,11 @@ router.use(addReqUser);
 
 router.post('/bookings', serviceBookingController.createBooking);
 router.get('/bookings/:id', serviceBookingController.getBookingById);
+router.post('/event-bookings', eventBookingController.createEventBooking);
+router.get('/event-bookings/:id', eventBookingController.getEventBookingById);
+
+const productOrderController = require('./controllers/productOrderController');
+router.post('/product-orders', productOrderController.createProductOrder);
 
 // Auth routes
 router.post('/auth/logout', authController.logout);
@@ -111,6 +119,7 @@ router.post('/subscriptions', paymentController.createSubscription);
 // Stripe payment routes
 router.get('/stripe/check-subscription-validity', stripeController.checkSubscriptionValidity);
 router.post('/stripe/create-payment-intent', stripeController.createPaymentIntent);
+router.post('/stripe/create-booking-payment-intent', bookingStripeController.createBookingPaymentIntent);
 router.post('/stripe/create-checkout-session', stripeController.createCheckoutSession);
 router.post('/stripe/confirm-payment', stripeController.confirmPayment);
 

@@ -1,0 +1,49 @@
+<p>Dear {{merchantName}},</p>
+<p></p>
+<p>
+  You have a new <strong>event booking</strong> on
+  <strong>Youzell</strong>.
+</p>
+<p></p>
+<p><strong>Booking details</strong></p>
+<ul>
+  <li><strong>Booking ID:</strong> {{bookingId}}</li>
+  <li><strong>Event:</strong> {{eventTitle}}</li>
+  {{#eventDate}}
+  <li><strong>Date:</strong> {{eventDate}}</li>
+  {{/eventDate}}
+  {{#eventTime}}
+  <li><strong>Time:</strong> {{eventTime}}</li>
+  {{/eventTime}}
+  {{#location}}
+  <li><strong>Location:</strong> {{location}}</li>
+  {{/location}}
+  <li><strong>Tickets:</strong> {{ticketQuantity}}</li>
+  <li><strong>Total:</strong> {{totalLabel}}</li>
+  <li><strong>Payment:</strong> {{paymentStatusLabel}}</li>
+</ul>
+<p></p>
+<p><strong>Customer</strong></p>
+<ul>
+  <li><strong>Name:</strong> {{buyerName}}</li>
+  {{#buyerEmail}}
+  <li><strong>Email:</strong> {{buyerEmail}}</li>
+  {{/buyerEmail}}
+  {{#buyerPhone}}
+  <li><strong>Phone:</strong> {{buyerPhone}}</li>
+  {{/buyerPhone}}
+</ul>
+{{#storeName}}
+<p></p>
+<p><strong>Store:</strong> {{storeName}}</p>
+{{/storeName}}
+<p></p>
+<p>
+  Please open the Youzell app and check <strong>View Bookings</strong> to
+  manage this reservation.
+</p>
+<p></p>
+<p>
+  Best regards,<br />
+  The Youzell Team
+</p>

@@ -5,7 +5,10 @@ const {
   computeBookingTotals,
   formatAddonSnapshot,
   isServiceCategorySlug,
+  requiresBookingPayment,
 } = require('../helpers/bookingHelper');
+const { assertSucceededBookingPaymentIntent } = require('../helpers/bookingPaymentHelper');
+const { notifyMerchantServiceBooking } = require('../helpers/bookingEmailHelper');
 
 const toObjectId = (id) => {
   if (!id) return null;
@@ -116,7 +119,7 @@ exports.getStoreServiceListings = async (req, res) => {
 
 const formatBooking = (doc) => ({
   id: doc._id.toString(),
-  storeId: doc.store_id.toString(),
+  storeId: doc.store_id ? doc.store_id.toString() : null,
   listingId: doc.listing_id.toString(),
   buyerUserId: doc.buyer_user_id.toString(),
   sellerUserId: doc.seller_user_id.toString(),
@@ -132,6 +135,8 @@ const formatBooking = (doc) => ({
   addonsTotal: doc.addons_total,
   totalAmount: doc.total_amount,
   status: doc.status,
+  paymentStatus: doc.payment_status || null,
+  stripePaymentIntentId: doc.stripe_payment_intent_id || null,
   notes: doc.notes || null,
   createdAt: doc.created_at,
   updatedAt: doc.updated_at,
@@ -144,18 +149,24 @@ exports.createBooking = async (req, res) => {
       return res.status(401).json({ success: false, message: 'Unauthorized' });
     }
 
-    const { storeId, listingId, appointmentDate, appointmentTime, addonIds = [] } = req.body;
-    if (!storeId || !listingId || !appointmentDate || !appointmentTime) {
+    const {
+      storeId,
+      listingId,
+      appointmentDate,
+      appointmentTime,
+      addonIds = [],
+      paymentIntentId,
+    } = req.body;
+    if (!listingId || !appointmentDate || !appointmentTime) {
       return res.status(400).json({
         success: false,
-        message: 'storeId, listingId, appointmentDate, and appointmentTime are required',
+        message: 'listingId, appointmentDate, and appointmentTime are required',
       });
     }
 
-    const storeObj = toObjectId(storeId);
     const listingObj = toObjectId(listingId);
-    if (!storeObj || !listingObj) {
-      return res.status(400).json({ success: false, message: 'Invalid storeId or listingId' });
+    if (!listingObj) {
+      return res.status(400).json({ success: false, message: 'Invalid listingId' });
     }
 
     const storeCollection = await getCollection('Store');
@@ -164,17 +175,28 @@ exports.createBooking = async (req, res) => {
     const addonCollection = await getCollection('ServiceAddon');
     const bookingCollection = await getCollection('ServiceBooking');
 
-    const store = await storeCollection.findOne({ _id: storeObj });
-    if (!store) {
-      return res.status(404).json({ success: false, message: 'Store not found' });
-    }
-
     const listing = await listingCollection.findOne({ _id: listingObj });
     if (!listing || listing.status !== 'Active') {
       return res.status(400).json({ success: false, message: 'Listing is not available for booking' });
     }
-    if (!listing.store_id || !listing.store_id.equals(storeObj)) {
-      return res.status(400).json({ success: false, message: 'Listing does not belong to this store' });
+
+    let storeObj = listing.store_id || null;
+    if (storeId) {
+      const requestedStore = toObjectId(storeId);
+      if (!requestedStore) {
+        return res.status(400).json({ success: false, message: 'Invalid storeId' });
+      }
+      if (listing.store_id && !listing.store_id.equals(requestedStore)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Listing does not belong to this store',
+        });
+      }
+      const store = await storeCollection.findOne({ _id: requestedStore });
+      if (!store) {
+        return res.status(404).json({ success: false, message: 'Store not found' });
+      }
+      storeObj = requestedStore;
     }
 
     const category = listing.category_id
@@ -204,6 +226,31 @@ exports.createBooking = async (req, res) => {
 
     const snapshots = selectedAddons.map(formatAddonSnapshot);
     const { addonsTotal, totalAmount } = computeBookingTotals(listing.price, selectedAddons);
+    const needsPayment = requiresBookingPayment(totalAmount, listing.price_type);
+
+    let paymentStatus = 'not_required';
+    let stripePaymentIntentId = null;
+    if (needsPayment) {
+      try {
+        const pi = await assertSucceededBookingPaymentIntent({
+          paymentIntentId,
+          userId: buyerUserId,
+          listingId,
+          bookingType: 'service',
+          expectedAmount: totalAmount,
+          expectedCurrency: listing.currency,
+        });
+        paymentStatus = 'paid';
+        stripePaymentIntentId = pi.id;
+      } catch (payErr) {
+        const status = payErr.status || 400;
+        return res.status(status).json({
+          success: false,
+          message: payErr.message || 'Payment verification failed',
+        });
+      }
+    }
+
     const now = new Date();
 
     const doc = {
@@ -223,6 +270,8 @@ exports.createBooking = async (req, res) => {
       addons_total: addonsTotal,
       total_amount: totalAmount,
       status: 'Confirmed',
+      payment_status: paymentStatus,
+      stripe_payment_intent_id: stripePaymentIntentId,
       notes: null,
       created_at: now,
       updated_at: now,
@@ -230,6 +279,10 @@ exports.createBooking = async (req, res) => {
 
     const result = await bookingCollection.insertOne(doc);
     const created = await bookingCollection.findOne({ _id: result.insertedId });
+
+    // Fire-and-forget merchant notification
+    notifyMerchantServiceBooking(created);
+
     res.status(201).json({ success: true, data: formatBooking(created) });
   } catch (error) {
     console.error('Error creating booking:', error);

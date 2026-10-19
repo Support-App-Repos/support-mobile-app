@@ -154,9 +154,13 @@ exports.getServiceTypes = async (req, res) => {
     }
     
     // Filter: is_active is not explicitly false (allows true, null, undefined, missing)
+    // Beauty is a top-level Aesthetics category — exclude as a service subtype
     const serviceTypes = allServiceTypes.filter(st => {
-      // Include if is_active is true, null, undefined, or doesn't exist
-      return st.is_active !== false;
+      if (st.is_active === false) return false;
+      const slug = String(st.slug || '').toLowerCase();
+      const name = String(st.name || '').toLowerCase();
+      if (slug === 'beauty' || name === 'beauty') return false;
+      return true;
     });
     
     console.log(`[ServiceTypes] Found ${serviceTypes.length} service types in database`);

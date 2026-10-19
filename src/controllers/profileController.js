@@ -373,18 +373,16 @@ exports.getMyListings = async (req, res) => {
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
     const { getCollection } = require('../lib/mongodb');
-    const { ObjectId } = require('mongodb');
+    const { userIdFilter } = require('../helpers/mongoId');
 
     const listingCollection = await getCollection('Listing');
     const listingPhotoCollection = await getCollection('ListingPhoto');
     const categoryCollection = await getCollection('Category');
     const reviewCollection = await getCollection('Review');
 
-    const userIdObj = new ObjectId(userId);
-
     // Build query - show all statuses for user's own listings
     const query = {
-      user_id: userIdObj,
+      ...userIdFilter(userId),
     };
 
     // Filter by status if provided
