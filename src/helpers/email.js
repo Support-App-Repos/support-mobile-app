@@ -100,6 +100,34 @@ class EmailService {
     await this.transporter.sendMail(options);
   }
 
+  async sendServiceBookingMerchantEmail(props) {
+    const template = await this.getTemplate('ServiceBookingMerchant', {
+      title: `<span class="highlight">New Service Booking</span>`,
+      ...props,
+    });
+    const options = {
+      from: `${this.fromName} <${this.fromEmail}>`,
+      to: props.email,
+      subject: `New service booking: ${props.serviceTitle || 'Service'}`,
+      html: template,
+    };
+    await this.transporter.sendMail(options);
+  }
+
+  async sendEventBookingMerchantEmail(props) {
+    const template = await this.getTemplate('EventBookingMerchant', {
+      title: `<span class="highlight">New Event Booking</span>`,
+      ...props,
+    });
+    const options = {
+      from: `${this.fromName} <${this.fromEmail}>`,
+      to: props.email,
+      subject: `New event booking: ${props.eventTitle || 'Event'}`,
+      html: template,
+    };
+    await this.transporter.sendMail(options);
+  }
+
   async getTemplate(templateName, options, withLayout = true) {
     const templatePath = path.resolve(
       __dirname,
@@ -150,7 +178,6 @@ class EmailService {
     }
     return EmailService._instance;
   }
-
-}``
+}
 
 module.exports = EmailService.getInstance();

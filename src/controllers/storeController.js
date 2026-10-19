@@ -8,7 +8,7 @@ const { getUserId } = require('../helpers/userHelper');
 const emailService = require('../helpers/email');
 const { ObjectId } = require('mongodb');
 
-const BUSINESS_CATEGORIES = ['Product', 'Service', 'Property', 'Event', 'Mixed'];
+const BUSINESS_CATEGORIES = ['Aesthetics'];
 
 const toObjectId = (id) => {
   if (!id) return null;
@@ -229,6 +229,141 @@ exports.getMyStore = async (req, res) => {
   }
 };
 
+exports.getMyStoreBookings = async (req, res) => {
+  try {
+    const userId = getUserId(req);
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    const type = String(req.query.type || 'service').toLowerCase();
+    if (type !== 'service' && type !== 'event') {
+      return res.status(400).json({
+        success: false,
+        message: 'type must be "service" or "event"',
+      });
+    }
+
+    const storeCollection = await getCollection('Store');
+    const userCollection = await getCollection('User');
+    const listingPhotoCollection = await getCollection('ListingPhoto');
+    const userIdObj = toObjectId(userId);
+    if (!userIdObj) {
+      return res.status(400).json({ success: false, message: 'Invalid user ID' });
+    }
+
+    const store = await storeCollection.findOne({ user_id: userIdObj });
+
+    // Seller bookings work with or without a store (by seller_user_id / store_id)
+    const sellerFilter = store
+      ? {
+          $or: [
+            { store_id: store._id },
+            { seller_user_id: store.user_id || userIdObj },
+            { seller_user_id: userId },
+          ],
+        }
+      : {
+          $or: [{ seller_user_id: userIdObj }, { seller_user_id: userId }],
+        };
+
+    const attachBuyer = async (buyerId) => {
+      if (!buyerId) return null;
+      const buyer = await userCollection.findOne({ _id: buyerId });
+      if (!buyer) return null;
+      return {
+        id: buyer._id.toString(),
+        fullName: buyer.full_name || 'Customer',
+        profileImageUrl: buyer.profile_image_url || null,
+      };
+    };
+
+    const getListingImageUrl = async (listingId) => {
+      if (!listingId) return null;
+      const primary = await listingPhotoCollection.findOne(
+        { listing_id: listingId, is_primary: true },
+        { projection: { photo_url: 1 } },
+      );
+      if (primary?.photo_url) return primary.photo_url;
+      const first = await listingPhotoCollection.findOne(
+        { listing_id: listingId },
+        { sort: { photo_order: 1 }, projection: { photo_url: 1 } },
+      );
+      return first?.photo_url || null;
+    };
+
+    if (type === 'event') {
+      const bookingCollection = await getCollection('EventBooking');
+      const docs = await bookingCollection
+        .find(sellerFilter)
+        .sort({ created_at: -1 })
+        .toArray();
+
+      const data = await Promise.all(
+        docs.map(async (doc) => ({
+          id: doc._id.toString(),
+          type: 'event',
+          storeId: doc.store_id ? doc.store_id.toString() : null,
+          listingId: doc.listing_id.toString(),
+          imageUrl: await getListingImageUrl(doc.listing_id),
+          eventTitle: doc.event_title,
+          eventPrice: doc.event_price,
+          currency: doc.currency || null,
+          priceType: doc.price_type || null,
+          eventDate: doc.event_date || null,
+          eventTime: doc.event_time || null,
+          location: doc.location || null,
+          ticketQuantity: doc.ticket_quantity,
+          totalAmount: doc.total_amount,
+          status: doc.status,
+          createdAt: doc.created_at,
+          buyer: await attachBuyer(doc.buyer_user_id),
+        })),
+      );
+
+      return res.json({ success: true, data });
+    }
+
+    const bookingCollection = await getCollection('ServiceBooking');
+    const docs = await bookingCollection
+      .find(sellerFilter)
+      .sort({ created_at: -1 })
+      .toArray();
+
+    const data = await Promise.all(
+      docs.map(async (doc) => ({
+        id: doc._id.toString(),
+        type: 'service',
+        storeId: doc.store_id ? doc.store_id.toString() : null,
+        listingId: doc.listing_id.toString(),
+        imageUrl: await getListingImageUrl(doc.listing_id),
+        serviceTitle: doc.service_title,
+        servicePrice: doc.service_price,
+        currency: doc.currency || null,
+        priceType: doc.price_type || null,
+        duration: doc.duration || null,
+        appointmentDate: doc.appointment_date,
+        appointmentTime: doc.appointment_time,
+        addonsSnapshot: Array.isArray(doc.addons_snapshot) ? doc.addons_snapshot : [],
+        addonsTotal: doc.addons_total,
+        totalAmount: doc.total_amount,
+        status: doc.status,
+        createdAt: doc.created_at,
+        buyer: await attachBuyer(doc.buyer_user_id),
+      })),
+    );
+
+    res.json({ success: true, data });
+  } catch (error) {
+    console.error('Error fetching store bookings:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch store bookings',
+      error: error.message,
+    });
+  }
+};
+
 exports.updateStore = async (req, res) => {
   try {
     const userId = getUserId(req);
@@ -266,6 +401,15 @@ exports.updateStore = async (req, res) => {
       workingHours: 'working_hours',
       status: 'status',
     };
+
+    if (req.body.businessCategory !== undefined) {
+      if (!BUSINESS_CATEGORIES.includes(req.body.businessCategory)) {
+        return res.status(400).json({
+          success: false,
+          message: `Business category must be one of: ${BUSINESS_CATEGORIES.join(', ')}`,
+        });
+      }
+    }
 
     const updates = { updated_at: new Date() };
     Object.entries(fieldMap).forEach(([camel, snake]) => {

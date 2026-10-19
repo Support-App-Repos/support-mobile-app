@@ -6,6 +6,10 @@
 
 const { getCollection } = require('../lib/mongodb');
 const { getUserId } = require('../helpers/userHelper');
+const { toObjectId, userIdFilter } = require('../helpers/mongoId');
+const { isServiceCategorySlug } = require('../helpers/bookingHelper');
+
+const isServiceLikeCategory = (slug) => isServiceCategorySlug(slug);
 
 // Create a new listing
 exports.createListing = async (req, res) => {
@@ -63,11 +67,16 @@ exports.createListing = async (req, res) => {
       builtUpArea,
       propertyUsage,
       balconySize,
-      // Photos
-      photos,
-      // Regions
-      regionIds,
-    } = req.body;
+    // Photos
+    photos,
+    // Regions
+    regionIds,
+    // Product fields
+    condition,
+    productCategory,
+    brand,
+    warranty,
+  } = req.body;
 
     // Validate basic required fields (description rules depend on category; resolved after category load)
     if (!title || !categoryId) {
@@ -84,8 +93,13 @@ exports.createListing = async (req, res) => {
     const categoryCollection = await getCollection('Category');
 
     // Get category to determine listing type and validation rules
-    const { ObjectId } = require('mongodb');
-    const categoryIdObj = new ObjectId(categoryId);
+    const categoryIdObj = toObjectId(categoryId);
+    if (!categoryIdObj) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid category ID',
+      });
+    }
     const category = await categoryCollection.findOne({ _id: categoryIdObj });
 
     if (!category) {
@@ -121,8 +135,12 @@ exports.createListing = async (req, res) => {
       }
       // EventTypeId is optional but recommended
       // Note: We'll allow listings without eventTypeId for flexibility
-    } else if (categorySlug.includes('service')) {
-      // Services: location is required
+    } else if (
+      categorySlug.includes('service') ||
+      categorySlug.includes('aesthetic') ||
+      categorySlug.includes('beauty')
+    ) {
+      // Services / Aesthetics: location is required
       if (!location?.trim()) {
         validationErrors.push('Location is required for service listings');
       }
@@ -134,8 +152,17 @@ exports.createListing = async (req, res) => {
       if (!location?.trim()) {
         validationErrors.push('Location is required for product listings');
       }
+      if (!productCategory?.trim()) {
+        validationErrors.push('Product category is required');
+      }
+      if (!condition?.trim()) {
+        validationErrors.push('Condition is required for product listings');
+      }
+      if (!currency?.trim()) {
+        validationErrors.push('Currency is required for product listings');
+      }
     } else if (categorySlug.includes('propert')) {
-      // Properties: location is required
+      // Properties: location is required (amenities optional — app no longer collects them)
       if (!location?.trim()) {
         validationErrors.push('Location is required for property listings');
       }
@@ -168,17 +195,6 @@ exports.createListing = async (req, res) => {
       });
     }
 
-    // Helper to safely convert to ObjectId
-    const toObjectId = (id) => {
-      if (!id) return null;
-      try {
-        return id instanceof ObjectId ? id : new ObjectId(id);
-      } catch (error) {
-        console.error('Invalid ObjectId:', id, error);
-        return null;
-      }
-    };
-    
     const userIdObj = toObjectId(userId);
     const eventTypeIdObj = toObjectId(eventTypeId);
     const serviceTypeIdObj = toObjectId(serviceTypeId);
@@ -190,20 +206,25 @@ exports.createListing = async (req, res) => {
       });
     }
 
-    // Require verified store before creating listings
+    // Aesthetics listings require a verified store; other categories do not
     const storeCollection = await getCollection('Store');
     const userStore = await storeCollection.findOne({ user_id: userIdObj });
-    if (!userStore) {
-      return res.status(403).json({
-        success: false,
-        message: 'You must create a store before adding listings',
-      });
-    }
-    if (!userStore.is_verified) {
-      return res.status(403).json({
-        success: false,
-        message: 'Your store must be verified before adding listings',
-      });
+    const requiresStore =
+      categorySlug.includes('aesthetic') || categorySlug.includes('beauty');
+
+    if (requiresStore) {
+      if (!userStore) {
+        return res.status(403).json({
+          success: false,
+          message: 'You must create an Aesthetics store before adding Aesthetics listings',
+        });
+      }
+      if (!userStore.is_verified) {
+        return res.status(403).json({
+          success: false,
+          message: 'Your store must be verified before adding Aesthetics listings',
+        });
+      }
     }
 
     // Create listing using MongoDB directly
@@ -212,8 +233,8 @@ exports.createListing = async (req, res) => {
     if (categorySlug.includes('event')) {
       // For events: use venue or location
       finalLocation = location?.trim() || venue?.trim() || 'TBD';
-    } else if (categorySlug.includes('service')) {
-      // For services: use location or title as fallback
+    } else if (isServiceLikeCategory(categorySlug)) {
+      // For services / aesthetics: use location or title as fallback
       finalLocation = location?.trim() || title?.trim() || businessName?.trim() || 'Service Location';
     } else {
       // For products and properties: location is required
@@ -239,7 +260,7 @@ exports.createListing = async (req, res) => {
       city: city?.trim() || null,
       venue: venue?.trim() || null,
       user_id: userIdObj,
-      store_id: userStore._id,
+      store_id: requiresStore && userStore ? userStore._id : null,
       category_id: categoryIdObj,
       event_type_id: eventTypeIdObj,
       service_type_id: serviceTypeIdObj,
@@ -248,14 +269,14 @@ exports.createListing = async (req, res) => {
       event_time: eventTime || null,
       duration: duration || null,
       max_capacity: maxCapacity ? parseInt(maxCapacity) : null,
-      // Use service provider fields for services, organizer fields for events
-      organizer_name: categorySlug.includes('service') 
+      // Use service provider fields for services/aesthetics, organizer fields for events
+      organizer_name: isServiceLikeCategory(categorySlug)
         ? (serviceProviderName || organizerName || null)
         : (organizerName || null),
-      organizer_contact: categorySlug.includes('service')
+      organizer_contact: isServiceLikeCategory(categorySlug)
         ? (serviceProviderContact || organizerContact || null)
         : (organizerContact || null),
-      organizer_email: categorySlug.includes('service')
+      organizer_email: isServiceLikeCategory(categorySlug)
         ? (serviceProviderEmail || organizerEmail || null)
         : (organizerEmail || null),
       tags: tags || null,
@@ -279,6 +300,10 @@ exports.createListing = async (req, res) => {
       built_up_area: builtUpArea?.trim() || null,
       property_usage: propertyUsage?.trim() || null,
       balcony_size: balconySize?.trim() || null,
+      condition: condition?.trim() || null,
+      product_category: productCategory?.trim() || null,
+      brand: brand?.trim() || null,
+      warranty: warranty?.trim() || null,
       status: 'Pending',
       views_count: 0,
       rating_average: 0,
@@ -304,9 +329,33 @@ exports.createListing = async (req, res) => {
 
     // Add regions if provided
     if (regionIds && Array.isArray(regionIds) && regionIds.length > 0) {
-      const regionData = regionIds.map((regionId) => ({
+      const regionObjectIds = [];
+      for (const regionId of regionIds) {
+        const regionObjectId = toObjectId(regionId);
+        if (!regionObjectId) {
+          return res.status(400).json({
+            success: false,
+            message: `Invalid region ID: ${regionId}`,
+          });
+        }
+        regionObjectIds.push(regionObjectId);
+      }
+
+      const regionCollectionForCreate = await getCollection('Region');
+      const foundRegions = await regionCollectionForCreate.countDocuments({
+        _id: { $in: regionObjectIds },
+        is_active: { $ne: false },
+      });
+      if (foundRegions !== regionObjectIds.length) {
+        return res.status(400).json({
+          success: false,
+          message: 'One or more selected regions were not found',
+        });
+      }
+
+      const regionData = regionObjectIds.map((regionObjectId) => ({
         listing_id: listingId,
-        region_id: new ObjectId(regionId),
+        region_id: regionObjectId,
         created_at: new Date(),
       }));
       await listingRegionCollection.insertMany(regionData);
@@ -374,9 +423,9 @@ exports.createListing = async (req, res) => {
       organizerContact: listingDoc.organizer_contact,
       organizerEmail: listingDoc.organizer_email,
       // For services, also expose as serviceProvider fields
-      serviceProviderName: categorySlug.includes('service') ? listingDoc.organizer_name : null,
-      serviceProviderContact: categorySlug.includes('service') ? listingDoc.organizer_contact : null,
-      serviceProviderEmail: categorySlug.includes('service') ? listingDoc.organizer_email : null,
+      serviceProviderName: isServiceLikeCategory(categorySlug) ? listingDoc.organizer_name : null,
+      serviceProviderContact: isServiceLikeCategory(categorySlug) ? listingDoc.organizer_contact : null,
+      serviceProviderEmail: isServiceLikeCategory(categorySlug) ? listingDoc.organizer_email : null,
       tags: listingDoc.tags,
       businessName: listingDoc.business_name,
       specialization: listingDoc.specialization,
@@ -396,6 +445,10 @@ exports.createListing = async (req, res) => {
       builtUpArea: listingDoc.built_up_area,
       propertyUsage: listingDoc.property_usage,
       balconySize: listingDoc.balcony_size,
+      condition: listingDoc.condition,
+      productCategory: listingDoc.product_category,
+      brand: listingDoc.brand,
+      warranty: listingDoc.warranty,
       photos: listingPhotos.map(p => ({
         id: p._id.toString(),
         photoUrl: p.photo_url,
@@ -608,9 +661,9 @@ exports.getListingById = async (req, res) => {
       organizerContact: listing.organizer_contact,
       organizerEmail: listing.organizer_email,
       // For services, also expose as serviceProvider fields
-      serviceProviderName: category?.slug?.toLowerCase().includes('service') ? listing.organizer_name : null,
-      serviceProviderContact: category?.slug?.toLowerCase().includes('service') ? listing.organizer_contact : null,
-      serviceProviderEmail: category?.slug?.toLowerCase().includes('service') ? listing.organizer_email : null,
+      serviceProviderName: isServiceCategorySlug(category?.slug || category?.name) ? listing.organizer_name : null,
+      serviceProviderContact: isServiceCategorySlug(category?.slug || category?.name) ? listing.organizer_contact : null,
+      serviceProviderEmail: isServiceCategorySlug(category?.slug || category?.name) ? listing.organizer_email : null,
       tags: listing.tags,
       businessName: listing.business_name,
       specialization: listing.specialization,
@@ -630,6 +683,10 @@ exports.getListingById = async (req, res) => {
       builtUpArea: listing.built_up_area,
       propertyUsage: listing.property_usage,
       balconySize: listing.balcony_size,
+      condition: listing.condition,
+      productCategory: listing.product_category,
+      brand: listing.brand,
+      warranty: listing.warranty,
       photos: photos.map(p => ({
         id: p._id.toString(),
         photoUrl: p.photo_url,
@@ -660,13 +717,15 @@ exports.getListingById = async (req, res) => {
         fullName: user.full_name,
         profileImageUrl: user.profile_image_url,
         email: user.email || null,
-        phoneNumber: user.phone_number || null,
+        phoneNumber: user.phone_number || user.phone || null,
       } : null,
       store: store ? {
         id: store._id.toString(),
         name: store.name,
         logoUrl: store.logo_url || null,
         isVerified: store.is_verified === true,
+        phone: store.contact_phone || store.phone || null,
+        contactPhone: store.contact_phone || store.phone || null,
       } : null,
       reviews: reviewsWithUsers,
       _count: {
@@ -705,11 +764,12 @@ exports.getListings = async (req, res) => {
     const skip = (parseInt(page) - 1) * parseInt(limit);
     const listingCollection = await getCollection('Listing');
     const listingPhotoCollection = await getCollection('ListingPhoto');
+    const listingRegionCollection = await getCollection('ListingRegion');
     const categoryCollection = await getCollection('Category');
     const userCollection = await getCollection('User');
     const storeCollection = await getCollection('Store');
     const reviewCollection = await getCollection('Review');
-    const { ObjectId } = require('mongodb');
+    const regionCollection = await getCollection('Region');
 
     // Build MongoDB query
     // For public listings (getListings), only show 'Active' status by default
@@ -724,7 +784,10 @@ exports.getListings = async (req, res) => {
     }
 
     if (categoryId) {
-      query.category_id = new ObjectId(categoryId);
+      const categoryObjectId = toObjectId(categoryId);
+      if (categoryObjectId) {
+        query.category_id = categoryObjectId;
+      }
     }
 
     if (minPrice || maxPrice) {
@@ -782,6 +845,25 @@ exports.getListings = async (req, res) => {
           store = await storeCollection.findOne({ user_id: listing.user_id });
         }
 
+        // Get regions for this listing
+        const listingRegions = await listingRegionCollection
+          .find({ listing_id: listing._id })
+          .toArray();
+        const regions = await Promise.all(
+          listingRegions.map(async (lr) => {
+            const regionId = toObjectId(lr.region_id) || lr.region_id;
+            const region = regionId
+              ? await regionCollection.findOne({ _id: regionId })
+              : null;
+            if (!region) return null;
+            return {
+              id: region._id.toString(),
+              name: region.name,
+              country: region.country,
+            };
+          })
+        );
+
         // Get review count
         const reviewCount = await reviewCollection.countDocuments({ listing_id: listing._id });
 
@@ -802,7 +884,20 @@ exports.getListings = async (req, res) => {
           publishedAt: listing.published_at,
           createdAt: listing.created_at,
           updatedAt: listing.updated_at,
+          condition: listing.condition,
+          productCategory: listing.product_category,
+          brand: listing.brand,
+          warranty: listing.warranty,
+          specialization: listing.specialization,
+          duration: listing.duration,
+          propertyPurpose: listing.property_purpose,
+          propertyType: listing.property_type,
           photos: photos,
+          regions: regions.filter(Boolean),
+          listingRegions: listingRegions.map((lr) => ({
+            id: lr._id.toString(),
+            regionId: lr.region_id?.toString?.() || String(lr.region_id),
+          })),
           category: category ? {
             id: category._id.toString(),
             name: category.name,
@@ -863,13 +958,18 @@ exports.updateListing = async (req, res) => {
     const listingRegionCollection = await getCollection('ListingRegion');
     const { ObjectId } = require('mongodb');
 
-    const listingIdObj = new ObjectId(id);
-    const userIdObj = new ObjectId(userId);
+    const listingIdObj = toObjectId(id);
+    if (!listingIdObj) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid listing ID',
+      });
+    }
 
-    // Check if listing belongs to user using MongoDB
+    // Check if listing belongs to user (ObjectId or string user_id)
     const existingListing = await listingCollection.findOne({
       _id: listingIdObj,
-      user_id: userIdObj,
+      ...userIdFilter(userId),
     });
 
     if (!existingListing) {
@@ -902,12 +1002,12 @@ exports.updateListing = async (req, res) => {
     const categoryCollection = await getCollection('Category');
     const existingCategoryId = existingListing.category_id instanceof ObjectId
       ? existingListing.category_id
-      : (existingListing.category_id ? new ObjectId(existingListing.category_id) : null);
+      : (existingListing.category_id ? toObjectId(existingListing.category_id) : null);
     const existingCategory = existingCategoryId
       ? await categoryCollection.findOne({ _id: existingCategoryId })
       : null;
     const categorySlug = existingCategory?.slug?.toLowerCase() || existingCategory?.name?.toLowerCase() || '';
-    const isService = categorySlug.includes('service');
+    const isService = isServiceLikeCategory(categorySlug);
     
     // Event fields
     if (updateData.eventDate !== undefined) mongoUpdateData.event_date = updateData.eventDate ? new Date(updateData.eventDate) : null;
@@ -962,6 +1062,12 @@ exports.updateListing = async (req, res) => {
     if (updateData.builtUpArea !== undefined) mongoUpdateData.built_up_area = updateData.builtUpArea?.trim() || null;
     if (updateData.propertyUsage !== undefined) mongoUpdateData.property_usage = updateData.propertyUsage?.trim() || null;
     if (updateData.balconySize !== undefined) mongoUpdateData.balcony_size = updateData.balconySize?.trim() || null;
+    if (updateData.condition !== undefined) mongoUpdateData.condition = updateData.condition?.trim() || null;
+    if (updateData.productCategory !== undefined) {
+      mongoUpdateData.product_category = updateData.productCategory?.trim() || null;
+    }
+    if (updateData.brand !== undefined) mongoUpdateData.brand = updateData.brand?.trim() || null;
+    if (updateData.warranty !== undefined) mongoUpdateData.warranty = updateData.warranty?.trim() || null;
 
     // Update listing
     await listingCollection.updateOne(
@@ -969,15 +1075,66 @@ exports.updateListing = async (req, res) => {
       { $set: mongoUpdateData }
     );
 
+    // Handle photos update if provided
+    if (Array.isArray(req.body.photos)) {
+      await listingPhotoCollection.deleteMany({
+        $or: [
+          { listing_id: listingIdObj },
+          { listing_id: String(listingIdObj) },
+        ],
+      });
+      if (req.body.photos.length > 0) {
+        const photoData = req.body.photos.map((photoUrl, index) => ({
+          listing_id: listingIdObj,
+          photo_url: typeof photoUrl === 'string' ? photoUrl : photoUrl?.photoUrl || photoUrl?.url,
+          photo_order: index,
+          is_primary: index === 0,
+          created_at: new Date(),
+        })).filter((p) => !!p.photo_url);
+        if (photoData.length > 0) {
+          await listingPhotoCollection.insertMany(photoData);
+        }
+      }
+    }
+
     // Handle regions update if provided
     if (regionIds && Array.isArray(regionIds) && regionIds.length > 0) {
+      const regionObjectIds = [];
+      for (const regionId of regionIds) {
+        const regionObjectId = toObjectId(regionId);
+        if (!regionObjectId) {
+          return res.status(400).json({
+            success: false,
+            message: `Invalid region ID: ${regionId}`,
+          });
+        }
+        regionObjectIds.push(regionObjectId);
+      }
+
+      const regionCollection = await getCollection('Region');
+      const foundRegions = await regionCollection.countDocuments({
+        _id: { $in: regionObjectIds },
+        is_active: { $ne: false },
+      });
+      if (foundRegions !== regionObjectIds.length) {
+        return res.status(400).json({
+          success: false,
+          message: 'One or more selected regions were not found',
+        });
+      }
+
       // Remove existing regions
-      await listingRegionCollection.deleteMany({ listing_id: listingIdObj });
+      await listingRegionCollection.deleteMany({
+        $or: [
+          { listing_id: listingIdObj },
+          { listing_id: String(listingIdObj) },
+        ],
+      });
       
       // Add new regions
-      const regionData = regionIds.map((regionId) => ({
+      const regionData = regionObjectIds.map((regionObjectId) => ({
         listing_id: listingIdObj,
-        region_id: new ObjectId(regionId),
+        region_id: regionObjectId,
         created_at: new Date(),
       }));
       await listingRegionCollection.insertMany(regionData);
@@ -993,7 +1150,7 @@ exports.updateListing = async (req, res) => {
     const updatedCategoryId = updatedListing.category_id 
       ? (updatedListing.category_id instanceof ObjectId 
           ? updatedListing.category_id 
-          : new ObjectId(updatedListing.category_id))
+          : toObjectId(updatedListing.category_id))
       : null;
     
     // Reuse existingCategoryId from earlier in the function (line 781)
@@ -1019,13 +1176,14 @@ exports.updateListing = async (req, res) => {
       organizerContact: updatedListing.organizer_contact,
       organizerEmail: updatedListing.organizer_email,
       // For services, also expose as serviceProvider fields
-      serviceProviderName: responseCategorySlug.includes('service') ? updatedListing.organizer_name : null,
-      serviceProviderContact: responseCategorySlug.includes('service') ? updatedListing.organizer_contact : null,
-      serviceProviderEmail: responseCategorySlug.includes('service') ? updatedListing.organizer_email : null,
+      serviceProviderName: isServiceCategorySlug(responseCategorySlug) ? updatedListing.organizer_name : null,
+      serviceProviderContact: isServiceCategorySlug(responseCategorySlug) ? updatedListing.organizer_contact : null,
+      serviceProviderEmail: isServiceCategorySlug(responseCategorySlug) ? updatedListing.organizer_email : null,
       tags: updatedListing.tags,
       businessName: updatedListing.business_name,
       specialization: updatedListing.specialization,
       yearsOfExperience: updatedListing.years_of_experience,
+      duration: updatedListing.duration,
       bedrooms: updatedListing.bedrooms,
       bathrooms: updatedListing.bathrooms,
       squareFeet: updatedListing.square_feet,
@@ -1041,6 +1199,10 @@ exports.updateListing = async (req, res) => {
       builtUpArea: updatedListing.built_up_area,
       propertyUsage: updatedListing.property_usage,
       balconySize: updatedListing.balcony_size,
+      condition: updatedListing.condition,
+      productCategory: updatedListing.product_category,
+      brand: updatedListing.brand,
+      warranty: updatedListing.warranty,
       photos: listingPhotos.map(p => ({
         id: p._id.toString(),
         photoUrl: p.photo_url,
@@ -1049,7 +1211,7 @@ exports.updateListing = async (req, res) => {
       })),
       listingRegions: listingRegions.map(lr => ({
         id: lr._id.toString(),
-        regionId: lr.region_id.toString(),
+        regionId: lr.region_id?.toString?.() || String(lr.region_id),
       })),
       category: responseCategory ? {
         id: responseCategory._id.toString(),
@@ -1091,13 +1253,18 @@ exports.publishListing = async (req, res) => {
     const listingRegionCollection = await getCollection('ListingRegion');
     const { ObjectId } = require('mongodb');
 
-    const listingIdObj = new ObjectId(id);
-    const userIdObj = new ObjectId(userId);
+    const listingIdObj = toObjectId(id);
+    if (!listingIdObj) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid listing ID',
+      });
+    }
 
     // Check if listing belongs to user using MongoDB
     const listing = await listingCollection.findOne({
       _id: listingIdObj,
-      user_id: userIdObj,
+      ...userIdFilter(userId),
     });
 
     if (!listing) {

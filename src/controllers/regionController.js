@@ -6,7 +6,19 @@
 
 const { getCollection } = require('../lib/mongodb');
 const { getUserId } = require('../helpers/userHelper');
-const { ObjectId } = require('mongodb');
+const { toObjectId } = require('../helpers/mongoId');
+
+function formatRegion(region) {
+  return {
+    id: region._id.toString(),
+    name: region.name || '',
+    country: region.country || '',
+    countryCode: region.country_code || null,
+    isActive: region.is_active !== false,
+    createdAt: region.created_at,
+    updatedAt: region.updated_at,
+  };
+}
 
 // Get all regions
 exports.getRegions = async (req, res) => {
@@ -14,38 +26,26 @@ exports.getRegions = async (req, res) => {
     const { search } = req.query;
     const regionCollection = await getCollection('Region');
 
-    // Build query
     const query = {
-      is_active: { $ne: false }, // Active regions (true or not set)
+      is_active: { $ne: false },
     };
 
-    // Add search filter if provided
-    if (search) {
+    if (search && String(search).trim()) {
+      const term = String(search).trim();
       query.$or = [
-        { name: { $regex: search, $options: 'i' } },
-        { country: { $regex: search, $options: 'i' } },
+        { name: { $regex: term, $options: 'i' } },
+        { country: { $regex: term, $options: 'i' } },
       ];
     }
 
     const regions = await regionCollection
       .find(query)
-      .sort({ country: 1, name: 1 }) // Sort by country, then name (ascending)
+      .sort({ country: 1, name: 1 })
       .toArray();
-
-    // Format regions for response (convert _id to id, camelCase fields)
-    const formattedRegions = regions.map((region) => ({
-      id: region._id.toString(),
-      name: region.name,
-      country: region.country,
-      countryCode: region.country_code || null,
-      isActive: region.is_active !== false,
-      createdAt: region.created_at,
-      updatedAt: region.updated_at,
-    }));
 
     res.json({
       success: true,
-      data: formattedRegions,
+      data: regions.map(formatRegion),
     });
   } catch (error) {
     console.error('Error fetching regions:', error);
@@ -61,7 +61,8 @@ exports.getRegions = async (req, res) => {
 exports.getRecentRegions = async (req, res) => {
   try {
     const userId = getUserId(req);
-    if (!userId) {
+    const userIdObj = toObjectId(userId);
+    if (!userIdObj) {
       return res.json({
         success: true,
         data: [],
@@ -71,17 +72,22 @@ exports.getRecentRegions = async (req, res) => {
     const userRecentRegionCollection = await getCollection('UserRecentRegion');
     const regionCollection = await getCollection('Region');
 
-    // Get recent regions for user
     const recentRegions = await userRecentRegionCollection
       .find({
-        user_id: new ObjectId(userId),
+        $or: [{ user_id: userIdObj }, { user_id: String(userId) }],
       })
-      .sort({ last_used_at: -1 }) // Descending order
+      .sort({ last_used_at: -1 })
       .limit(5)
       .toArray();
 
-    // Get full region data for each recent region
-    const regionIds = recentRegions.map((ur) => ur.region_id);
+    const regionIds = recentRegions
+      .map((ur) => toObjectId(ur.region_id))
+      .filter(Boolean);
+
+    if (regionIds.length === 0) {
+      return res.json({ success: true, data: [] });
+    }
+
     const regions = await regionCollection
       .find({
         _id: { $in: regionIds },
@@ -89,18 +95,16 @@ exports.getRecentRegions = async (req, res) => {
       })
       .toArray();
 
-    // Format regions for response
-    const formattedRegions = regions.map((region) => ({
-      id: region._id.toString(),
-      name: region.name,
-      country: region.country,
-      countryCode: region.country_code || null,
-      isActive: region.is_active !== false,
-    }));
+    // Preserve recent order
+    const byId = new Map(regions.map((r) => [r._id.toString(), r]));
+    const ordered = regionIds
+      .map((id) => byId.get(id.toString()))
+      .filter(Boolean)
+      .map(formatRegion);
 
     res.json({
       success: true,
-      data: formattedRegions,
+      data: ordered,
     });
   } catch (error) {
     console.error('Error fetching recent regions:', error);
@@ -118,43 +122,58 @@ exports.addRecentRegion = async (req, res) => {
     const userId = getUserId(req);
     const { regionId } = req.body;
 
-    if (!userId) {
+    const userIdObj = toObjectId(userId);
+    if (!userIdObj) {
       return res.status(401).json({
         success: false,
         message: 'Unauthorized',
       });
     }
 
-    if (!regionId) {
+    const regionIdObj = toObjectId(regionId);
+    if (!regionIdObj) {
       return res.status(400).json({
         success: false,
-        message: 'Region ID is required',
+        message: 'Valid region ID is required',
+      });
+    }
+
+    const regionCollection = await getCollection('Region');
+    const region = await regionCollection.findOne({
+      _id: regionIdObj,
+      is_active: { $ne: false },
+    });
+    if (!region) {
+      return res.status(404).json({
+        success: false,
+        message: 'Region not found',
       });
     }
 
     const userRecentRegionCollection = await getCollection('UserRecentRegion');
 
-    // Check if already exists
     const existing = await userRecentRegionCollection.findOne({
-      user_id: new ObjectId(userId),
-      region_id: new ObjectId(regionId),
+      $or: [
+        { user_id: userIdObj, region_id: regionIdObj },
+        { user_id: String(userId), region_id: regionIdObj },
+      ],
     });
 
     if (existing) {
-      // Update last used time
       await userRecentRegionCollection.updateOne(
         { _id: existing._id },
         {
           $set: {
+            user_id: userIdObj,
+            region_id: regionIdObj,
             last_used_at: new Date(),
           },
         }
       );
     } else {
-      // Create new
       await userRecentRegionCollection.insertOne({
-        user_id: new ObjectId(userId),
-        region_id: new ObjectId(regionId),
+        user_id: userIdObj,
+        region_id: regionIdObj,
         last_used_at: new Date(),
       });
     }
@@ -172,4 +191,3 @@ exports.addRecentRegion = async (req, res) => {
     });
   }
 };
-

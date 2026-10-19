@@ -22,7 +22,15 @@ exports.uploadImages = async (req, res) => {
     }
 
     // Validate file types
-    const allowedMimeTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+    const allowedMimeTypes = [
+      'image/jpeg',
+      'image/jpg',
+      'image/png',
+      'image/gif',
+      'image/webp',
+      'image/heic',
+      'image/heif',
+    ];
     const invalidFiles = req.files.filter(
       (file) => !allowedMimeTypes.includes(file.mimetype)
     );
@@ -30,7 +38,7 @@ exports.uploadImages = async (req, res) => {
     if (invalidFiles.length > 0) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid file type. Only JPEG, PNG, GIF, and WebP images are allowed.',
+        message: 'Invalid file type. Only JPEG, PNG, GIF, WebP, and HEIC images are allowed.',
       });
     }
 

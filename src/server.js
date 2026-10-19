@@ -40,6 +40,8 @@ async function init() {
     'http://10.0.2.2:8081', // Android emulator Metro bundler
     'http://10.0.2.2:3000', // Android emulator backend
     // Production admin portal origins
+    'http://13.61.101.43',
+    'http://13.61.101.43:80',
     'http://13.62.185.179',
     'http://13.62.185.179:80',
   ];

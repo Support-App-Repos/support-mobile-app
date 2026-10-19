@@ -552,3 +552,30 @@ model ServiceBooking {
   @@index([appointmentDate])
   @@map("ServiceBooking")
 }
+
+model EventBooking {
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  storeId        String?  @map("store_id") @db.ObjectId
+  listingId      String   @map("listing_id") @db.ObjectId
+  buyerUserId    String   @map("buyer_user_id") @db.ObjectId
+  sellerUserId   String   @map("seller_user_id") @db.ObjectId
+  eventTitle     String   @map("event_title")
+  eventPrice     Float    @map("event_price")
+  currency       String?
+  priceType      String?  @map("price_type")
+  eventDate      String?  @map("event_date")
+  eventTime      String?  @map("event_time")
+  location       String?
+  ticketQuantity Int      @map("ticket_quantity")
+  totalAmount    Float    @map("total_amount")
+  status         String   @default("Confirmed")
+  notes          String?
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@index([buyerUserId])
+  @@index([sellerUserId])
+  @@index([listingId])
+  @@index([storeId])
+  @@map("EventBooking")
+}
